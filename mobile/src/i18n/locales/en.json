@@ -1,0 +1,79 @@
+{
+  "auth": {
+    "login": "Sign In",
+    "register": "Sign Up",
+    "logout": "Logout",
+    "email": "Email",
+    "password": "Password",
+    "confirmPassword": "Confirm Password",
+    "name": "Name",
+    "welcomeBack": "Welcome Back",
+    "createAccount": "Create Account",
+    "signInSubtitle": "Sign in to continue your journey",
+    "signUpSubtitle": "Join Tripo and discover amazing places",
+    "dontHaveAccount": "Don't have an account? Sign Up",
+    "alreadyHaveAccount": "Already have an account? Sign In"
+  },
+  "profile": {
+    "title": "Profile",
+    "editProfile": "Edit Profile",
+    "saveChanges": "Save Changes",
+    "cancel": "Cancel",
+    "language": "Language",
+    "city": "City",
+    "smartProfile": "Smart Profile",
+    "editSmartProfile": "Edit Smart Profile",
+    "completeSmartProfile": "Complete Smart Profile",
+    "interests": "Interests",
+    "freeTimeWindow": "Free Time Window",
+    "budget": "Budget",
+    "activityStyles": "Activity Styles",
+    "mood": "Mood"
+  },
+  "home": {
+    "forYou": "For You",
+    "noItineraries": "No itineraries found",
+    "completeProfilePrompt": "Complete your Smart Profile to get personalized recommendations"
+  },
+  "itinerary": {
+    "duration": "Duration",
+    "cost": "Cost",
+    "distance": "Distance",
+    "stops": "stops",
+    "reviews": "reviews",
+    "notes": "Notes",
+    "places": "Places",
+    "by": "by"
+  },
+  "smartProfile": {
+    "step1": {
+      "title": "What interests you?",
+      "subtitle": "Select all that apply"
+    },
+    "step2": {
+      "title": "Time & Budget",
+      "timeWindow": "Typical free time window",
+      "budget": "Preferred budget"
+    },
+    "step3": {
+      "title": "Activity styles",
+      "subtitle": "How do you like to explore?"
+    },
+    "step4": {
+      "title": "What's your mood?",
+      "subtitle": "Select one that best describes you"
+    },
+    "next": "Next",
+    "back": "Back",
+    "complete": "Complete"
+  },
+  "common": {
+    "loading": "Loading...",
+    "error": "Error",
+    "success": "Success",
+    "retry": "Try again",
+    "free": "Free",
+    "hours": "hours",
+    "minutes": "minutes"
+  }
+}

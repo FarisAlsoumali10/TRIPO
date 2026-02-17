@@ -1,0 +1,33 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(find:*)",
+      "Bash(for file in components/auth/LoginForm.tsx components/auth/SignUpForm.tsx components/group-trip/CreateGroupTripForm.tsx components/group-trip/GroupTripView.tsx components/itinerary/PlannerForm.tsx pages/AuthPage.tsx pages/GroupTripPage.tsx)",
+      "Bash(do sed -i \"s/^import, /import /\" \"$file\")",
+      "Bash(done)",
+      "Bash(for file in components/itinerary/PlannerForm.tsx components/group-trip/GroupTripView.tsx components/group-trip/CreateGroupTripForm.tsx components/layout/Navbar.tsx)",
+      "Bash(do sed -i \"s/import { \\([^}]*\\) } from ''\\(\\.\\.\\/\\.\\.\\/types\\|''\\.\\.\\/types\\)''/import type { \\1 } from ''\\2''/\" \"$file\")",
+      "Bash(npm run build:*)",
+      "Bash(timeout 10 npm run dev:*)",
+      "Bash(npx -y @upstash/context7-mcp query \"latest updates in React\")",
+      "Bash(npx:*)",
+      "WebSearch",
+      "Bash(dir:*)",
+      "Bash(npm run dev:*)",
+      "Bash(npm install:*)",
+      "Bash(cmd /c gradlew.bat:*)",
+      "Bash(tasklist:*)",
+      "Bash(cmd /c \"tasklist | findstr java.exe\")",
+      "Bash(docker exec:*)",
+      "Bash(docker restart:*)",
+      "Bash(docker-compose build:*)",
+      "Bash(docker-compose up:*)"
+    ],
+    "deny": [],
+    "ask": []
+  },
+  "enableAllProjectMcpServers": true,
+  "enabledMcpjsonServers": [
+    "context7"
+  ]
+}

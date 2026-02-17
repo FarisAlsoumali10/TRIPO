@@ -1,0 +1,79 @@
+{
+  "auth": {
+    "login": "تسجيل الدخول",
+    "register": "التسجيل",
+    "logout": "تسجيل الخروج",
+    "email": "البريد الإلكتروني",
+    "password": "كلمة المرور",
+    "confirmPassword": "تأكيد كلمة المرور",
+    "name": "الاسم",
+    "welcomeBack": "مرحباً بعودتك",
+    "createAccount": "إنشاء حساب",
+    "signInSubtitle": "سجل الدخول لمتابعة رحلتك",
+    "signUpSubtitle": "انضم إلى تريبو واكتشف أماكن رائعة",
+    "dontHaveAccount": "ليس لديك حساب؟ سجل الآن",
+    "alreadyHaveAccount": "لديك حساب بالفعل؟ سجل الدخول"
+  },
+  "profile": {
+    "title": "الملف الشخصي",
+    "editProfile": "تعديل الملف الشخصي",
+    "saveChanges": "حفظ التغييرات",
+    "cancel": "إلغاء",
+    "language": "اللغة",
+    "city": "المدينة",
+    "smartProfile": "الملف الذكي",
+    "editSmartProfile": "تعديل الملف الذكي",
+    "completeSmartProfile": "أكمل ملفك الذكي",
+    "interests": "الاهتمامات",
+    "freeTimeWindow": "وقت الفراغ المعتاد",
+    "budget": "الميزانية",
+    "activityStyles": "أنماط النشاط",
+    "mood": "المزاج"
+  },
+  "home": {
+    "forYou": "لك",
+    "noItineraries": "لا توجد رحلات",
+    "completeProfilePrompt": "أكمل ملفك الذكي للحصول على توصيات مخصصة"
+  },
+  "itinerary": {
+    "duration": "المدة",
+    "cost": "التكلفة",
+    "distance": "المسافة",
+    "stops": "محطات",
+    "reviews": "تقييمات",
+    "notes": "ملاحظات",
+    "places": "الأماكن",
+    "by": "بواسطة"
+  },
+  "smartProfile": {
+    "step1": {
+      "title": "ما الذي يهمك؟",
+      "subtitle": "اختر كل ما ينطبق"
+    },
+    "step2": {
+      "title": "الوقت والميزانية",
+      "timeWindow": "وقت الفراغ المعتاد",
+      "budget": "الميزانية المفضلة"
+    },
+    "step3": {
+      "title": "أنماط النشاط",
+      "subtitle": "كيف تحب الاستكشاف؟"
+    },
+    "step4": {
+      "title": "ما هو مزاجك؟",
+      "subtitle": "اختر واحداً يصفك بشكل أفضل"
+    },
+    "next": "التالي",
+    "back": "السابق",
+    "complete": "إتمام"
+  },
+  "common": {
+    "loading": "جاري التحميل...",
+    "error": "خطأ",
+    "success": "نجاح",
+    "retry": "حاول مرة أخرى",
+    "free": "مجاناً",
+    "hours": "ساعات",
+    "minutes": "دقائق"
+  }
+}
