@@ -7,7 +7,7 @@ const updateRatingSummary = async (targetType: 'place' | 'itinerary', targetId: 
 
   if (reviews.length === 0) {
     const Model = targetType === 'place' ? Place : Itinerary;
-    await Model.findByIdAndUpdate(targetId, {
+    await (Model as any).findByIdAndUpdate(targetId, {
       'ratingSummary.avgRating': 0,
       'ratingSummary.reviewCount': 0
     });
@@ -18,7 +18,7 @@ const updateRatingSummary = async (targetType: 'place' | 'itinerary', targetId: 
   const avgRating = totalRating / reviews.length;
 
   const Model = targetType === 'place' ? Place : Itinerary;
-  await Model.findByIdAndUpdate(targetId, {
+  await (Model as any).findByIdAndUpdate(targetId, {
     'ratingSummary.avgRating': avgRating,
     'ratingSummary.reviewCount': reviews.length
   });

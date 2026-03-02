@@ -78,9 +78,9 @@ export const reviewReport = async (req: AuthRequest, res: Response) => {
 
       if (report.targetType === 'message') {
         // Messages don't have status, just delete
-        await Model.findByIdAndDelete(report.targetId);
+        await (Model as any).findByIdAndDelete(report.targetId);
       } else {
-        await Model.findByIdAndUpdate(report.targetId, {
+        await (Model as any).findByIdAndUpdate(report.targetId, {
           status: actionTaken
         });
       }

@@ -25,7 +25,7 @@ export const addFavorite = async (req: AuthRequest, res: Response) => {
 
     res.status(201).json(favorite);
   } catch (error) {
-    if (error.code === 11000) {
+    if ((error as any).code === 11000) {
       return res.status(409).json({ error: 'Place already in favorites' });
     }
     throw error;

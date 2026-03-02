@@ -2,13 +2,15 @@ import React from 'react';
 import { View, StyleSheet } from 'react-native';
 import { Text, Banner } from 'react-native-paper';
 import { useNavigation } from '@react-navigation/native';
-import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+// تم التعديل هنا: استخدام Stack بدلاً من NativeStack
+import type { StackNavigationProp } from '@react-navigation/stack';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../../contexts/AuthContext';
 import { MainTabParamList } from '../../navigation/types';
 import ForYouFeed from '../../components/feed/ForYouFeed';
 
-type HomeScreenNavigationProp = NativeStackNavigationProp<MainTabParamList, 'Profile'>;
+// تم التعديل هنا أيضاً ليتطابق مع المكتبة الصحيحة
+type HomeScreenNavigationProp = StackNavigationProp<MainTabParamList, 'Profile'>;
 
 const HomeScreen = () => {
   const { user } = useAuth();
@@ -16,13 +18,13 @@ const HomeScreen = () => {
   const [showBanner, setShowBanner] = React.useState(false);
 
   React.useEffect(() => {
-    // Check if smart profile is incomplete
-    if (user && user.smartProfile.interests.length === 0) {
+    // 🛡️ الحماية هنا: استخدام علامة الاستفهام الآمنة لتجنب انهيار التطبيق
+    if (user && (!user.smartProfile || user.smartProfile?.interests?.length === 0)) {
       setShowBanner(true);
     }
   }, [user]);
 
-  const handleCompletProfile = () => {
+  const handleCompleteProfile = () => { // تم تصحيح الخطأ الإملائي في اسم الدالة
     setShowBanner(false);
     navigation.navigate('Profile', {
       screen: 'SmartProfile',
@@ -36,18 +38,18 @@ const HomeScreen = () => {
           visible={showBanner}
           actions={[
             {
-              label: 'Complete Now',
-              onPress: handleCompletProfile,
+              label: 'إكمال الآن',
+              onPress: handleCompleteProfile,
             },
             {
-              label: 'Later',
+              label: 'لاحقاً',
               onPress: () => setShowBanner(false),
             },
           ]}
           icon="lightbulb-outline"
         >
           <Text variant="bodyMedium">
-            Complete your Smart Profile to get personalized itinerary recommendations!
+            أكمل ملفك الذكي الآن للحصول على اقتراحات رحلات مخصصة لاهتماماتك! ✨
           </Text>
         </Banner>
       )}
@@ -59,7 +61,7 @@ const HomeScreen = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: '#F3F4F6', // تم توحيد لون الخلفية مع باقي التطبيق
   },
 });
 

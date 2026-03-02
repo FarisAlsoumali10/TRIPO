@@ -39,7 +39,7 @@ const SmartProfileScreen = () => {
       <SmartProfileOnboarding
         initialData={user?.smartProfile}
         onSubmit={handleSubmit}
-        loading={loading}
+        loading={!!loading}
       />
     </SafeAreaView>
   );

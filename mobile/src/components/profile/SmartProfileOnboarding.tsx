@@ -265,7 +265,7 @@ const SmartProfileOnboarding: React.FC<SmartProfileOnboardingProps> = ({
           <Button
             onPress={handleNext}
             disabled={!canProceed()}
-            loading={loading}
+            loading={!!loading}
             style={styles.nextButton}
           >
             {step === 4 ? 'Complete' : 'Next'}

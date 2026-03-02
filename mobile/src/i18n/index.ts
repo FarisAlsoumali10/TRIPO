@@ -11,6 +11,7 @@ const resources = {
 
 i18n
   .use(initReactI18next)
+  // @ts-ignore
   .init({
     resources,
     lng: Localization.getLocales()[0]?.languageCode || 'en',

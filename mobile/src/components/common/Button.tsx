@@ -23,7 +23,7 @@ const Button: React.FC<ButtonProps> = ({
     <PaperButton
       mode={mode}
       onPress={onPress}
-      loading={loading}
+      loading={!!loading}
       disabled={disabled || loading}
       style={[styles.button, style]}
       contentStyle={styles.buttonContent}

@@ -3,7 +3,7 @@ import { View, StyleSheet, ScrollView, Alert } from 'react-native';
 import { Text, Divider } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
-import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import type { StackNavigationProp } from '@react-navigation/stack';
 import { Picker } from '@react-native-picker/picker';
 import { useAuth } from '../../contexts/AuthContext';
 import { authAPI } from '../../services/api';
@@ -12,7 +12,7 @@ import { ProfileStackParamList } from '../../navigation/types';
 import Input from '../../components/common/Input';
 import Button from '../../components/common/Button';
 
-type ProfileScreenNavigationProp = NativeStackNavigationProp<ProfileStackParamList, 'ProfileMain'>;
+type ProfileScreenNavigationProp = StackNavigationProp<ProfileStackParamList, 'ProfileMain'>;
 
 const ProfileScreen = () => {
   const { user, updateUser, logout } = useAuth();
@@ -124,7 +124,7 @@ const ProfileScreen = () => {
               </Button>
               <Button
                 onPress={handleSave}
-                loading={loading}
+                loading={!!loading}
                 style={styles.halfButton}
               >
                 Save Changes

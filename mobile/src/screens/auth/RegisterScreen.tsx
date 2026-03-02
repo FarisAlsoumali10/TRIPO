@@ -1,262 +1,239 @@
 import React, { useState } from 'react';
-import {
-  View,
-  StyleSheet,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-  Alert,
-} from 'react-native';
-import { Text } from 'react-native-paper';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { View, StyleSheet, ScrollView, KeyboardAvoidingView, Platform, TouchableOpacity } from 'react-native';
+import { Text, TextInput, Button, Chip, useTheme, ActivityIndicator } from 'react-native-paper';
 import { useNavigation } from '@react-navigation/native';
-import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { Picker } from '@react-native-picker/picker';
-import { useAuth } from '../../contexts/AuthContext';
-import { AuthStackParamList } from '../../navigation/types';
-import { Language } from '../../types';
-import Input from '../../components/common/Input';
-import Button from '../../components/common/Button';
 
-type RegisterScreenNavigationProp = NativeStackNavigationProp<AuthStackParamList, 'Register'>;
+// الاهتمامات التي سيدرسها محرك التوصيات الخاص بـ Tripo
+const INTEREST_CATEGORIES = [
+  'طبيعة 🌴', 'مغامرة 🧗', 'تاريخ وتراث 🏛️',
+  'مطاعم ومقاهي ☕', 'استرخاء 🧘', 'تسوق 🛍️',
+  'فعاليات ومهرجانات 🎭', 'رحلات بحرية ⛵'
+];
 
-const CITIES = ['Riyadh', 'Jeddah', 'Dammam', 'Mecca', 'Medina'];
+export default function RegisterScreen() {
+  const theme = useTheme();
+  const navigation = useNavigation();
+  
+  const [step, setStep] = useState(1);
+  const [isLoading, setIsLoading] = useState(false);
 
-const RegisterScreen = () => {
-  const navigation = useNavigation<RegisterScreenNavigationProp>();
-  const { register } = useAuth();
+  // بيانات المستخدم الأساسية
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [language, setLanguage] = useState<Language>('en');
-  const [city, setCity] = useState(CITIES[0]);
-  const [loading, setLoading] = useState(false);
-  const [errors, setErrors] = useState({
-    name: '',
-    email: '',
-    password: '',
-    confirmPassword: '',
-  });
+  const [selectedInterests, setSelectedInterests] = useState<string[]>([]);
 
-  const validate = () => {
-    let isValid = true;
-    const newErrors = { name: '', email: '', password: '', confirmPassword: '' };
-
-    if (!name.trim()) {
-      newErrors.name = 'Name is required';
-      isValid = false;
-    }
-
-    if (!email.trim()) {
-      newErrors.email = 'Email is required';
-      isValid = false;
-    } else if (!/\S+@\S+\.\S+/.test(email)) {
-      newErrors.email = 'Email is invalid';
-      isValid = false;
-    }
-
-    if (!password) {
-      newErrors.password = 'Password is required';
-      isValid = false;
-    } else if (password.length < 6) {
-      newErrors.password = 'Password must be at least 6 characters';
-      isValid = false;
-    }
-
-    if (password !== confirmPassword) {
-      newErrors.confirmPassword = 'Passwords do not match';
-      isValid = false;
-    }
-
-    setErrors(newErrors);
-    return isValid;
-  };
-
-  const handleRegister = async () => {
-    if (!validate()) return;
-
-    setLoading(true);
-    try {
-      await register({
-        name: name.trim(),
-        email: email.toLowerCase(),
-        password,
-        language,
-        smartProfile: {
-          interests: [],
-          preferredBudget: 'medium',
-          activityStyles: [],
-          typicalFreeTimeWindow: 2,
-          city,
-        },
-      });
-    } catch (error: any) {
-      Alert.alert(
-        'Registration Failed',
-        error.response?.data?.message || 'Unable to create account. Please try again.'
-      );
-    } finally {
-      setLoading(false);
+  const handleNextStep = () => {
+    if (step === 1 && name && email && password) {
+      setStep(2);
     }
   };
+
+  const toggleInterest = (interest: string) => {
+    if (selectedInterests.includes(interest)) {
+      setSelectedInterests(selectedInterests.filter(i => i !== interest));
+    } else {
+      setSelectedInterests([...selectedInterests, interest]);
+    }
+  };
+
+  const handleRegister = () => {
+    setIsLoading(true);
+    // هنا سيتم لاحقاً ربط دالة التسجيل الحقيقية (AuthContext) التي أسسها زميلك
+    setTimeout(() => {
+      setIsLoading(false);
+      setStep(3); // شاشة النجاح
+    }, 1500);
+  };
+
+  // الخطوة 1: البيانات الأساسية
+  const renderBasicInfo = () => (
+    <View style={styles.formContainer}>
+      <Text variant="headlineMedium" style={styles.headerTitle}>إنشاء حساب جديد 🌍</Text>
+      <Text variant="bodyLarge" style={styles.subHeader}>انضم لـ Tripo وابدأ التخطيط مع أصدقائك</Text>
+
+      <TextInput
+        label="الاسم الكامل"
+        value={name}
+        onChangeText={setName}
+        mode="outlined"
+        style={styles.input}
+        right={<TextInput.Icon icon="account" />}
+      />
+      <TextInput
+        label="البريد الإلكتروني"
+        value={email}
+        onChangeText={setEmail}
+        mode="outlined"
+        keyboardType="email-address"
+        autoCapitalize="none"
+        style={styles.input}
+        right={<TextInput.Icon icon="email" />}
+      />
+      <TextInput
+        label="كلمة المرور"
+        value={password}
+        onChangeText={setPassword}
+        mode="outlined"
+        secureTextEntry
+        style={styles.input}
+        right={<TextInput.Icon icon="eye" />}
+      />
+
+      <Button 
+        mode="contained" 
+        onPress={handleNextStep} 
+        style={styles.actionButton}
+        disabled={!name || !email || !password}
+      >
+        متابعة
+      </Button>
+      
+      <Button 
+        mode="text" 
+        onPress={() => navigation.goBack()} 
+        style={styles.linkButton}
+      >
+        لديك حساب بالفعل؟ تسجيل الدخول
+      </Button>
+    </View>
+  );
+
+  // الخطوة 2: الاهتمامات (لرحلات الأصدقاء)
+  const renderInterests = () => (
+    <View style={styles.formContainer}>
+      <Text variant="headlineSmall" style={styles.headerTitle}>ما هي اهتماماتك؟ ✨</Text>
+      <Text variant="bodyMedium" style={styles.subHeader}>
+        سيساعدنا هذا في اقتراح أفضل الأنشطة عندما تخطط لرحلة مع مجموعتك!
+      </Text>
+
+      <View style={styles.chipContainer}>
+        {INTEREST_CATEGORIES.map((interest) => (
+          <Chip
+            key={interest}
+            selected={selectedInterests.includes(interest)}
+            onPress={() => toggleInterest(interest)}
+            style={styles.chip}
+            showSelectedOverlay
+          >
+            {interest}
+          </Chip>
+        ))}
+      </View>
+
+      <View style={styles.buttonRow}>
+        <Button mode="outlined" onPress={() => setStep(1)} style={styles.halfButton}>
+          رجوع
+        </Button>
+        <Button 
+          mode="contained" 
+          onPress={handleRegister} 
+          style={styles.halfButton}
+          disabled={selectedInterests.length === 0}
+        >
+          اكتشف Tripo
+        </Button>
+      </View>
+    </View>
+  );
+
+  // الخطوة 3: شاشة الترحيب السريعة
+  const renderSuccess = () => (
+    <View style={styles.successContainer}>
+      <Text variant="displaySmall" style={{ marginBottom: 20 }}>🎉</Text>
+      <Text variant="headlineMedium" style={styles.headerTitle}>تم تجهيز حسابك!</Text>
+      <Text variant="bodyLarge" style={styles.subHeader}>
+        يا {name}، أنت الآن جاهز لإنشاء أول رحلة جماعية لك.
+      </Text>
+      <Button 
+        mode="contained" 
+        onPress={() => navigation.goBack()} // مؤقتاً نعود لشاشة الدخول حتى نربط الـ Auth
+        style={styles.actionButton}
+      >
+        تسجيل الدخول للبدء
+      </Button>
+    </View>
+  );
 
   return (
-    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={styles.keyboardView}
-      >
-        <ScrollView
-          contentContainerStyle={styles.scrollContent}
-          keyboardShouldPersistTaps="handled"
-        >
-          <View style={styles.content}>
-            <Text variant="displaySmall" style={styles.title}>
-              Create Account
-            </Text>
-            <Text variant="bodyLarge" style={styles.subtitle}>
-              Join Tripo and discover amazing places
-            </Text>
-
-            <View style={styles.form}>
-              <Input
-                label="Name"
-                value={name}
-                onChangeText={setName}
-                placeholder="Enter your name"
-                autoComplete="name"
-                error={errors.name}
-              />
-
-              <Input
-                label="Email"
-                value={email}
-                onChangeText={setEmail}
-                placeholder="Enter your email"
-                keyboardType="email-address"
-                autoCapitalize="none"
-                autoComplete="email"
-                error={errors.email}
-              />
-
-              <Input
-                label="Password"
-                value={password}
-                onChangeText={setPassword}
-                placeholder="Enter your password"
-                secureTextEntry
-                autoComplete="password"
-                error={errors.password}
-              />
-
-              <Input
-                label="Confirm Password"
-                value={confirmPassword}
-                onChangeText={setConfirmPassword}
-                placeholder="Confirm your password"
-                secureTextEntry
-                autoComplete="password"
-                error={errors.confirmPassword}
-              />
-
-              <View style={styles.pickerContainer}>
-                <Text variant="bodyMedium" style={styles.pickerLabel}>
-                  Language
-                </Text>
-                <View style={styles.picker}>
-                  <Picker
-                    selectedValue={language}
-                    onValueChange={(value) => setLanguage(value as Language)}
-                  >
-                    <Picker.Item label="English" value="en" />
-                    <Picker.Item label="العربية" value="ar" />
-                  </Picker>
-                </View>
-              </View>
-
-              <View style={styles.pickerContainer}>
-                <Text variant="bodyMedium" style={styles.pickerLabel}>
-                  City
-                </Text>
-                <View style={styles.picker}>
-                  <Picker selectedValue={city} onValueChange={setCity}>
-                    {CITIES.map((c) => (
-                      <Picker.Item key={c} label={c} value={c} />
-                    ))}
-                  </Picker>
-                </View>
-              </View>
-
-              <Button
-                onPress={handleRegister}
-                loading={loading}
-                style={styles.registerButton}
-              >
-                Sign Up
-              </Button>
-
-              <Button
-                mode="text"
-                onPress={() => navigation.navigate('Login')}
-                disabled={loading}
-              >
-                Already have an account? Sign In
-              </Button>
-            </View>
+    <KeyboardAvoidingView 
+  style={{ flex: 1, backgroundColor: theme.colors.background }} 
+  behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+  enabled={Platform.OS === 'ios'}
+>
+      <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
+        {isLoading ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" />
+            <Text style={{ marginTop: 20 }}>جاري بناء ملفك الشخصي...</Text>
           </View>
-        </ScrollView>
-      </KeyboardAvoidingView>
-    </SafeAreaView>
+        ) : (
+          <>
+            {step === 1 && renderBasicInfo()}
+            {step === 2 && renderInterests()}
+            {step === 3 && renderSuccess()}
+          </>
+        )}
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
-};
+}
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#fff',
-  },
-  keyboardView: {
-    flex: 1,
-  },
   scrollContent: {
     flexGrow: 1,
-  },
-  content: {
-    flex: 1,
-    padding: 24,
     justifyContent: 'center',
+    padding: 24,
   },
-  title: {
+  formContainer: {
+    width: '100%',
+  },
+  headerTitle: {
     fontWeight: 'bold',
     marginBottom: 8,
     textAlign: 'center',
   },
-  subtitle: {
-    color: '#6B7280',
+  subHeader: {
+    color: '#666',
     marginBottom: 32,
     textAlign: 'center',
   },
-  form: {
-    marginTop: 16,
-  },
-  pickerContainer: {
+  input: {
     marginBottom: 16,
-  },
-  pickerLabel: {
-    marginBottom: 8,
-    marginLeft: 12,
-    color: '#6B7280',
-  },
-  picker: {
-    borderWidth: 1,
-    borderColor: '#D1D5DB',
-    borderRadius: 8,
     backgroundColor: '#fff',
   },
-  registerButton: {
-    marginTop: 8,
+  actionButton: {
+    marginTop: 16,
+    paddingVertical: 6,
   },
+  linkButton: {
+    marginTop: 16,
+  },
+  chipContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    gap: 8, // يتطلب React Native حديث، إذا أعطى خطأ استخدم margin
+    marginBottom: 40,
+  },
+  chip: {
+    margin: 4,
+  },
+  buttonRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 16,
+  },
+  halfButton: {
+    flex: 1,
+    marginHorizontal: 4,
+  },
+  loadingContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  successContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  }
 });
-
-export default RegisterScreen;

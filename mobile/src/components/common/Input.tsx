@@ -40,7 +40,7 @@ const Input: React.FC<InputProps> = ({
         keyboardType={keyboardType}
         autoCapitalize={autoCapitalize}
         autoComplete={autoComplete}
-        disabled={disabled}
+        disabled={!!disabled}
         style={styles.input}
       />
       {error && <Text style={styles.errorText}>{error}</Text>}

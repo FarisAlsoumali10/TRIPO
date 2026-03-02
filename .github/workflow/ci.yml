@@ -1,0 +1,29 @@
+name: Tripo Backend CI
+
+# 1. Trigger Optimization: Only run when code is pushed to the 'main' branch
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest # Uses a fast, lightweight Linux server
+
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js Environment
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'npm' # 🚀 OPTIMIZATION: Caches your node_modules so future runs take seconds, not minutes!
+
+    - name: Install Dependencies
+      run: npm ci # 🚀 OPTIMIZATION: Uses package-lock.json for a much faster and stricter installation than 'npm install'
+
+    - name: Run TypeScript Type Checking
+      # This acts as our automated security and syntax guard
+      run: npx tsc --noEmit

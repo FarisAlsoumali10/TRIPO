@@ -6,16 +6,18 @@ import {
   StyleSheet,
   ActivityIndicator,
 } from 'react-native';
-import { Text } from 'react-native-paper';
+import { Text, Button } from 'react-native-paper';
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { useNavigation } from '@react-navigation/native';
-import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import type { StackNavigationProp } from '@react-navigation/stack';
 import { itineraryAPI } from '../../services/api';
 import { Itinerary } from '../../types';
 import { HomeStackParamList } from '../../navigation/types';
 import ItineraryCard from './ItineraryCard';
 
-type ForYouFeedNavigationProp = NativeStackNavigationProp<HomeStackParamList, 'HomeMain'>;
+type ForYouFeedNavigationProp = StackNavigationProp<HomeStackParamList, 'HomeMain'>;
+
+const PRIMARY_EMERALD = '#059669';
 
 const ForYouFeed = () => {
   const navigation = useNavigation<ForYouFeedNavigationProp>();
@@ -60,7 +62,7 @@ const ForYouFeed = () => {
     if (!isFetchingNextPage) return null;
     return (
       <View style={styles.footer}>
-        <ActivityIndicator size="small" color="#3B82F6" />
+        <ActivityIndicator size="small" color={PRIMARY_EMERALD} />
       </View>
     );
   };
@@ -69,12 +71,20 @@ const ForYouFeed = () => {
     if (isLoading) return null;
     return (
       <View style={styles.emptyContainer}>
-        <Text variant="titleMedium" style={styles.emptyTitle}>
-          No itineraries found
+        <Text variant="headlineSmall" style={styles.emptyTitle}>
+          لم نجد رحلات تناسبك حالياً 🧐
         </Text>
         <Text variant="bodyMedium" style={styles.emptyText}>
-          Complete your Smart Profile to get personalized recommendations
+          أكمل ملفك الذكي وحدد اهتماماتك لنقوم باقتراح أفضل الرحلات المخصصة لك!
         </Text>
+        <Button 
+          mode="contained" 
+          onPress={() => navigation.navigate('Profile' as any)}
+          style={styles.emptyButton}
+          buttonColor={PRIMARY_EMERALD}
+        >
+          إكمال الملف الذكي ✨
+        </Button>
       </View>
     );
   };
@@ -82,7 +92,8 @@ const ForYouFeed = () => {
   if (isLoading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#3B82F6" />
+        <ActivityIndicator size="large" color={PRIMARY_EMERALD} />
+        <Text style={styles.loadingText}>جاري تحضير أجمل الرحلات...</Text>
       </View>
     );
   }
@@ -91,11 +102,14 @@ const ForYouFeed = () => {
     return (
       <View style={styles.errorContainer}>
         <Text variant="titleMedium" style={styles.errorTitle}>
-          Unable to load feed
+          عذراً، تعذر تحميل الاقتراحات 
         </Text>
         <Text variant="bodyMedium" style={styles.errorText}>
-          Please check your connection and try again
+          يرجى التحقق من اتصال الإنترنت والمحاولة مرة أخرى
         </Text>
+        <Button mode="outlined" onPress={() => refetch()} textColor={PRIMARY_EMERALD} style={styles.retryButton}>
+          إعادة المحاولة
+        </Button>
       </View>
     );
   }
@@ -114,8 +128,8 @@ const ForYouFeed = () => {
         <RefreshControl
           refreshing={isRefetching}
           onRefresh={refetch}
-          colors={['#3B82F6']}
-          tintColor="#3B82F6"
+          colors={[PRIMARY_EMERALD]}
+          tintColor={PRIMARY_EMERALD}
         />
       }
       maxToRenderPerBatch={10}
@@ -127,12 +141,17 @@ const ForYouFeed = () => {
 
 const styles = StyleSheet.create({
   listContent: {
-    paddingVertical: 8,
+    paddingVertical: 12,
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    backgroundColor: '#fff',
+  },
+  loadingText: {
+    marginTop: 12,
+    color: '#6B7280',
   },
   errorContainer: {
     flex: 1,
@@ -143,28 +162,40 @@ const styles = StyleSheet.create({
   errorTitle: {
     marginBottom: 8,
     textAlign: 'center',
+    fontWeight: 'bold',
   },
   errorText: {
     color: '#6B7280',
     textAlign: 'center',
+    marginBottom: 16,
+  },
+  retryButton: {
+    borderColor: PRIMARY_EMERALD,
   },
   emptyContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 24,
-    marginTop: 100,
+    padding: 32,
+    marginTop: 80,
   },
   emptyTitle: {
-    marginBottom: 8,
+    marginBottom: 12,
     textAlign: 'center',
+    fontWeight: 'bold',
   },
   emptyText: {
     color: '#6B7280',
     textAlign: 'center',
+    lineHeight: 22,
+    marginBottom: 24,
+  },
+  emptyButton: {
+    borderRadius: 8,
+    paddingHorizontal: 16,
   },
   footer: {
-    paddingVertical: 20,
+    paddingVertical: 32,
     alignItems: 'center',
   },
 });

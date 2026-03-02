@@ -9,7 +9,9 @@ import compression from 'compression';
 import rateLimit from 'express-rate-limit';
 import { connectDatabase } from './config/database';
 import routes from './routes';
+import itineraryRoutes from './routes/itineraryRoutes';
 import { errorHandler, notFound } from './middleware/errorHandler';
+import { verifyToken } from './utils/jwt';
 
 const app = express();
 const httpServer = createServer(app);
@@ -46,6 +48,7 @@ app.get('/health', (req, res) => {
 
 // API routes
 app.use('/api/v1', routes);
+app.use('/api/v1/itineraries', itineraryRoutes);
 
 // Error handling
 app.use(notFound);
@@ -59,7 +62,6 @@ io.use((socket, next) => {
   }
 
   try {
-    const { verifyToken } = require('./utils/jwt');
     const payload = verifyToken(token);
     socket.data.user = payload;
     next();

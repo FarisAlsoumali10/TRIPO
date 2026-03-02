@@ -60,7 +60,7 @@ export const hideContent = async (req: AuthRequest, res: Response) => {
         return res.status(400).json({ error: 'Invalid content type' });
     }
 
-    const content = await Model.findByIdAndUpdate(
+    const content = await (Model as any).findByIdAndUpdate(
       id,
       { status: 'hidden' },
       { new: true }
@@ -92,7 +92,7 @@ export const removeContent = async (req: AuthRequest, res: Response) => {
         return res.status(400).json({ error: 'Invalid content type' });
     }
 
-    const content = await Model.findByIdAndUpdate(
+    const content = await (Model as any).findByIdAndUpdate(
       id,
       { status: 'removed' },
       { new: true }
