@@ -1,13 +1,31 @@
 import { Response } from 'express';
 import { AuthRequest } from '../types';
-import { Review, Place, Itinerary } from '../models';
+import { Review, Place, Itinerary, Campsite, Session } from '../models'; // ✅ إضافة النماذج الناقصة
 
-const updateRatingSummary = async (targetType: 'place' | 'itinerary', targetId: string) => {
+// ✅ تحديث الدالة لتدعم كل الأنواع الجديدة في المتجر
+const updateRatingSummary = async (targetType: 'place' | 'itinerary' | 'campsite' | 'session', targetId: string) => {
   const reviews = await Review.find({ targetType, targetId });
 
+  let Model: any;
+  switch (targetType) {
+    case 'place':
+      Model = Place;
+      break;
+    case 'itinerary':
+      Model = Itinerary;
+      break;
+    case 'campsite':
+      Model = Campsite;
+      break;
+    case 'session':
+      Model = Session;
+      break;
+    default:
+      return; // حماية إضافية
+  }
+
   if (reviews.length === 0) {
-    const Model = targetType === 'place' ? Place : Itinerary;
-    await (Model as any).findByIdAndUpdate(targetId, {
+    await Model.findByIdAndUpdate(targetId, {
       'ratingSummary.avgRating': 0,
       'ratingSummary.reviewCount': 0
     });
@@ -17,8 +35,7 @@ const updateRatingSummary = async (targetType: 'place' | 'itinerary', targetId: 
   const totalRating = reviews.reduce((sum, review) => sum + review.rating, 0);
   const avgRating = totalRating / reviews.length;
 
-  const Model = targetType === 'place' ? Place : Itinerary;
-  await (Model as any).findByIdAndUpdate(targetId, {
+  await Model.findByIdAndUpdate(targetId, {
     'ratingSummary.avgRating': avgRating,
     'ratingSummary.reviewCount': reviews.length
   });
@@ -37,8 +54,9 @@ export const getReviews = async (req: AuthRequest, res: Response) => {
       .sort({ createdAt: -1 });
 
     res.json(reviews);
-  } catch (error) {
-    throw error;
+  } catch (error: any) {
+    console.error('❌ Error in getReviews:', error);
+    res.status(500).json({ error: 'حدث خطأ أثناء جلب التقييمات' });
   }
 };
 
@@ -58,8 +76,9 @@ export const createReview = async (req: AuthRequest, res: Response) => {
       .populate('userId', 'name avatar');
 
     res.status(201).json(populatedReview);
-  } catch (error) {
-    throw error;
+  } catch (error: any) {
+    console.error('❌ Error in createReview:', error);
+    res.status(500).json({ error: 'حدث خطأ أثناء إضافة التقييم' });
   }
 };
 
@@ -74,7 +93,7 @@ export const updateReview = async (req: AuthRequest, res: Response) => {
     });
 
     if (!review) {
-      return res.status(404).json({ error: 'Review not found or not authorized' });
+      return res.status(404).json({ error: 'التقييم غير موجود أو غير مصرح لك بتعديله' });
     }
 
     Object.assign(review, updates);
@@ -84,8 +103,9 @@ export const updateReview = async (req: AuthRequest, res: Response) => {
     await updateRatingSummary(review.targetType, review.targetId.toString());
 
     res.json(review);
-  } catch (error) {
-    throw error;
+  } catch (error: any) {
+    console.error('❌ Error in updateReview:', error);
+    res.status(500).json({ error: 'حدث خطأ أثناء تحديث التقييم' });
   }
 };
 
@@ -99,7 +119,7 @@ export const deleteReview = async (req: AuthRequest, res: Response) => {
     });
 
     if (!review) {
-      return res.status(404).json({ error: 'Review not found or not authorized' });
+      return res.status(404).json({ error: 'التقييم غير موجود أو غير مصرح لك بحذفه' });
     }
 
     const { targetType, targetId } = review;
@@ -108,8 +128,9 @@ export const deleteReview = async (req: AuthRequest, res: Response) => {
     // Update rating summary
     await updateRatingSummary(targetType, targetId.toString());
 
-    res.json({ message: 'Review deleted successfully' });
-  } catch (error) {
-    throw error;
+    res.json({ message: 'تم حذف التقييم بنجاح' });
+  } catch (error: any) {
+    console.error('❌ Error in deleteReview:', error);
+    res.status(500).json({ error: 'حدث خطأ أثناء حذف التقييم' });
   }
 };

@@ -28,7 +28,7 @@ export const getDashboard = async (req: AuthRequest, res: Response) => {
       .sort({ createdAt: -1 })
       .limit(10);
 
-    res.json({
+    res.status(200).json({
       stats: {
         totalUsers,
         totalPlaces,
@@ -39,8 +39,10 @@ export const getDashboard = async (req: AuthRequest, res: Response) => {
       recentUsers,
       recentReports
     });
-  } catch (error) {
-    throw error;
+  } catch (error: any) {
+    console.error('❌ Error in getDashboard:', error);
+    // ✅ إرجاع رد واضح للواجهة بدلاً من تعليق السيرفر
+    res.status(500).json({ error: 'حدث خطأ داخلي في الخادم أثناء جلب بيانات لوحة التحكم' });
   }
 };
 
@@ -70,9 +72,11 @@ export const hideContent = async (req: AuthRequest, res: Response) => {
       return res.status(404).json({ error: 'Content not found' });
     }
 
-    res.json({ message: 'Content hidden successfully', content });
-  } catch (error) {
-    throw error;
+    res.status(200).json({ message: 'Content hidden successfully', content });
+  } catch (error: any) {
+    console.error(`❌ Error hiding ${req.params.type}:`, error);
+    // ✅ منع تعليق السيرفر
+    res.status(500).json({ error: 'فشل في إخفاء المحتوى' });
   }
 };
 
@@ -102,8 +106,10 @@ export const removeContent = async (req: AuthRequest, res: Response) => {
       return res.status(404).json({ error: 'Content not found' });
     }
 
-    res.json({ message: 'Content removed successfully', content });
-  } catch (error) {
-    throw error;
+    res.status(200).json({ message: 'Content removed successfully', content });
+  } catch (error: any) {
+    console.error(`❌ Error removing ${req.params.type}:`, error);
+    // ✅ منع تعليق السيرفر
+    res.status(500).json({ error: 'فشل في إزالة المحتوى' });
   }
 };

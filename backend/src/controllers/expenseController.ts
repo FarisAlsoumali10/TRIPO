@@ -31,8 +31,10 @@ export const getExpenses = async (req: AuthRequest, res: Response) => {
       .sort({ createdAt: -1 });
 
     res.json(expenses);
-  } catch (error) {
-    throw error;
+  } catch (error: any) {
+    console.error('❌ Error in getExpenses:', error);
+    // ✅ منع تعليق الواجهة
+    res.status(500).json({ error: 'حدث خطأ أثناء جلب قائمة المصاريف' });
   }
 };
 
@@ -79,8 +81,10 @@ export const createExpense = async (req: AuthRequest, res: Response) => {
     }
 
     res.status(201).json(populatedExpense);
-  } catch (error) {
-    throw error;
+  } catch (error: any) {
+    console.error('❌ Error in createExpense:', error);
+    // ✅ منع تعليق الواجهة
+    res.status(500).json({ error: 'حدث خطأ أثناء إضافة المصروف الجديد' });
   }
 };
 
@@ -105,7 +109,9 @@ export const getSplitBudget = async (req: AuthRequest, res: Response) => {
     const split = await splitBudgetService.calculateSplit(groupTripId);
 
     res.json(split);
-  } catch (error) {
-    throw error;
+  } catch (error: any) {
+    console.error('❌ Error in getSplitBudget:', error);
+    // ✅ منع تعليق الواجهة
+    res.status(500).json({ error: 'حدث خطأ أثناء حساب تقاسم الميزانية (القطيّة)' });
   }
 };

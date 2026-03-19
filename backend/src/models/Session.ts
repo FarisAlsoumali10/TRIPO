@@ -1,5 +1,5 @@
 import mongoose, { Document, Schema, Types } from 'mongoose';
-import { ContentStatus, Schedule, PricingRange } from '../types';
+import { ContentStatus, Schedule, PricingRange, RatingSummary } from '../types';
 
 export interface ISession extends Document {
   hostId: Types.ObjectId;
@@ -13,7 +13,11 @@ export interface ISession extends Document {
   schedule: Schedule[];
   deliveryOptions: string[];
   equipmentOptions: string[];
-  status: ContentStatus;
+  // ✅ الخصائص المضافة لدعم واجهة التطبيق ونظام الثقة
+  images: string[];
+  image?: string;
+  ratingSummary: RatingSummary;
+  status: ContentStatus | 'active' | 'deactivated' | 'hidden' | 'removed';
   createdAt: Date;
   updatedAt: Date;
 }
@@ -28,7 +32,8 @@ const sessionSchema = new Schema({
   hostId: {
     type: Schema.Types.ObjectId,
     ref: 'User',
-    required: true
+    required: true,
+    index: true // ✅ تسريع جلب الجلسات الخاصة بمزود خدمة معين
   },
   title: {
     type: String,
@@ -41,11 +46,13 @@ const sessionSchema = new Schema({
   },
   city: {
     type: String,
-    required: true
+    required: true,
+    index: true // ✅ فلترة سريعة حسب المدينة
   },
   tags: {
     type: [String],
-    default: []
+    default: [],
+    index: true // ✅ فلترة سريعة حسب نوع الجلسة (تصنيفات)
   },
   capacity: {
     type: Number,
@@ -54,7 +61,8 @@ const sessionSchema = new Schema({
   },
   currentBookings: {
     type: Number,
-    default: 0
+    default: 0,
+    min: 0 // ✅ حماية إضافية لمنع الحجوزات بالسالب
   },
   pricingRange: {
     min: { type: Number, required: true },
@@ -72,13 +80,35 @@ const sessionSchema = new Schema({
     type: [String],
     default: []
   },
+  images: {
+    type: [String],
+    default: []
+  },
+  image: {
+    type: String
+  },
+  ratingSummary: {
+    avgRating: { type: Number, default: 0, index: true }, // ✅ لترتيب الجلسات "الأعلى تقييماً"
+    reviewCount: { type: Number, default: 0 }
+  },
   status: {
     type: String,
     enum: ['active', 'deactivated', 'hidden', 'removed'],
-    default: 'active'
+    default: 'active',
+    index: true
   }
 }, {
   timestamps: true
 });
+
+// ==========================================
+// 🚀 فهارس البحث والتصفح (Discovery Indexes)
+// ==========================================
+
+// الفهرس الذهبي لشاشة المتجر: جلب الجلسات النشطة في مدينة معينة بسرعة البرق
+sessionSchema.index({ city: 1, status: 1 });
+
+// فهرس البحث النصي: لتشغيل شريط البحث في الواجهة الأمامية
+sessionSchema.index({ title: 'text', description: 'text' });
 
 export const Session = mongoose.model<ISession>('Session', sessionSchema);

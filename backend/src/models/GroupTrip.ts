@@ -5,9 +5,14 @@ export interface IGroupTrip extends Document {
   organizerId: Types.ObjectId;
   baseItineraryId: Types.ObjectId;
   title: string;
+  description?: string; // ✅ وصف اختياري للرحلة
+  coverImage?: string; // ✅ صورة الغلاف
+  startDate?: Date; // ✅ تاريخ بداية الرحلة
+  endDate?: Date; // ✅ تاريخ نهاية الرحلة
+  estimatedBudget?: number; // ✅ الميزانية المتوقعة
   memberIds: Types.ObjectId[];
   invitations: Invitation[];
-  status: GroupTripStatus;
+  status: GroupTripStatus | 'planning' | 'active' | 'completed' | 'cancelled';
   createdAt: Date;
   updatedAt: Date;
 }
@@ -33,7 +38,8 @@ const groupTripSchema = new Schema({
   organizerId: {
     type: Schema.Types.ObjectId,
     ref: 'User',
-    required: true
+    required: true,
+    index: true // ✅ فهرس لتسريع بحث رحلات المنظم
   },
   baseItineraryId: {
     type: Schema.Types.ObjectId,
@@ -43,12 +49,33 @@ const groupTripSchema = new Schema({
   title: {
     type: String,
     required: true,
-    trim: true
+    trim: true,
+    maxlength: 100
+  },
+  description: {
+    type: String,
+    trim: true,
+    maxlength: 1000
+  },
+  coverImage: {
+    type: String
+  },
+  startDate: {
+    type: Date
+  },
+  endDate: {
+    type: Date
+  },
+  estimatedBudget: {
+    type: Number,
+    min: 0,
+    default: 0
   },
   memberIds: {
     type: [Schema.Types.ObjectId],
     ref: 'User',
-    default: []
+    default: [],
+    index: true // ✅ فهرس مهم جداً لسرعة جلب رحلات المستخدم
   },
   invitations: {
     type: [invitationSchema],
@@ -62,5 +89,8 @@ const groupTripSchema = new Schema({
 }, {
   timestamps: true
 });
+
+// ✅ فهرس مركب لتسريع جلب "الرحلات النشطة/المخطط لها لمستخدم معين" للوحة التحكم
+groupTripSchema.index({ memberIds: 1, status: 1 });
 
 export const GroupTrip = mongoose.model<IGroupTrip>('GroupTrip', groupTripSchema);

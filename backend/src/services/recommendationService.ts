@@ -1,96 +1,100 @@
 import { Types } from 'mongoose';
 import { Itinerary } from '../models';
 import { IItinerary } from '../models/Itinerary';
-import { SmartProfile } from '../types';
 
 interface ScoredItinerary {
-  itinerary: IItinerary;
+  itinerary: any; // استخدمنا any هنا لتسهيل دمج البيانات المأهولة (Populated)
   score: number;
 }
 
 const budgetRanges: Record<string, { min: number; max: number }> = {
   free: { min: 0, max: 0 },
-  low: { min: 0, max: 100 },
-  medium: { min: 50, max: 300 },
-  high: { min: 200, max: 1000 }
-};
-
-const moodToActivityStyles: Record<string, string[]> = {
-  adventurous: ['active', 'social', 'explorer'],
-  chill: ['relaxed', 'casual', 'peaceful'],
-  curious: ['explorer', 'cultural', 'learning'],
-  social: ['social', 'group', 'active'],
-  romantic: ['relaxed', 'intimate', 'romantic']
+  low: { min: 0, max: 150 },
+  medium: { min: 100, max: 500 },
+  high: { min: 400, max: 5000 }
 };
 
 export class RecommendationService {
-  private calculateFeasibilityScore(
-    itinerary: IItinerary,
-    smartProfile: SmartProfile
-  ): number {
-    let score = 0;
 
-    // Time window match
-    const timeRatio = itinerary.durationInMinutes / (smartProfile.typicalFreeTimeWindow * 60);
+  // 1. حساب توافق الوقت (Max 30 Points)
+  private calculateFeasibilityScore(itinerary: any, smartProfile: any): number {
+    const itineraryDuration = itinerary.estimatedDuration || 60;
+    // تم إصلاح الحسبة لأن typicalFreeTimeWindow بالدقائق في الموديل الجديد
+    const timeRatio = itineraryDuration / (smartProfile.typicalFreeTimeWindow || 180);
+
     if (timeRatio <= 1) {
-      score += 40 * (1 - Math.abs(1 - timeRatio));
+      return 30 * timeRatio; // مناسب جداً للوقت المتاح
     } else {
-      score += Math.max(0, 40 * (1 - (timeRatio - 1)));
+      return Math.max(0, 30 - ((timeRatio - 1) * 15)); // خصم نقاط إذا كانت الرحلة أطول من وقته
     }
-
-    score += 60;
-
-    return score;
   }
 
-  private calculateInterestScore(): number {
-    return 15;
+  // 2. حساب توافق الميزانية (Max 30 Points)
+  private calculateBudgetScore(itinerary: any, smartProfile: any): number {
+    const userBudget = budgetRanges[smartProfile.preferredBudget || 'medium'];
+    const itineraryCost = itinerary.estimatedCost || 0;
+
+    if (itineraryCost === 0 && smartProfile.preferredBudget === 'free') return 30;
+    if (itineraryCost >= userBudget.min && itineraryCost <= userBudget.max) return 30; // تطابق مثالي
+    if (itineraryCost < userBudget.min) return 20; // أرخص من ميزانيته (ممتاز أيضاً)
+
+    return Math.max(0, 30 - ((itineraryCost - userBudget.max) * 0.1)); // خصم إذا كانت أغلى بكثير
   }
 
-  private calculateMoodScore(): number {
-    return 15;
-  }
+  // 3. حساب جودة الرحلة بناءً على تقييمات المستخدمين (Max 40 Points)
+  private calculateQualityScore(itinerary: any): number {
+    const avgRating = itinerary.ratingSummary?.avgRating || 0;
+    const reviewCount = itinerary.ratingSummary?.reviewCount || 0;
 
-  private calculateQualityScore(): number {
-    return 12;
+    // رحلة جديدة بدون تقييمات تأخذ درجة متوسطة كتشجيع
+    if (reviewCount === 0) return 20;
+
+    // حساب الجودة بناءً على النجوم (5 نجوم = 40 نقطة)
+    return (avgRating / 5) * 40;
   }
 
   async getPersonalizedFeed(
     userId: Types.ObjectId | string,
-    smartProfile: SmartProfile,
+    smartProfile: any,
     page: number = 1,
     limit: number = 20
-  ): Promise<{ itineraries: IItinerary[]; total: number; page: number; pages: number }> {
+  ): Promise<{ itineraries: any[]; total: number; page: number; pages: number }> {
+
+    // ✅ إصلاح عقد البيانات: استخدام status بدلاً من isPublic
     const query = {
-      isPublic: true,
+      status: 'published',
       city: smartProfile.city
     };
 
-    const allItineraries = await Itinerary.find(query)
-      .populate('createdBy', 'name avatar')
+    // ✅ حماية السيرفر: جلب أفضل 200 رحلة فقط للتقييم بدلاً من ملايين الرحلات
+    const potentialItineraries = await Itinerary.find(query)
+      .populate('userId', 'name avatar')
+      .populate('places.placeId') // ✅ جلب تفاصيل الأماكن لتعرضها الواجهة
+      .limit(200)
       .lean();
 
-    const scoredItineraries: ScoredItinerary[] = await Promise.all(
-      allItineraries.map(async (itinerary) => {
-        const feasibilityScore = this.calculateFeasibilityScore(itinerary as any, smartProfile);
-        const interestScore = this.calculateInterestScore();
-        const moodScore = this.calculateMoodScore();
-        const qualityScore = this.calculateQualityScore();
+    // تشغيل الخوارزمية لحساب الدرجات
+    const scoredItineraries: ScoredItinerary[] = potentialItineraries.map((itinerary) => {
+      const feasibilityScore = this.calculateFeasibilityScore(itinerary, smartProfile);
+      const budgetScore = this.calculateBudgetScore(itinerary, smartProfile);
+      const qualityScore = this.calculateQualityScore(itinerary);
 
-        const totalScore = feasibilityScore + interestScore + moodScore + qualityScore;
+      const totalScore = feasibilityScore + budgetScore + qualityScore; // المجموع من 100
 
-        return {
-          itinerary: itinerary as any,
-          score: totalScore
-        };
-      })
-    );
+      return {
+        itinerary,
+        score: totalScore
+      };
+    });
 
+    // ترتيب الرحلات من الأعلى توافقاً إلى الأقل
     scoredItineraries.sort((a, b) => b.score - a.score);
 
+    // تطبيق نظام الصفحات (Pagination)
     const total = scoredItineraries.length;
     const pages = Math.ceil(total / limit);
     const skip = (page - 1) * limit;
+
     const paginatedItineraries = scoredItineraries
       .slice(skip, skip + limit)
       .map(si => si.itinerary);

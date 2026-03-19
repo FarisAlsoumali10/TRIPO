@@ -16,10 +16,17 @@ export interface User {
   email: string;
   name: string;
   avatar?: string;
-  role: UserRole;
-  language: Language;
-  smartProfile: SmartProfile;
+  role?: UserRole;
+  language?: Language;
+  smartProfile?: SmartProfile;
   createdAt?: string;
+
+  // --- خصائص الواجهة القديمة (لمنع تعطل الشاشات) ---
+  karamPoints?: number;
+  walletBalance?: number;
+  fazaCount?: number;
+  rank?: string;
+  preferences?: any;
 }
 
 export interface AuthResponse {
@@ -51,17 +58,28 @@ export interface RatingSummary {
 }
 
 export interface Place {
-  _id: string;
+  _id?: string;
+  id?: string;
   name: string;
-  city: string;
-  description: string;
-  categoryTags: string[];
-  coordinates: Coordinates;
-  photos: string[];
-  ratingSummary: RatingSummary;
-  status: string;
-  createdAt: string;
-  updatedAt: string;
+  city?: string;
+  description?: string;
+  categoryTags?: string[];
+  coordinates?: Coordinates;
+  photos?: string[];
+  ratingSummary?: RatingSummary;
+  status?: string;
+  createdAt?: string;
+  updatedAt?: string;
+
+  // --- خصائص الواجهة القديمة ---
+  category?: string;
+  image?: string;
+  lat?: number;
+  lng?: number;
+  avgCost?: number;
+  duration?: number;
+  rating?: number;
+  reviews?: number;
 }
 
 export interface PlaceInItinerary {
@@ -72,24 +90,35 @@ export interface PlaceInItinerary {
 }
 
 export interface Itinerary {
-  _id: string;
-  userId: string | { name: string; avatar?: string };
+  _id?: string;
+  id?: string;
+  userId?: string | { name: string; avatar?: string };
   title: string;
-  status: 'draft' | 'published';
-  estimatedDuration: number;
-  estimatedCost: number;
-  distance: number;
-  city: string;
-  places: PlaceInItinerary[];
+  status?: 'draft' | 'published';
+  estimatedDuration?: number;
+  estimatedCost?: number;
+  distance?: number;
+  city?: string;
+  places: any[]; // جعلناها مرنة لتقبل النوعين
   notes?: string;
-  isVerified: boolean;
-  ratingSummary: RatingSummary;
-  createdAt: string;
-  updatedAt: string;
+  isVerified?: boolean;
+  ratingSummary?: RatingSummary;
+  createdAt?: string;
+  updatedAt?: string;
+
+  // --- خصائص الواجهة القديمة ---
+  authorId?: string;
+  authorName?: string;
+  totalCost?: number;
+  totalDuration?: number;
+  likes?: number;
+  communityId?: string;
+  description?: string;
+  reviews?: any[];
 }
 
 export interface Review {
-  _id: string;
+  _id?: string;
   userId: string | { name: string; avatar?: string };
   targetType: 'place' | 'itinerary';
   targetId: string;
@@ -117,4 +146,82 @@ export interface CreateReviewData {
   rating: number;
   title?: string;
   comment?: string;
+}
+
+export interface Rental {
+  id: string;
+  title: string;
+  type: string;
+  price: number | string;
+  locationName: string;
+  image: string;
+  rating?: number;
+  x?: number;
+  y?: number;
+  lat?: number;
+  lng?: number;
+  ownerId?: string;
+  description?: string;
+}
+
+// ==========================================
+// Types مفقودة كانت تسبب أخطاء في مجلد screens
+// ==========================================
+
+export interface ChatMessage {
+  id: string;
+  userId: string;
+  userName: string;
+  text: string;
+  timestamp: number;
+}
+
+export interface Expense {
+  id: string;
+  payerId: string;
+  description: string;
+  amount: number;
+  timestamp: number;
+}
+
+export interface GroupTrip {
+  id: string;
+  itinerary: Itinerary;
+  members: User[];
+  chatMessages: ChatMessage[]; // 🔴 تم الربط بقوة مع ChatMessage بدلاً من any
+  expenses: Expense[];         // 🔴 تم الربط بقوة مع Expense بدلاً من any
+}
+
+export interface Community {
+  id: string;
+  name: string;
+  icon: string;
+  description: string;
+  image: string;
+  memberCount: number;
+  activeTripsCount: number;
+  category: string;
+}
+
+export interface CommunityEvent {
+  id: string;
+  communityId: string;
+  title: string;
+  description: string;
+  date: string;
+  time: string;
+  locationName: string;
+  attendeesCount: number;
+  image: string;
+}
+
+export interface FazaRequest {
+  id: string;
+  userId: string;
+  userName: string;
+  userAvatar: string;
+  question: string;
+  communityId: string;
+  timestamp: number;
+  pointsReward: number;
 }

@@ -1,7 +1,7 @@
 import axios from 'axios';
 import type { AuthResponse, LoginCredentials, RegisterData, User } from '../types';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+const API_URL = 'http://localhost:3000';
 
 const api = axios.create({
   baseURL: `${API_URL}/api/v1`,
@@ -32,7 +32,9 @@ api.interceptors.response.use(
   }
 );
 
+// ==========================================
 // Auth API
+// ==========================================
 export const authAPI = {
   login: async (credentials: LoginCredentials): Promise<AuthResponse> => {
     const { data } = await api.post('/auth/login', credentials);
@@ -60,11 +62,18 @@ export const authAPI = {
   },
 };
 
+// ==========================================
 // Itinerary API
+// ==========================================
 export const itineraryAPI = {
   getFeed: async (page = 1, limit = 20) => {
-    const { data } = await api.get('/itineraries/feed', { params: { page, limit } });
-    return data;
+    const { data } = await api.get('/itineraries', { params: { page, limit } });
+    const rawItineraries = Array.isArray(data) ? data : (data.itineraries || data.data || []);
+
+    return rawItineraries.map((item: any) => ({
+      ...item,
+      id: item._id || item.id,
+    }));
   },
 
   getItinerary: async (id: string) => {
@@ -88,11 +97,18 @@ export const itineraryAPI = {
   },
 };
 
+// ==========================================
 // Place API
+// ==========================================
 export const placeAPI = {
   getPlaces: async (params?: any) => {
     const { data } = await api.get('/places', { params });
-    return data;
+    // تطبيق الاستخراج الآمن مثل الرحلات
+    const rawPlaces = Array.isArray(data) ? data : (data.places || data.data || []);
+    return rawPlaces.map((item: any) => ({
+      ...item,
+      id: item._id || item.id,
+    }));
   },
 
   getPlace: async (id: string) => {
@@ -101,7 +117,48 @@ export const placeAPI = {
   },
 };
 
+// ==========================================
+// Community API (جديد لدعم شاشة المجتمعات)
+// ==========================================
+export const communityAPI = {
+  getCommunities: async () => {
+    const { data } = await api.get('/communities');
+    const rawData = Array.isArray(data) ? data : (data.communities || data.data || []);
+    return rawData.map((item: any) => ({ ...item, id: item._id || item.id }));
+  },
+
+  getEvents: async (communityId?: string) => {
+    const { data } = await api.get('/events', { params: { communityId } });
+    const rawData = Array.isArray(data) ? data : (data.events || data.data || []);
+    return rawData.map((item: any) => ({ ...item, id: item._id || item.id }));
+  },
+
+  getFazaRequests: async (communityId?: string) => {
+    const { data } = await api.get('/faza-requests', { params: { communityId } });
+    const rawData = Array.isArray(data) ? data : (data.requests || data.data || []);
+    return rawData.map((item: any) => ({ ...item, id: item._id || item.id }));
+  }
+};
+
+// ==========================================
+// Rental API (جديد لدعم الخريطة وتأجير الكشتات)
+// ==========================================
+export const rentalAPI = {
+  getRentals: async (params?: any) => {
+    const { data } = await api.get('/rentals', { params });
+    const rawData = Array.isArray(data) ? data : (data.rentals || data.data || []);
+    return rawData.map((item: any) => ({ ...item, id: item._id || item.id }));
+  },
+
+  createRental: async (rentalData: any) => {
+    const { data } = await api.post('/rentals', rentalData);
+    return data;
+  }
+};
+
+// ==========================================
 // Review API
+// ==========================================
 export const reviewAPI = {
   getReviews: async (params?: { targetType?: string; targetId?: string }) => {
     const { data } = await api.get('/reviews', { params });
@@ -124,7 +181,9 @@ export const reviewAPI = {
   },
 };
 
+// ==========================================
 // Favorite API
+// ==========================================
 export const favoriteAPI = {
   getFavorites: async () => {
     const { data } = await api.get('/favorites');

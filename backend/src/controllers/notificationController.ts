@@ -9,8 +9,10 @@ export const getNotifications = async (req: AuthRequest, res: Response) => {
       .limit(50);
 
     res.json(notifications);
-  } catch (error) {
-    throw error;
+  } catch (error: any) {
+    console.error('❌ Error in getNotifications:', error);
+    // ✅ منع تعليق الواجهة
+    res.status(500).json({ error: 'حدث خطأ أثناء جلب قائمة الإشعارات' });
   }
 };
 
@@ -24,15 +26,17 @@ export const markAsRead = async (req: AuthRequest, res: Response) => {
     });
 
     if (!notification) {
-      return res.status(404).json({ error: 'Notification not found' });
+      return res.status(404).json({ error: 'الإشعار غير موجود' });
     }
 
     notification.read = true;
     await notification.save();
 
     res.json(notification);
-  } catch (error) {
-    throw error;
+  } catch (error: any) {
+    console.error('❌ Error in markAsRead:', error);
+    // ✅ منع تعليق الواجهة
+    res.status(500).json({ error: 'حدث خطأ أثناء تحديث حالة الإشعار' });
   }
 };
 
@@ -44,7 +48,9 @@ export const markAllAsRead = async (req: AuthRequest, res: Response) => {
     );
 
     res.json({ message: 'All notifications marked as read' });
-  } catch (error) {
-    throw error;
+  } catch (error: any) {
+    console.error('❌ Error in markAllAsRead:', error);
+    // ✅ منع تعليق الواجهة
+    res.status(500).json({ error: 'حدث خطأ أثناء تحديد جميع الإشعارات كمقروءة' });
   }
 };

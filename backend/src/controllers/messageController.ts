@@ -40,8 +40,10 @@ export const getMessages = async (req: AuthRequest, res: Response) => {
       page: Number(page),
       pages: Math.ceil(total / Number(limit))
     });
-  } catch (error) {
-    throw error;
+  } catch (error: any) {
+    console.error('❌ Error in getMessages:', error);
+    // ✅ منع تعليق الواجهة الأمامية
+    res.status(500).json({ error: 'حدث خطأ أثناء جلب الرسائل' });
   }
 };
 
@@ -73,9 +75,11 @@ export const sendMessage = async (req: AuthRequest, res: Response) => {
     const populatedMessage = await Message.findById(message._id)
       .populate('senderId', 'name avatar');
 
-    // Emit Socket.IO event
+    // Emit Socket.IO event safely
     const io = req.app.get('io');
-    io.to(`group:${groupTripId}`).emit('message:receive', populatedMessage);
+    if (io) {
+      io.to(`group:${groupTripId}`).emit('message:receive', populatedMessage);
+    }
 
     // Create notifications for other members
     const otherMembers = groupTrip.memberIds.filter(
@@ -97,7 +101,9 @@ export const sendMessage = async (req: AuthRequest, res: Response) => {
     }
 
     res.status(201).json(populatedMessage);
-  } catch (error) {
-    throw error;
+  } catch (error: any) {
+    console.error('❌ Error in sendMessage:', error);
+    // ✅ منع تعليق الواجهة الأمامية
+    res.status(500).json({ error: 'حدث خطأ أثناء إرسال الرسالة' });
   }
 };

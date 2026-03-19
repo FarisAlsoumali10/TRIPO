@@ -39,8 +39,10 @@ export const register = async (req: Request, res: Response) => {
         smartProfile: user.smartProfile
       }
     });
-  } catch (error) {
-    throw error;
+  } catch (error: any) {
+    console.error('❌ Error in register:', error);
+    // ✅ إرجاع رد واضح للواجهة بدلاً من تعليق السيرفر
+    res.status(500).json({ error: 'حدث خطأ داخلي في الخادم أثناء إنشاء الحساب' });
   }
 };
 
@@ -50,12 +52,12 @@ export const login = async (req: Request, res: Response) => {
 
     const user = await User.findOne({ email });
     if (!user) {
-      return res.status(401).json({ error: 'Invalid credentials' });
+      return res.status(401).json({ success: false, error: 'البريد الإلكتروني أو كلمة المرور غير صحيحة' });
     }
 
     const isPasswordValid = await comparePassword(password, user.passwordHash);
     if (!isPasswordValid) {
-      return res.status(401).json({ error: 'Invalid credentials' });
+      return res.status(401).json({ success: false, error: 'البريد الإلكتروني أو كلمة المرور غير صحيحة' });
     }
 
     const token = generateToken({
@@ -64,20 +66,23 @@ export const login = async (req: Request, res: Response) => {
       role: user.role
     });
 
+    // ✅ الرد بالشكل الذي تتوقعه الواجهة الأمامية الجديدة
     res.json({
+      success: true,
       token,
       user: {
         id: user._id,
-        email: user.email,
         name: user.name,
+        email: user.email,
         role: user.role,
         language: user.language,
         smartProfile: user.smartProfile,
         avatar: user.avatar
       }
     });
-  } catch (error) {
-    throw error;
+  } catch (error: any) {
+    console.error('Login error:', error);
+    res.status(500).json({ success: false, error: 'حدث خطأ أثناء تسجيل الدخول' });
   }
 };
 
@@ -94,8 +99,9 @@ export const requestPasswordReset = async (req: Request, res: Response) => {
     // TODO: Implement email sending logic
     // For now, just return success
     res.json({ message: 'If the email exists, a reset link has been sent' });
-  } catch (error) {
-    throw error;
+  } catch (error: any) {
+    console.error('❌ Error in requestPasswordReset:', error);
+    res.status(500).json({ error: 'فشل في إرسال طلب استعادة كلمة المرور' });
   }
 };
 
@@ -106,7 +112,8 @@ export const resetPassword = async (req: Request, res: Response) => {
     // TODO: Implement token validation and password reset logic
     // For now, just return success
     res.json({ message: 'Password reset successful' });
-  } catch (error) {
-    throw error;
+  } catch (error: any) {
+    console.error('❌ Error in resetPassword:', error);
+    res.status(500).json({ error: 'فشل في إعادة تعيين كلمة المرور' });
   }
 };

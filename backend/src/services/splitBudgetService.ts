@@ -1,14 +1,14 @@
 import { Types } from 'mongoose';
-import { Expense, User } from '../models';
+import { Expense } from '../models';
 
-interface MemberBalance {
+export interface MemberBalance {
   userId: string;
   name: string;
   balance: number;
   status: 'owed' | 'owes' | 'settled';
 }
 
-interface Settlement {
+export interface Settlement {
   from: string;
   fromName: string;
   to: string;
@@ -16,71 +16,80 @@ interface Settlement {
   amount: number;
 }
 
-interface SplitResult {
+export interface SplitResult {
   totalExpenses: number;
   perPersonAverage: number;
+  currency: string; // ✅ إضافة العملة لتستخدمها الواجهة الأمامية
   balances: MemberBalance[];
   settlements: Settlement[];
 }
 
 export class SplitBudgetService {
   async calculateSplit(groupTripId: Types.ObjectId | string): Promise<SplitResult> {
-    // Fetch all expenses for the group trip
+    // جلب كل المصاريف الخاصة بالرحلة
     const expenses = await Expense.find({ groupTripId })
       .populate('payerId', 'name')
-      .populate('involvedMemberIds', 'name');
+      .populate('involvedMemberIds', 'name')
+      .lean();
+
+    // افتراض العملة الافتراضية للرحلة بناءً على أول مصروف (أو SAR كافتراضي)
+    const tripCurrency = expenses.length > 0 ? (expenses[0] as any).currency || 'SAR' : 'SAR';
 
     if (expenses.length === 0) {
       return {
         totalExpenses: 0,
         perPersonAverage: 0,
+        currency: tripCurrency,
         balances: [],
         settlements: []
       };
     }
 
-    // Calculate total expenses
-    const totalExpenses = expenses.reduce((sum, expense) => sum + expense.amount, 0);
-
-    // Track paid and owes for each member
+    // ✅ استخدام الـ Halalas/Cents لتجنب أخطاء التقريب العشري في جافاسكريبت
+    let totalExpensesInCents = 0;
     const memberBalances = new Map<string, { name: string; paid: number; owes: number }>();
 
-    // Initialize member balances
     for (const expense of expenses) {
-      const payerId = expense.payerId._id.toString();
+      const amountInCents = Math.round(expense.amount * 100);
+      totalExpensesInCents += amountInCents;
+
+      const payerId = (expense.payerId as any)._id.toString();
       const payerName = (expense.payerId as any).name;
 
       if (!memberBalances.has(payerId)) {
         memberBalances.set(payerId, { name: payerName, paid: 0, owes: 0 });
       }
 
-      // Track what this person paid
-      const payerBalance = memberBalances.get(payerId)!;
-      payerBalance.paid += expense.amount;
+      // إضافة ما دفعه الشخص
+      memberBalances.get(payerId)!.paid += amountInCents;
 
-      // Calculate split among involved members
-      const splitAmount = expense.amount / expense.involvedMemberIds.length;
+      // ✅ دعم التقسيم بالتساوي (التحديث المستقبلي يمكن أن يدعم percentage و exact هنا)
+      const involvedCount = expense.involvedMemberIds.length;
+      if (involvedCount > 0) {
+        // توزيع المبلغ وتجاهل الكسور البسيطة جداً
+        const splitAmountInCents = Math.floor(amountInCents / involvedCount);
 
-      for (const member of expense.involvedMemberIds) {
-        const memberId = member._id.toString();
-        const memberName = (member as any).name;
+        for (const member of expense.involvedMemberIds) {
+          const memberId = (member as any)._id.toString();
+          const memberName = (member as any).name;
 
-        if (!memberBalances.has(memberId)) {
-          memberBalances.set(memberId, { name: memberName, paid: 0, owes: 0 });
+          if (!memberBalances.has(memberId)) {
+            memberBalances.set(memberId, { name: memberName, paid: 0, owes: 0 });
+          }
+
+          memberBalances.get(memberId)!.owes += splitAmountInCents;
         }
-
-        const memberBalance = memberBalances.get(memberId)!;
-        memberBalance.owes += splitAmount;
       }
     }
 
-    // Calculate net balances
+    // حساب الأرصدة النهائية (Net Balances)
     const balances: MemberBalance[] = [];
     const creditors: { userId: string; name: string; amount: number }[] = [];
     const debtors: { userId: string; name: string; amount: number }[] = [];
 
     for (const [userId, { name, paid, owes }] of memberBalances.entries()) {
-      const netBalance = paid - owes;
+      const netBalanceInCents = paid - owes;
+      const netBalance = netBalanceInCents / 100; // إعادة المبلغ لشكله العشري
 
       balances.push({
         userId,
@@ -89,17 +98,17 @@ export class SplitBudgetService {
         status: netBalance > 0.01 ? 'owed' : netBalance < -0.01 ? 'owes' : 'settled'
       });
 
-      if (netBalance > 0.01) {
-        creditors.push({ userId, name, amount: netBalance });
-      } else if (netBalance < -0.01) {
-        debtors.push({ userId, name, amount: -netBalance });
+      if (netBalanceInCents > 1) { // أكبر من هللة واحدة
+        creditors.push({ userId, name, amount: netBalanceInCents });
+      } else if (netBalanceInCents < -1) {
+        debtors.push({ userId, name, amount: -netBalanceInCents });
       }
     }
 
-    // Calculate settlements using greedy algorithm
+    // ✅ خوارزمية الجشع (Greedy Algorithm) لتسوية الديون بأقل عدد من التحويلات
     const settlements: Settlement[] = [];
-    const sortedCreditors = [...creditors].sort((a, b) => b.amount - a.amount);
-    const sortedDebtors = [...debtors].sort((a, b) => b.amount - a.amount);
+    const sortedCreditors = creditors.sort((a, b) => b.amount - a.amount);
+    const sortedDebtors = debtors.sort((a, b) => b.amount - a.amount);
 
     let i = 0;
     let j = 0;
@@ -108,30 +117,33 @@ export class SplitBudgetService {
       const creditor = sortedCreditors[i];
       const debtor = sortedDebtors[j];
 
-      const settlementAmount = Math.min(creditor.amount, debtor.amount);
+      // أخذ المبلغ الأصغر بين الدائن والمدين
+      const settlementAmountInCents = Math.min(creditor.amount, debtor.amount);
 
       settlements.push({
         from: debtor.userId,
         fromName: debtor.name,
         to: creditor.userId,
         toName: creditor.name,
-        amount: Number(settlementAmount.toFixed(2))
+        amount: Number((settlementAmountInCents / 100).toFixed(2)) // إعادة للصيغة العشرية
       });
 
-      creditor.amount -= settlementAmount;
-      debtor.amount -= settlementAmount;
+      creditor.amount -= settlementAmountInCents;
+      debtor.amount -= settlementAmountInCents;
 
-      if (creditor.amount < 0.01) i++;
-      if (debtor.amount < 0.01) j++;
+      if (creditor.amount === 0) i++;
+      if (debtor.amount === 0) j++;
     }
 
     const uniqueMembers = memberBalances.size;
-    const perPersonAverage = totalExpenses / uniqueMembers;
+    const totalExpenses = totalExpensesInCents / 100;
+    const perPersonAverage = uniqueMembers > 0 ? totalExpenses / uniqueMembers : 0;
 
     return {
       totalExpenses: Number(totalExpenses.toFixed(2)),
       perPersonAverage: Number(perPersonAverage.toFixed(2)),
-      balances: balances.sort((a, b) => b.balance - a.balance),
+      currency: tripCurrency,
+      balances: balances.sort((a, b) => b.balance - a.balance), // ترتيب من الأعلى للأقل
       settlements
     };
   }

@@ -21,8 +21,9 @@ export const createGroupTrip = async (req: AuthRequest, res: Response) => {
     });
 
     res.status(201).json(groupTrip);
-  } catch (error) {
-    throw error;
+  } catch (error: any) {
+    console.error('❌ Error in createGroupTrip:', error);
+    res.status(500).json({ error: 'حدث خطأ أثناء إنشاء الرحلة الجماعية' });
   }
 };
 
@@ -50,8 +51,9 @@ export const getGroupTrip = async (req: AuthRequest, res: Response) => {
     }
 
     res.json(groupTrip);
-  } catch (error) {
-    throw error;
+  } catch (error: any) {
+    console.error('❌ Error in getGroupTrip:', error);
+    res.status(500).json({ error: 'حدث خطأ أثناء جلب تفاصيل الرحلة الجماعية' });
   }
 };
 
@@ -65,8 +67,9 @@ export const getUserGroupTrips = async (req: AuthRequest, res: Response) => {
       .sort({ createdAt: -1 });
 
     res.json(groupTrips);
-  } catch (error) {
-    throw error;
+  } catch (error: any) {
+    console.error('❌ Error in getUserGroupTrips:', error);
+    res.status(500).json({ error: 'حدث خطأ أثناء جلب قائمة رحلاتك الجماعية' });
   }
 };
 
@@ -87,7 +90,7 @@ export const inviteToGroupTrip = async (req: AuthRequest, res: Response) => {
     }
 
     // Check if already invited or member
-    const alreadyInvited = groupTrip.invitations.some(
+    const alreadyInvited = groupTrip.invitations?.some(
       (inv) => inv.userId.toString() === userId
     );
     const alreadyMember = groupTrip.memberIds.some(
@@ -98,11 +101,16 @@ export const inviteToGroupTrip = async (req: AuthRequest, res: Response) => {
       return res.status(409).json({ error: 'User already invited or member' });
     }
 
+    // Ensure invitations array exists
+    if (!groupTrip.invitations) {
+      groupTrip.invitations = [];
+    }
+
     groupTrip.invitations.push({
       userId: new Types.ObjectId(userId),
       status: 'pending',
       sentAt: new Date()
-    });
+    } as any);
 
     await groupTrip.save();
 
@@ -118,17 +126,20 @@ export const inviteToGroupTrip = async (req: AuthRequest, res: Response) => {
       read: false
     });
 
-    // Emit Socket.IO event
+    // Emit Socket.IO event safely
     const io = req.app.get('io');
-    io.to(`user:${userId}`).emit('notification', {
-      type: 'group_invitation',
-      groupTripId: groupTrip._id,
-      groupTripTitle: groupTrip.title
-    });
+    if (io) {
+      io.to(`user:${userId}`).emit('notification', {
+        type: 'group_invitation',
+        groupTripId: groupTrip._id,
+        groupTripTitle: groupTrip.title
+      });
+    }
 
     res.json({ message: 'Invitation sent successfully' });
-  } catch (error) {
-    throw error;
+  } catch (error: any) {
+    console.error('❌ Error in inviteToGroupTrip:', error);
+    res.status(500).json({ error: 'حدث خطأ أثناء إرسال الدعوة' });
   }
 };
 
@@ -143,7 +154,7 @@ export const respondToInvitation = async (req: AuthRequest, res: Response) => {
       return res.status(404).json({ error: 'Group trip not found' });
     }
 
-    const invitation = groupTrip.invitations.find(
+    const invitation = groupTrip.invitations?.find(
       (inv) => inv.userId.toString() === req.user?.userId
     );
 
@@ -172,8 +183,9 @@ export const respondToInvitation = async (req: AuthRequest, res: Response) => {
     await groupTrip.save();
 
     res.json(groupTrip);
-  } catch (error) {
-    throw error;
+  } catch (error: any) {
+    console.error('❌ Error in respondToInvitation:', error);
+    res.status(500).json({ error: 'حدث خطأ أثناء الرد على الدعوة' });
   }
 };
 
@@ -216,8 +228,9 @@ export const removeMember = async (req: AuthRequest, res: Response) => {
     });
 
     res.json({ message: 'Member removed successfully' });
-  } catch (error) {
-    throw error;
+  } catch (error: any) {
+    console.error('❌ Error in removeMember:', error);
+    res.status(500).json({ error: 'حدث خطأ أثناء إزالة العضو' });
   }
 };
 
@@ -255,7 +268,8 @@ export const leaveGroupTrip = async (req: AuthRequest, res: Response) => {
     });
 
     res.json({ message: 'Left group trip successfully' });
-  } catch (error) {
-    throw error;
+  } catch (error: any) {
+    console.error('❌ Error in leaveGroupTrip:', error);
+    res.status(500).json({ error: 'حدث خطأ أثناء مغادرة الرحلة' });
   }
 };

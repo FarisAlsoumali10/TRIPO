@@ -20,8 +20,10 @@ export const getProfile = async (req: AuthRequest, res: Response) => {
       smartProfile: user.smartProfile,
       createdAt: user.createdAt
     });
-  } catch (error) {
-    throw error;
+  } catch (error: any) {
+    console.error('❌ Error in getProfile:', error);
+    // ✅ منع تعليق الواجهة الأمامية
+    res.status(500).json({ error: 'حدث خطأ أثناء جلب بيانات الملف الشخصي' });
   }
 };
 
@@ -48,8 +50,9 @@ export const updateProfile = async (req: AuthRequest, res: Response) => {
       language: user.language,
       smartProfile: user.smartProfile
     });
-  } catch (error) {
-    throw error;
+  } catch (error: any) {
+    console.error('❌ Error in updateProfile:', error);
+    res.status(500).json({ error: 'حدث خطأ أثناء تحديث الملف الشخصي' });
   }
 };
 
@@ -59,10 +62,14 @@ export const updateSmartProfile = async (req: AuthRequest, res: Response) => {
 
     const user = await User.findByIdAndUpdate(
       req.user?.userId,
-      { $set: { ...Object.keys(updates).reduce((acc, key) => {
-        acc[`smartProfile.${key}`] = updates[key];
-        return acc;
-      }, {} as Record<string, any>) } },
+      {
+        $set: {
+          ...Object.keys(updates).reduce((acc, key) => {
+            acc[`smartProfile.${key}`] = updates[key];
+            return acc;
+          }, {} as Record<string, any>)
+        }
+      },
       { new: true, runValidators: true }
     ).select('-passwordHash');
 
@@ -71,10 +78,12 @@ export const updateSmartProfile = async (req: AuthRequest, res: Response) => {
     }
 
     res.json({
-      smartProfile: user.smartProfile
+      success: true,
+      data: user
     });
-  } catch (error) {
-    throw error;
+  } catch (error: any) {
+    console.error('❌ Error in updateSmartProfile:', error);
+    res.status(500).json({ error: 'حدث خطأ أثناء تحديث التفضيلات الذكية' });
   }
 };
 
@@ -94,7 +103,8 @@ export const getPublicProfile = async (req: AuthRequest, res: Response) => {
       avatar: user.avatar,
       memberSince: user.createdAt
     });
-  } catch (error) {
-    throw error;
+  } catch (error: any) {
+    console.error('❌ Error in getPublicProfile:', error);
+    res.status(500).json({ error: 'حدث خطأ أثناء جلب الملف الشخصي العام' });
   }
 };

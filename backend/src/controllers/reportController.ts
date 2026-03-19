@@ -12,8 +12,10 @@ export const createReport = async (req: AuthRequest, res: Response) => {
     const report = await Report.create(reportData);
 
     res.status(201).json(report);
-  } catch (error) {
-    throw error;
+  } catch (error: any) {
+    console.error('❌ Error in createReport:', error);
+    // ✅ منع تعليق الواجهة الأمامية عند رفع البلاغ
+    res.status(500).json({ error: 'حدث خطأ أثناء إرسال البلاغ' });
   }
 };
 
@@ -31,8 +33,10 @@ export const getReports = async (req: AuthRequest, res: Response) => {
       .sort({ createdAt: -1 });
 
     res.json(reports);
-  } catch (error) {
-    throw error;
+  } catch (error: any) {
+    console.error('❌ Error in getReports:', error);
+    // ✅ حماية لوحة تحكم الإدارة
+    res.status(500).json({ error: 'حدث خطأ أثناء جلب قائمة البلاغات' });
   }
 };
 
@@ -44,7 +48,7 @@ export const reviewReport = async (req: AuthRequest, res: Response) => {
     const report = await Report.findById(reportId);
 
     if (!report) {
-      return res.status(404).json({ error: 'Report not found' });
+      return res.status(404).json({ error: 'البلاغ غير موجود' });
     }
 
     report.status = 'resolved';
@@ -87,7 +91,9 @@ export const reviewReport = async (req: AuthRequest, res: Response) => {
     }
 
     res.json(report);
-  } catch (error) {
-    throw error;
+  } catch (error: any) {
+    console.error('❌ Error in reviewReport:', error);
+    // ✅ حماية لوحة تحكم الإدارة
+    res.status(500).json({ error: 'حدث خطأ أثناء معالجة البلاغ' });
   }
 };
