@@ -2,6 +2,7 @@ import { Router } from 'express';
 import authRoutes from './authRoutes';
 import profileRoutes from './profileRoutes';
 import placeRoutes from './placeRoutes';
+import itineraryRoutes from './itineraryRoutes';
 import favoriteRoutes from './favoriteRoutes';
 import reviewRoutes from './reviewRoutes';
 import groupTripRoutes from './groupTripRoutes';
@@ -10,11 +11,13 @@ import notificationRoutes from './notificationRoutes';
 import expenseRoutes from './expenseRoutes';
 import reportRoutes from './reportRoutes';
 import adminRoutes from './adminRoutes';
+import tourRoutes from './tourRoutes';
 
 const router = Router();
 
 router.use('/auth', authRoutes);
 router.use('/', profileRoutes);
+router.use('/itineraries', itineraryRoutes);
 router.use('/', placeRoutes);
 router.use('/', favoriteRoutes);
 router.use('/', reviewRoutes);
@@ -24,5 +27,6 @@ router.use('/', notificationRoutes);
 router.use('/', expenseRoutes);
 router.use('/', reportRoutes);
 router.use('/', adminRoutes);
+router.use('/tours', tourRoutes);
 
 export default router;

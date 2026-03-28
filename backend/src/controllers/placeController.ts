@@ -4,7 +4,7 @@ import { Place } from '../models';
 
 export const getPlaces = async (req: AuthRequest, res: Response) => {
   try {
-    const { city, categoryTags, search, page = 1, limit = 20 } = req.query;
+    const { city, categoryTags, category, search, minRating, page = 1, limit = 20 } = req.query;
 
     const query: any = { status: 'active' };
 
@@ -13,11 +13,14 @@ export const getPlaces = async (req: AuthRequest, res: Response) => {
       const tags = (categoryTags as string).split(',');
       query.categoryTags = { $in: tags };
     }
+    if (category) {
+      query.categoryTags = { $elemMatch: { $regex: new RegExp(`^${category}$`, 'i') } };
+    }
     if (search) {
-      query.$or = [
-        { name: { $regex: search, $options: 'i' } },
-        { description: { $regex: search, $options: 'i' } }
-      ];
+      query.$text = { $search: search as string };
+    }
+    if (minRating) {
+      query['ratingSummary.avgRating'] = { $gte: Number(minRating) };
     }
 
     const skip = (Number(page) - 1) * Number(limit);

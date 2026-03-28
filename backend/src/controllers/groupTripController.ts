@@ -1,6 +1,6 @@
 import { Response } from 'express';
 import { AuthRequest } from '../types';
-import { GroupTrip, Itinerary, Notification } from '../models';
+import { GroupTrip, Itinerary, Notification, User } from '../models';
 import { Types } from 'mongoose';
 
 export const createGroupTrip = async (req: AuthRequest, res: Response) => {
@@ -271,5 +271,68 @@ export const leaveGroupTrip = async (req: AuthRequest, res: Response) => {
   } catch (error: any) {
     console.error('❌ Error in leaveGroupTrip:', error);
     res.status(500).json({ error: 'حدث خطأ أثناء مغادرة الرحلة' });
+  }
+};
+
+export const createPrivateTrip = async (req: AuthRequest, res: Response) => {
+  try {
+    const { title, startDate, endDate, inviteIds = [] } = req.body;
+    if (!title) return res.status(400).json({ error: 'Title is required' });
+
+    const memberIds = [req.user?.userId, ...inviteIds].filter(Boolean).map(id => new Types.ObjectId(id as string));
+
+    const groupTrip = await GroupTrip.create({
+      organizerId: req.user?.userId,
+      title,
+      startDate: startDate ? new Date(startDate) : undefined,
+      endDate: endDate ? new Date(endDate) : undefined,
+      memberIds,
+      isPrivate: true,
+      status: 'planning',
+    });
+
+    res.status(201).json(groupTrip);
+  } catch (error: any) {
+    console.error('❌ Error in createPrivateTrip:', error);
+    res.status(500).json({ error: 'Failed to create private trip' });
+  }
+};
+
+export const getMyPrivateTrips = async (req: AuthRequest, res: Response) => {
+  try {
+    const trips = await GroupTrip.find({
+      memberIds: req.user?.userId,
+      isPrivate: true,
+    })
+      .populate('organizerId', 'name avatar email')
+      .populate('memberIds', 'name avatar email')
+      .sort({ createdAt: -1 });
+
+    res.json(trips);
+  } catch (error: any) {
+    console.error('❌ Error in getMyPrivateTrips:', error);
+    res.status(500).json({ error: 'Failed to fetch private trips' });
+  }
+};
+
+export const searchUsers = async (req: AuthRequest, res: Response) => {
+  try {
+    const { q } = req.query;
+    if (!q || (q as string).trim().length < 2) {
+      return res.json([]);
+    }
+
+    const regex = new RegExp((q as string).trim(), 'i');
+    const users = await User.find({
+      $or: [{ name: regex }, { email: regex }],
+      _id: { $ne: req.user?.userId },
+    })
+      .select('name email avatar')
+      .limit(10);
+
+    res.json(users);
+  } catch (error: any) {
+    console.error('❌ Error in searchUsers:', error);
+    res.status(500).json({ error: 'Search failed' });
   }
 };

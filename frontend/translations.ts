@@ -41,14 +41,14 @@ export const TRANSLATIONS = {
     bestRestaurantsSection: "Best Restaurants 🍽️",
     googleSource: "from Google Maps",
 
-    newItinerary: "New Itinerary",
+    newItinerary: "New Trip",
     tripTitle: "TRIP TITLE",
     tripTitlePlaceholder: "e.g. Saturday Brunch Walk",
     stopsLabel: "STOPS",
     addPlace: "Add Place",
     totalCost: "Total Cost:",
     time: "Time:",
-    publishBtn: "Publish Itinerary",
+    publishBtn: "Publish Trip",
     searchPlaceholder: "Search places...",
 
     curatedBy: "Curated by",
@@ -152,7 +152,7 @@ export const TRANSLATIONS = {
     bestRestaurantsSection: "أفضل المطاعم 🍽️",
     googleSource: "من خرائط جوجل",
 
-    newItinerary: "رحلة جديدة",
+    newItinerary: "رحلة جديدة",  // Trip
     tripTitle: "عنوان الرحلة",
     tripTitlePlaceholder: "مثال: جولة صباح السبت",
     stopsLabel: "المحطات",

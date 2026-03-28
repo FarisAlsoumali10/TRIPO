@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
-import { MapPin, Globe, AlertCircle, Loader2, Mail } from 'lucide-react';
+import { MapPin, Globe, AlertCircle, Loader2 } from 'lucide-react';
 import { Button, Input } from '../components/ui';
 // ⚠️ تأكد أن مسار الاستيراد هذا صحيح ويشير إلى ملف api.ts الخاص بك
 import { authAPI } from '../services/api';
 
-export const AuthScreen = ({ onLogin, onGuestLogin, t, lang, onToggleLang }: any) => {
+export const AuthScreen = ({ onLogin, onRegister, onGuestLogin, t, lang, onToggleLang }: any) => {
   const [isLoginView, setIsLoginView] = useState(true);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -34,30 +34,27 @@ export const AuthScreen = ({ onLogin, onGuestLogin, t, lang, onToggleLang }: any
       // إرسال الطلب للباك-إند
       const response = isLoginView
         ? await authAPI.login({ email, password })
-        : await authAPI.register({ 
-            name, 
-            email, 
-            password,
-            language: 'en',
-            smartProfile: {
-              interests: [],
-              preferredBudget: 'medium',
-              activityStyles: [],
-              typicalFreeTimeWindow: 180,
-              city: 'Riyadh'
-            } as any
-          });
+        : await authAPI.register({ name, email, password, language: 'en' });
 
       // حفظ تذكرة المرور (Token) وبيانات المستخدم في المتصفح
       localStorage.setItem('token', response.token);
       localStorage.setItem('user', JSON.stringify(response.user));
 
-      // إخبار التطبيق بنجاح الدخول للانتقال للشاشة الرئيسية
-      onLogin();
+      // After registration, trigger onboarding wizard; after login, go straight to main
+      if (!isLoginView && onRegister) {
+        onRegister();
+      } else {
+        // إخبار التطبيق بنجاح الدخول للانتقال للشاشة الرئيسية
+        onLogin();
+      }
 
     } catch (err: any) {
-      // اصطياد الأخطاء القادمة من الباك-إند
-      const errorMessage = err.response?.data?.error || err.response?.data?.message || (isLoginView ? 'فشل تسجيل الدخول. تأكد من صحة بياناتك.' : 'فشل إنشاء الحساب. تأكد من البيانات.');
+      const data = err.response?.data;
+      const errorMessage =
+        data?.errors?.[0]?.message ||
+        data?.error ||
+        data?.message ||
+        (isLoginView ? 'Login failed. Check your email and password.' : 'Could not create account. Make sure your password is at least 8 characters.');
       setError(errorMessage);
     } finally {
       setIsLoading(false);
@@ -140,32 +137,15 @@ export const AuthScreen = ({ onLogin, onGuestLogin, t, lang, onToggleLang }: any
                 className="w-full"
                 disabled={isLoading}
               />
+              {!isLoginView && (
+                <p className="text-xs text-slate-400 mt-1 ml-1">Minimum 8 characters</p>
+              )}
             </div>
 
-            <Button type="submit" disabled={isLoading} className="w-full py-4 mt-8 bg-slate-900 border-none hover:bg-slate-800 shadow-lg text-lg flex items-center justify-center gap-2 rounded-xl transition-all hover:scale-[1.02]">
+            <Button type="submit" disabled={isLoading} className="w-full py-4 mt-8 bg-emerald-600 border-none hover:bg-emerald-700 shadow-lg shadow-emerald-100 text-lg flex items-center justify-center gap-2 rounded-xl transition-all hover:scale-[1.02]">
               {isLoading ? <Loader2 className="w-6 h-6 animate-spin text-emerald-400" /> : <span className="text-white">{isLoginView ? (t.loginBtn || "Login") : (t.signUp || "Sign up")}</span>}
             </Button>
           </form>
-
-          <div className="mt-8 relative">
-            <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-slate-200"></div>
-            </div>
-            <div className="relative flex justify-center text-sm">
-              <span className="px-4 bg-white text-slate-500 font-medium">Or continue with</span>
-            </div>
-          </div>
-
-          <div className="mt-8 flex flex-col gap-3">
-            <Button variant="secondary" disabled={isLoading} className="w-full py-3.5 text-base bg-white border border-slate-200 hover:border-slate-300 hover:bg-slate-50 text-slate-700 shadow-sm flex items-center justify-center gap-3 rounded-xl transition-all">
-              <svg className="w-5 h-5" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/><path d="M1 1h22v22H1z" fill="none"/></svg>
-              Continue with Google
-            </Button>
-            <Button variant="secondary" disabled={isLoading} className="w-full py-3.5 text-base bg-white border border-slate-200 hover:border-slate-300 hover:bg-slate-50 text-slate-700 shadow-sm flex items-center justify-center gap-3 rounded-xl transition-all">
-              <Mail className="w-5 h-5 text-slate-500" />
-              Email Magic Link
-            </Button>
-          </div>
 
           {isLoginView ? (
             <p className="mt-10 text-center text-sm text-slate-500 font-medium">
@@ -185,31 +165,31 @@ export const AuthScreen = ({ onLogin, onGuestLogin, t, lang, onToggleLang }: any
       </div>
 
       {/* Right Half: Blue Gradient Backdrop with Messaging */}
-      <div className="flex-[1] flex flex-col justify-center relative overflow-hidden bg-gradient-to-br from-blue-700 via-indigo-800 to-slate-900 p-8 lg:p-24 text-white order-1 lg:order-2 min-h-[30vh] lg:min-h-0">
+      <div className="flex-[1] flex flex-col justify-center relative overflow-hidden bg-gradient-to-br from-emerald-600 via-emerald-700 to-teal-800 p-8 lg:p-24 text-white order-1 lg:order-2 min-h-[30vh] lg:min-h-0">
         <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-10 min-h-full min-w-full"></div>
-        <div className="absolute -top-32 -right-32 w-[30rem] h-[30rem] bg-blue-500 rounded-full mix-blend-multiply filter blur-[100px] opacity-50 transition-transform duration-1000 animate-pulse"></div>
-        <div className="absolute -bottom-32 -left-32 w-[30rem] h-[30rem] bg-indigo-500 rounded-full mix-blend-multiply filter blur-[100px] opacity-40 transition-transform duration-1000 delay-500 animate-pulse"></div>
+        <div className="absolute -top-32 -right-32 w-[30rem] h-[30rem] bg-emerald-400 rounded-full mix-blend-multiply filter blur-[100px] opacity-50 transition-transform duration-1000 animate-pulse"></div>
+        <div className="absolute -bottom-32 -left-32 w-[30rem] h-[30rem] bg-teal-400 rounded-full mix-blend-multiply filter blur-[100px] opacity-40 transition-transform duration-1000 delay-500 animate-pulse"></div>
 
         <div className="relative z-10 max-w-lg mx-auto transform transition-all hover:scale-105 duration-700 hidden lg:flex flex-col h-full justify-center">
           <div>
             <div className="mb-10 inline-flex items-center justify-center p-5 bg-white/10 backdrop-blur-md rounded-3xl ring-1 ring-white/20 shadow-2xl">
-              <MapPin className="w-14 h-14 text-blue-200" />
+              <MapPin className="w-14 h-14 text-emerald-100" />
             </div>
             <h2 className="text-5xl lg:text-7xl font-black mb-6 leading-[1.1] tracking-tight text-white drop-shadow-md">
               Discover Your Next<br />
               <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-300 to-cyan-300 drop-shadow-none">Micro-Escape.</span>
             </h2>
-            <p className="text-xl text-blue-100/90 leading-relaxed font-medium mb-12 max-w-md drop-shadow-sm">
+            <p className="text-xl text-emerald-100/90 leading-relaxed font-medium mb-12 max-w-md drop-shadow-sm">
               Join thousands of travelers exploring the hidden gems and breathtaking landscapes of Saudi Arabia with Tripo.
             </p>
           </div>
 
-          <div className="flex items-center gap-4 text-sm font-semibold text-blue-100 mt-auto">
+          <div className="flex items-center gap-4 text-sm font-semibold text-emerald-100 mt-auto">
             <div className="flex -space-x-3">
-              <img className="w-10 h-10 rounded-full border-2 border-indigo-800 object-cover shadow-sm" src="https://i.pravatar.cc/100?img=33" alt="User 1" />
-              <img className="w-10 h-10 rounded-full border-2 border-indigo-800 object-cover shadow-sm" src="https://i.pravatar.cc/100?img=47" alt="User 2" />
-              <img className="w-10 h-10 rounded-full border-2 border-indigo-800 object-cover shadow-sm" src="https://i.pravatar.cc/100?img=12" alt="User 3" />
-              <div className="w-10 h-10 rounded-full border-2 border-indigo-800 bg-emerald-600 flex items-center justify-center text-xs font-bold shadow-md z-10 text-white">
+              <img className="w-10 h-10 rounded-full border-2 border-emerald-800 object-cover shadow-sm" src="https://i.pravatar.cc/100?img=33" alt="User 1" />
+              <img className="w-10 h-10 rounded-full border-2 border-emerald-800 object-cover shadow-sm" src="https://i.pravatar.cc/100?img=47" alt="User 2" />
+              <img className="w-10 h-10 rounded-full border-2 border-emerald-800 object-cover shadow-sm" src="https://i.pravatar.cc/100?img=12" alt="User 3" />
+              <div className="w-10 h-10 rounded-full border-2 border-emerald-800 bg-emerald-600 flex items-center justify-center text-xs font-bold shadow-md z-10 text-white">
                 +2k
               </div>
             </div>
@@ -220,7 +200,7 @@ export const AuthScreen = ({ onLogin, onGuestLogin, t, lang, onToggleLang }: any
         {/* Mobile Title View */}
         <div className="relative z-10 lg:hidden text-center flex flex-col items-center justify-center flex-1">
           <div className="mb-6 inline-flex items-center justify-center p-4 bg-white/10 backdrop-blur-md rounded-2xl ring-1 ring-white/20 shadow-xl">
-            <MapPin className="w-8 h-8 text-blue-200" />
+            <MapPin className="w-8 h-8 text-emerald-100" />
           </div>
           <h2 className="text-3xl font-black mb-2 leading-tight tracking-tight text-white">
             Discover Your Next<br />

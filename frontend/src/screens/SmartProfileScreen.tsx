@@ -51,9 +51,11 @@ export const SmartProfileScreen = ({ onComplete, t }: { onComplete: (p: SmartPro
         city: 'Riyadh'
       };
 
-      await authAPI.updateSmartProfile(payload);
+      const token = localStorage.getItem('token');
+      if (token) {
+        await authAPI.updateSmartProfile(payload);
+      }
       onComplete(payload as SmartProfile);
-      window.location.href = '/explore';
 
     } catch (err: any) {
       const details = err.response?.data?.details;
@@ -71,13 +73,13 @@ export const SmartProfileScreen = ({ onComplete, t }: { onComplete: (p: SmartPro
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-white">
+    <div className="min-h-screen bg-white text-slate-800">
 
       {/* Top Navbar (Web feel) */}
-      <div className="w-full border-b border-white/10 backdrop-blur-md bg-white/5">
+      <div className="w-full border-b border-slate-200 bg-white">
         <div className="max-w-7xl mx-auto px-6 py-4 flex justify-between items-center">
           <div className="flex items-center gap-2 font-bold text-lg">
-            <Sparkles className="text-cyan-400" />
+            <Sparkles className="text-emerald-600" />
             <span>Smart Explorer</span>
           </div>
           <div className="text-sm text-slate-400 hidden md:block">
@@ -91,14 +93,14 @@ export const SmartProfileScreen = ({ onComplete, t }: { onComplete: (p: SmartPro
 
         {/* Left Side (Hero / Info) */}
         <div className="flex flex-col justify-center">
-          <h1 className="text-5xl font-extrabold leading-tight mb-6">
+          <h1 className="text-5xl font-extrabold leading-tight mb-6 text-slate-800">
             {t.profileTitle || 'Craft Your Perfect Day'}
           </h1>
           <p className="text-slate-400 text-lg mb-8 max-w-lg">
             {t.profileDesc || 'Tell us what you like, and we will generate personalized experiences tailored just for you.'}
           </p>
 
-          <div className="space-y-4 text-sm text-slate-400">
+          <div className="space-y-4 text-sm text-slate-500">
             <div>✨ Smart recommendations</div>
             <div>⚡ Instant planning</div>
             <div>📍 Based on your vibe</div>
@@ -106,11 +108,11 @@ export const SmartProfileScreen = ({ onComplete, t }: { onComplete: (p: SmartPro
         </div>
 
         {/* Right Side (Card Form) */}
-        <div className="bg-white/5 backdrop-blur-2xl border border-white/10 rounded-3xl p-8 shadow-2xl space-y-8">
+        <div className="bg-white border border-slate-200 rounded-3xl p-8 shadow-md space-y-8">
 
           {/* Interests */}
           <div>
-            <p className="text-xs uppercase text-slate-400 mb-4">Interests</p>
+            <p className="text-xs uppercase text-slate-500 mb-4">Interests</p>
             <div className="flex flex-wrap gap-3">
               {interestOptions.map(opt => {
                 const selected = interests.includes(opt.id);
@@ -121,7 +123,7 @@ export const SmartProfileScreen = ({ onComplete, t }: { onComplete: (p: SmartPro
                     className={`px-4 py-2 rounded-xl flex items-center gap-2 text-sm transition-all
                       ${selected
                         ? 'bg-gradient-to-r from-teal-500 to-cyan-500 text-white scale-105 shadow-lg'
-                        : 'bg-white/10 text-slate-300 hover:bg-white/20'
+                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                       }`}
                   >
                     {opt.icon} {opt.label}
@@ -133,7 +135,7 @@ export const SmartProfileScreen = ({ onComplete, t }: { onComplete: (p: SmartPro
 
           {/* Budget */}
           <div>
-            <p className="text-xs uppercase text-slate-400 mb-4">Budget</p>
+            <p className="text-xs uppercase text-slate-500 mb-4">Budget</p>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               {budgetOptions.map(opt => {
                 const selected = budget === opt.val;
@@ -144,7 +146,7 @@ export const SmartProfileScreen = ({ onComplete, t }: { onComplete: (p: SmartPro
                     className={`p-4 rounded-xl text-center transition-all border
                       ${selected
                         ? 'bg-white text-black shadow-lg scale-105'
-                        : 'bg-white/5 text-slate-300 border-white/10 hover:bg-white/10'
+                        : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
                       }`}
                   >
                     <div>{opt.icon}</div>
@@ -157,9 +159,9 @@ export const SmartProfileScreen = ({ onComplete, t }: { onComplete: (p: SmartPro
 
           {/* Time */}
           <div>
-            <p className="text-xs uppercase text-slate-400 mb-4">Time</p>
+            <p className="text-xs uppercase text-slate-500 mb-4">Time</p>
             <div className="flex items-center gap-4">
-              <Clock className="text-cyan-400" />
+              <Clock className="text-emerald-600" />
               <input
                 type="range"
                 min="0.5"
@@ -167,7 +169,7 @@ export const SmartProfileScreen = ({ onComplete, t }: { onComplete: (p: SmartPro
                 step="0.5"
                 value={hours}
                 onChange={(e) => setHours(parseFloat(e.target.value))}
-                className="flex-1 accent-cyan-500"
+                className="flex-1 accent-emerald-500"
               />
               <span className="font-bold">{hours}h</span>
             </div>
@@ -188,7 +190,7 @@ export const SmartProfileScreen = ({ onComplete, t }: { onComplete: (p: SmartPro
             className={`w-full py-4 rounded-xl font-bold flex justify-center items-center gap-2 transition-all
               ${isFormValid
                 ? 'bg-gradient-to-r from-teal-500 to-cyan-500 text-white hover:scale-105'
-                : 'bg-white/10 text-slate-500'
+                : 'bg-slate-100 text-slate-400'
               }`}
           >
             {isLoading ? (

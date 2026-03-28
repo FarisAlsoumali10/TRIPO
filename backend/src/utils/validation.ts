@@ -24,7 +24,7 @@ export const registerSchema = z.object({
     city: z.string().trim().min(1, 'City is required'),
     travelVibe: z.enum(['chill', 'adventurous', 'cultural', 'foodie']).optional(),
     favoriteSeason: z.enum(['winter', 'spring', 'summer', 'autumn']).optional()
-  })
+  }).optional()
 }).strict(); // يمنع إرسال أي حقول خبيثة غير معرفة هنا
 
 export const loginSchema = z.object({
