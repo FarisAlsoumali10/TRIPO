@@ -21,13 +21,24 @@ app.set('trust proxy', 1);
 
 const httpServer = createServer(app);
 
-// ✅ توحيد إعدادات الـ CORS
+// ✅ 1. تعريف إعدادات الـ CORS بشكل يرضي صرامة TypeScript
+const allowedOrigins = [
+  process.env.FRONTEND_URL,
+  'http://localhost:5173'
+].filter(Boolean) as string[]; // تصفية القيم الفارغة وتأكيد أنها نصوص
+
+// ✅ الحل الحاسم لإرضاء صرامة TypeScript
 const corsOptions = {
-  origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+  // إذا كان الرابط موجوداً في البيئة، نضعه مع رابط الـ Localhost في مصفوفة نصوص صريحة.
+  // وإذا لم يكن موجوداً، نكتفي برابط الـ Localhost.
+  origin: process.env.FRONTEND_URL
+    ? [process.env.FRONTEND_URL, 'http://localhost:5173']
+    : 'http://localhost:5173',
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS']
 };
 
+// 🔥 هنا كان السطر المفقود! يجب تعريف الـ Socket.IO وتمرير إعدادات الـ CORS له
 const io = new Server(httpServer, {
   cors: corsOptions
 });
@@ -36,7 +47,7 @@ const io = new Server(httpServer, {
 // 🛡️ Global Middlewares (دروع الحماية)
 // ==========================================
 app.use(helmet());
-app.use(cors(corsOptions));
+app.use(cors(corsOptions)); // ✅ 2. استخدام الإعدادات للـ Express هنا
 app.use(compression());
 app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev'));
 // ✅ حماية السيرفر من هجمات الـ Payload الضخمة
