@@ -3,7 +3,7 @@ import { MarketplaceTargetType, BookingStatus } from '../types';
 
 export interface IBooking extends Document {
   userId: Types.ObjectId;
-  targetType: MarketplaceTargetType | 'session' | 'campsite';
+  targetType: MarketplaceTargetType | 'session' | 'campsite' | 'tour';
   targetId: Types.ObjectId;
   status: BookingStatus | 'pending' | 'confirmed' | 'cancelled';
   paymentStatus: 'pending' | 'paid' | 'refunded'; // ✅ إضافة حالة الدفع
@@ -22,7 +22,7 @@ const bookingSchema = new Schema({
   },
   targetType: {
     type: String,
-    enum: ['session', 'campsite'],
+    enum: ['session', 'campsite', 'tour'],
     required: true
   },
   targetId: {

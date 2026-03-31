@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { ChevronLeft, Send, Wallet } from 'lucide-react';
 import { Button, Input } from '../components/ui';
 import { GroupTrip, User, ChatMessage, Expense } from '../types/index';
+import { groupTripAPI } from '../services/api';
 
 export const GroupTripScreen = ({ trip, currentUser, onBack, onUpdateTrip, t }: { trip: GroupTrip, currentUser: User, onBack: () => void, onUpdateTrip: (t: GroupTrip) => void, t: any }) => {
   const [activeTab, setActiveTab] = useState<'chat' | 'budget'>('chat');
@@ -18,11 +19,29 @@ export const GroupTripScreen = ({ trip, currentUser, onBack, onUpdateTrip, t }: 
     scrollToBottom();
   }, [trip.chatMessages, activeTab]);
 
-  const handleSendMessage = (e: React.FormEvent) => {
+  // Load persisted messages and expenses from backend on mount
+  useEffect(() => {
+    if (!trip.backendId) return;
+    const load = async () => {
+      try {
+        const [msgs, exps] = await Promise.all([
+          groupTripAPI.getMessages(trip.backendId!),
+          groupTripAPI.getExpenses(trip.backendId!),
+        ]);
+        onUpdateTrip({ ...trip, chatMessages: msgs, expenses: exps });
+      } catch (e) {
+        console.warn('Failed to load group trip data from backend:', e);
+      }
+    };
+    load();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [trip.backendId]);
+
+  const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newMessage.trim()) return;
 
-    const msg: ChatMessage = {
+    const optimisticMsg: ChatMessage = {
       id: Date.now().toString(),
       userId: currentUser.id,
       userName: currentUser.name,
@@ -30,17 +49,29 @@ export const GroupTripScreen = ({ trip, currentUser, onBack, onUpdateTrip, t }: 
       timestamp: Date.now(),
     };
 
-    onUpdateTrip({
-      ...trip,
-      chatMessages: [...trip.chatMessages, msg]
-    });
+    // Optimistic update
+    onUpdateTrip({ ...trip, chatMessages: [...trip.chatMessages, optimisticMsg] });
+    const sentText = newMessage;
     setNewMessage('');
+
+    if (trip.backendId) {
+      try {
+        const saved = await groupTripAPI.sendMessage(trip.backendId, sentText);
+        // Replace optimistic message with saved one
+        onUpdateTrip(prev => ({
+          ...prev,
+          chatMessages: prev.chatMessages.map(m => m.id === optimisticMsg.id ? saved : m)
+        }) as any);
+      } catch (e) {
+        console.warn('Message not persisted to backend:', e);
+      }
+    }
   };
 
-  const handleAddExpense = () => {
+  const handleAddExpense = async () => {
     if (!newExpense.desc || !newExpense.amount) return;
 
-    const expense: Expense = {
+    const optimisticExpense: Expense = {
       id: Date.now().toString(),
       description: newExpense.desc,
       amount: parseFloat(newExpense.amount),
@@ -48,12 +79,29 @@ export const GroupTripScreen = ({ trip, currentUser, onBack, onUpdateTrip, t }: 
       timestamp: Date.now()
     };
 
-    onUpdateTrip({
-      ...trip,
-      expenses: [...trip.expenses, expense]
-    });
+    onUpdateTrip({ ...trip, expenses: [...trip.expenses, optimisticExpense] });
     setIsExpenseModalOpen(false);
+    const { desc, amount, payerId } = newExpense;
     setNewExpense({ desc: '', amount: '', payerId: currentUser.id });
+
+    if (trip.backendId) {
+      try {
+        const memberIds = trip.members.map(m => m.id);
+        const saved = await groupTripAPI.addExpense(
+          trip.backendId,
+          desc,
+          parseFloat(amount),
+          payerId,
+          memberIds
+        );
+        onUpdateTrip(prev => ({
+          ...prev,
+          expenses: prev.expenses.map(e => e.id === optimisticExpense.id ? saved : e)
+        }) as any);
+      } catch (e) {
+        console.warn('Expense not persisted to backend:', e);
+      }
+    }
   };
 
   // Budget Calculation Logic
@@ -68,11 +116,11 @@ export const GroupTripScreen = ({ trip, currentUser, onBack, onUpdateTrip, t }: 
   });
 
   return (
-    <div className="h-full flex flex-col bg-slate-50">
+    <div className="flex-1 min-h-0 flex flex-col bg-slate-50 relative">
       {/* Header */}
-      <div className="bg-white border-b border-slate-200 px-4 py-3 flex items-center justify-between shadow-sm z-10">
+      <div className="bg-white border-b border-slate-200 px-4 py-3 flex items-center justify-between shadow-sm relative z-10">
         <div className="flex items-center gap-3">
-          <button onClick={onBack}><ChevronLeft className="w-6 h-6 text-slate-600 rtl:rotate-180" /></button>
+          <button type="button" onClick={onBack}><ChevronLeft className="w-6 h-6 text-slate-600 rtl:rotate-180" /></button>
           <div>
             <h2 className="font-bold text-slate-900 leading-tight">{trip.itinerary.title}</h2>
             <p className="text-xs text-green-600 flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></span> {trip.members.length} {t.active}</p>
@@ -80,7 +128,9 @@ export const GroupTripScreen = ({ trip, currentUser, onBack, onUpdateTrip, t }: 
         </div>
         <div className="flex -space-x-2 rtl:space-x-reverse">
           {trip.members.map(m => (
-            <img key={m.id} src={m.avatar} className="w-8 h-8 rounded-full border-2 border-white" />
+            <div key={m.id} className="w-8 h-8 rounded-full border-2 border-white bg-emerald-100 flex items-center justify-center text-emerald-700 text-xs font-bold flex-shrink-0">
+              {m.name?.charAt(0).toUpperCase()}
+            </div>
           ))}
           <button className="w-8 h-8 rounded-full bg-slate-100 border-2 border-white flex items-center justify-center text-slate-400 text-xs font-bold">
             +
@@ -89,14 +139,16 @@ export const GroupTripScreen = ({ trip, currentUser, onBack, onUpdateTrip, t }: 
       </div>
 
       {/* Tabs */}
-      <div className="flex bg-white border-b border-slate-200">
+      <div className="flex bg-white border-b border-slate-200 relative z-10">
         <button
+          type="button"
           onClick={() => setActiveTab('chat')}
           className={`flex-1 py-3 text-sm font-bold border-b-2 transition-colors ${activeTab === 'chat' ? 'border-emerald-600 text-emerald-600' : 'border-transparent text-slate-500'}`}
         >
           {t.tabChat}
         </button>
         <button
+          type="button"
           onClick={() => setActiveTab('budget')}
           className={`flex-1 py-3 text-sm font-bold border-b-2 transition-colors ${activeTab === 'budget' ? 'border-emerald-600 text-emerald-600' : 'border-transparent text-slate-500'}`}
         >
@@ -155,7 +207,9 @@ export const GroupTripScreen = ({ trip, currentUser, onBack, onUpdateTrip, t }: 
                 {balances.map(b => (
                   <div key={b.member.id} className="flex justify-between items-center text-sm">
                     <div className="flex items-center gap-2">
-                      <img src={b.member.avatar} className="w-5 h-5 rounded-full" />
+                      <div className="w-5 h-5 rounded-full bg-emerald-200 flex items-center justify-center text-emerald-800 text-[9px] font-bold flex-shrink-0">
+                        {b.member.name?.charAt(0).toUpperCase()}
+                      </div>
                       <span className="text-slate-300">{b.member.name.split(' ')[0]}</span>
                     </div>
                     <span className={`font-bold ${b.balance >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>

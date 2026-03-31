@@ -14,10 +14,14 @@ export interface IPlace extends Document {
   updatedAt: Date;
 
   // --- الخصائص المضافة لدعم الواجهة (Frontend) ---
-  avgCost?: number;     // لحساب تكلفة الرحلة الإجمالية
-  duration?: number;    // لحساب مدة الزيارة الإجمالية (بالدقائق)
-  category?: string;    // كـ Fallback للواجهات القديمة
-  image?: string;       // كـ Fallback لعرض صورة الغلاف الأساسية
+  avgCost?: number;
+  duration?: number;
+  category?: string;
+  image?: string;
+  priceRange?: 1 | 2 | 3 | 4;
+  openingHours?: Record<string, { open: string; close: string; closed?: boolean }>;
+  accessibility?: { wheelchair?: boolean; parking?: boolean; family?: boolean };
+  bestSeasons?: string[];
 }
 
 const placeSchema = new Schema({
@@ -61,9 +65,29 @@ const placeSchema = new Schema({
   },
   // --- الخصائص المضافة ---
   avgCost: { type: Number, default: 0 },
-  duration: { type: Number, default: 60 }, // افتراض 60 دقيقة للزيارة
+  duration: { type: Number, default: 60 },
   category: { type: String, index: true },
-  image: { type: String }
+  image: { type: String },
+  priceRange: { type: Number, min: 1, max: 4 },
+  openingHours: {
+    type: Map,
+    of: {
+      open: String,
+      close: String,
+      closed: { type: Boolean, default: false }
+    },
+    default: {}
+  },
+  accessibility: {
+    wheelchair: { type: Boolean, default: false },
+    parking:    { type: Boolean, default: false },
+    family:     { type: Boolean, default: false }
+  },
+  bestSeasons: {
+    type: [String],
+    enum: ['spring', 'summer', 'autumn', 'winter'],
+    default: []
+  }
 }, {
   timestamps: true
 });

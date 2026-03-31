@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//c/Users/cd-88/TRIPO_NEW/**)",
+      "Bash(docker-compose restart:*)",
+      "Bash(docker exec:*)"
+    ]
+  },
+  "enableAllProjectMcpServers": true,
+  "enabledMcpjsonServers": [
+    "context7"
+  ]
+}

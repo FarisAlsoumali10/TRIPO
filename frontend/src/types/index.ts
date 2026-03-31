@@ -57,6 +57,12 @@ export interface RatingSummary {
   reviewCount: number;
 }
 
+export interface OpeningHoursDay {
+  open: string;   // "08:00"
+  close: string;  // "22:00"
+  closed?: boolean;
+}
+
 export interface Place {
   _id?: string;
   id?: string;
@@ -71,7 +77,13 @@ export interface Place {
   createdAt?: string;
   updatedAt?: string;
 
-  // --- خصائص الواجهة القديمة ---
+  // --- New TripAdvisor-inspired fields ---
+  priceRange?: 1 | 2 | 3 | 4;
+  openingHours?: Record<string, OpeningHoursDay>;
+  accessibility?: { wheelchair?: boolean; parking?: boolean; family?: boolean };
+  bestSeasons?: ('spring' | 'summer' | 'autumn' | 'winter')[];
+
+  // --- legacy ---
   category?: string;
   image?: string;
   lat?: number;
@@ -103,6 +115,8 @@ export interface Itinerary {
   notes?: string;
   isVerified?: boolean;
   ratingSummary?: RatingSummary;
+  startDate?: string;
+  endDate?: string;
   createdAt?: string;
   updatedAt?: string;
 
@@ -155,6 +169,7 @@ export interface Rental {
   price: number | string;
   locationName: string;
   image: string;
+  images?: string[];
   rating?: number;
   x?: number;
   y?: number;
@@ -162,6 +177,10 @@ export interface Rental {
   lng?: number;
   ownerId?: string;
   description?: string;
+  mapQuery?: string;
+  contactName?: string;
+  contactPhone?: string;
+  contactWhatsapp?: string;
 }
 
 // ==========================================
@@ -186,10 +205,24 @@ export interface Expense {
 
 export interface GroupTrip {
   id: string;
+  backendId?: string; // MongoDB _id of the persisted group trip
   itinerary: Itinerary;
   members: User[];
-  chatMessages: ChatMessage[]; // 🔴 تم الربط بقوة مع ChatMessage بدلاً من any
-  expenses: Expense[];         // 🔴 تم الربط بقوة مع Expense بدلاً من any
+  chatMessages: ChatMessage[];
+  expenses: Expense[];
+}
+
+export interface PrivateTrip {
+  id: string;
+  backendId?: string;
+  title: string;
+  startDate?: string;
+  endDate?: string;
+  members: User[];
+  organizerId?: string;
+  chatMessages: ChatMessage[];
+  expenses: Expense[];
+  isPrivate: true;
 }
 
 export interface Community {
@@ -215,6 +248,40 @@ export interface CommunityEvent {
   image: string;
 }
 
+export interface WishList {
+  id: string;
+  name: string;
+  placeIds: string[];
+  createdAt: string;
+}
+
+export interface MajlisThread {
+  id: string;
+  communityId: string;
+  title: string;
+  body: string;
+  authorName: string;
+  createdAt: string;
+  tags: string[];
+  replies: { id: string; text: string; authorName: string; createdAt: string }[];
+}
+
+export interface QAItem {
+  id: string;
+  question: string;
+  askedBy: string;
+  askedAt: string;
+  answers: { id: string; text: string; answeredBy: string; answeredAt: string }[];
+}
+
+export interface AppNotification {
+  id: string;
+  type: 'like' | 'group_join' | 'community_reply';
+  message: string;
+  timestamp: number;
+  read: boolean;
+}
+
 export interface FazaRequest {
   id: string;
   userId: string;
@@ -224,4 +291,50 @@ export interface FazaRequest {
   communityId: string;
   timestamp: number;
   pointsReward: number;
+}
+
+// ==========================================
+// 🗺️ Tours & Experiences
+// ==========================================
+
+export interface TourStop {
+  order: number;
+  placeName: string;
+  duration: number; // minutes
+  description: string;
+  timeSlot?: string;
+  image?: string;
+}
+
+export interface Tour {
+  id: string;
+  _id?: string;
+  title: string;
+  description: string;
+  highlights: string[];
+  heroImage: string;
+  images?: string[];
+  pricePerPerson: number;
+  currency?: string;
+  maxGroupSize: number;
+  minGroupSize?: number;
+  stops: TourStop[];
+  departureLocation: string;
+  departureTime: string;
+  returnTime?: string;
+  totalDuration: number; // hours
+  difficulty: 'easy' | 'moderate' | 'challenging';
+  included: string[];
+  excluded: string[];
+  guideName: string;
+  guideAvatar?: string;
+  guideRating?: number;
+  availableDates?: string[];
+  category: string;
+  tags?: string[];
+  rating?: number;
+  reviewCount?: number;
+  itineraryId?: string;
+  baseItineraryId?: string;
+  bookingsCount?: number;
 }

@@ -1,8 +1,100 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Users, ChevronRight, Trophy, Star, MessageSquare, Plus, Crown, Flame, CheckCircle2, Send, X, ShieldCheck, Heart, Calendar, Clock, MapPin, Wallet as WalletIcon, TrendingUp, Award } from 'lucide-react';
-import { Community, Itinerary, FazaRequest, ChatMessage, CommunityEvent, User, Place } from '../types/index';
+import { Users, ChevronRight, Trophy, Star, MessageSquare, Plus, Crown, Flame, CheckCircle2, Send, X, ShieldCheck, Heart, Calendar, Clock, MapPin, Wallet as WalletIcon, TrendingUp, Award, Search, Tag, ArrowLeft, Hash, MessageCircle, Handshake, UserPlus } from 'lucide-react';
+import { Community, Itinerary, FazaRequest, ChatMessage, CommunityEvent, User, Place, MajlisThread } from '../types/index';
 import { Button, Input, Badge } from '../components/ui';
-import { placeAPI } from '../services/api'; // 🔴 استيراد الـ API الحقيقي للأماكن
+import { placeAPI, communityAPI } from '../services/api';
+
+// ── Traveling Together types & constants ──────────────────────────────────────
+
+interface TravelPost {
+  id: string;
+  userId: string;
+  userName: string;
+  userAvatar?: string;
+  placeName: string;
+  placeId?: string;
+  date: string; // ISO date
+  groupSize: number;
+  maxSize: number;
+  description: string;
+  interests: string[];
+  timestamp: number;
+  joinedByMe?: boolean;
+}
+
+const TRAVEL_POSTS_KEY = 'tripo_travel_posts';
+
+const INTEREST_OPTIONS = ['Hiking', 'Foodie', 'Art', 'History', 'Photography', 'Adventure', 'Relaxation', 'Culture'];
+
+const SEED_POSTS: TravelPost[] = [
+  {
+    id: 'seed-1',
+    userId: 'user-ahmad',
+    userName: 'Ahmad Al-Rashid',
+    userAvatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=ahmad',
+    placeName: 'Al Bujairi Heritage Park',
+    date: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+    groupSize: 2,
+    maxSize: 5,
+    description: "Planning a chill afternoon at Al Bujairi, would love to meet fellow history enthusiasts!",
+    interests: ['History', 'Photography'],
+    timestamp: Date.now() - 3600000,
+  },
+  {
+    id: 'seed-2',
+    userId: 'user-sara',
+    userName: 'Sara Khalid',
+    userAvatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=sara',
+    placeName: 'Kingdom Centre Tower',
+    date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+    groupSize: 1,
+    maxSize: 4,
+    description: "Weekend visit to Kingdom Centre, looking for travel buddies. We can grab coffee afterwards!",
+    interests: ['Photography', 'Foodie'],
+    timestamp: Date.now() - 7200000,
+  },
+  {
+    id: 'seed-3',
+    userId: 'user-khalid',
+    userName: 'Khalid Bin Turki',
+    userAvatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=khalid',
+    placeName: 'Edge of the World',
+    date: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+    groupSize: 3,
+    maxSize: 8,
+    description: "Epic hiking trip to Edge of the World (Jebel Fihrayn). Need adventurers! Bringing camping gear.",
+    interests: ['Hiking', 'Adventure', 'Photography'],
+    timestamp: Date.now() - 1800000,
+  },
+];
+
+const getTravelPosts = (): TravelPost[] => {
+  try {
+    const raw = localStorage.getItem(TRAVEL_POSTS_KEY);
+    if (!raw) {
+      localStorage.setItem(TRAVEL_POSTS_KEY, JSON.stringify(SEED_POSTS));
+      return SEED_POSTS;
+    }
+    const posts: TravelPost[] = JSON.parse(raw);
+    // Filter out past dates
+    const today = new Date().toISOString().split('T')[0];
+    return posts.filter(p => p.date >= today);
+  } catch { return SEED_POSTS; }
+};
+
+export const MOCK_COMMUNITIES: Community[] = [
+  { id: 'c13', name: '⚽ دوري الحواري', description: 'مباريات، تحديات، ونقاشات الدوري السعودي والعالمي.', icon: '⚽', category: 'Sports', image: 'https://images.unsplash.com/photo-1579952363873-27f3bade9f55?w=800&q=80', memberCount: 3420, activeTripsCount: 12 },
+  { id: 'c14', name: '🍔 ذواقة الرياض', description: 'تجارب المطاعم، الفود ترك، وألذ الأطباق في المدينة.', icon: '🍔', category: 'Food', image: 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=800&q=80', memberCount: 2875, activeTripsCount: 9 },
+  { id: 'c15', name: '💪 أبطال اللياقة', description: 'تمارين، تغذية صحية، وتحديات اللياقة البدنية.', icon: '💪', category: 'Sports', image: 'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=800&q=80', memberCount: 1980, activeTripsCount: 7 },
+  { id: 'c16', name: '🎣 محترفي الصيد', description: 'أماكن الصيد، المعدات، وأفضل الأوقات للصيد.', icon: '🎣', category: 'Nature', image: 'https://images.unsplash.com/photo-1535591273668-578e31182c4f?w=800&q=80', memberCount: 1240, activeTripsCount: 5 },
+  { id: 'c17', name: '🚤 عشاق البحر', description: 'قوارب، دبابات بحرية، وكل الأنشطة المائية.', icon: '🚤', category: 'Sports', image: 'https://images.unsplash.com/photo-1544551763-46a013bb70d5?w=800&q=80', memberCount: 870, activeTripsCount: 4 },
+  { id: 'c18', name: '🏎️ حلبة السرعة', description: 'كارتينج، دبابات برية، وسباقات السرعة.', icon: '🏎️', category: 'Cars', image: 'https://images.unsplash.com/photo-1568605117036-5fe5e7bab0b7?w=800&q=80', memberCount: 1560, activeTripsCount: 6 },
+  { id: 'c19', name: '🏀 سلة المحترفين', description: 'تحديات كرة سلة، حجز ملاعب، ودوريات 3x3.', icon: '🏀', category: 'Sports', image: 'https://images.unsplash.com/photo-1546519638-68e109498ffc?w=800&q=80', memberCount: 2100, activeTripsCount: 11 },
+  { id: 'c20', name: '🚴 دراجي الرياض', description: 'مسارات الدراجات، تجمعات صباحية، وسباقات الهواة.', icon: '🚴', category: 'Sports', image: 'https://images.unsplash.com/photo-1541625602330-2277a4c46182?w=800&q=80', memberCount: 1350, activeTripsCount: 8 },
+  { id: 'c21', name: '🏍️ بايكرز', description: 'تجمعات الدراجات النارية، رايدات جماعية، وصيانة.', icon: '🏍️', category: 'Cars', image: 'https://images.unsplash.com/photo-1558981403-c5f9899a28bc?w=800&q=80', memberCount: 990, activeTripsCount: 5 },
+  { id: 'c22', name: '🏜️ تطعيس', description: 'تحدي الطعوس، تعديل سيارات البر، وكشتات التطعيس.', icon: '🏜️', category: 'Nature', image: 'https://images.unsplash.com/photo-1541423487523-c9569614b109?w=800&q=80', memberCount: 4210, activeTripsCount: 18 },
+  { id: 'c23', name: '🥾 Riyadh Hikers', description: 'Trail runs, sunrise hikes, and weekend treks around Saudi Arabia\'s most scenic landscapes.', icon: '🥾', category: 'Nature', image: 'https://images.unsplash.com/photo-1551632811-561732d1e306?w=800&q=80', memberCount: 1870, activeTripsCount: 14 },
+];
 
 // 🟢 مستخدم افتراضي آمن لتجنب انهيار الشاشة (يجب استبداله لاحقاً ببيانات authAPI)
 const SAFE_DEFAULT_USER: User = {
@@ -18,35 +110,100 @@ const SAFE_DEFAULT_USER: User = {
   smartProfile: { interests: [], preferredBudget: 'medium', activityStyles: [], typicalFreeTimeWindow: 0, city: 'الرياض' }
 };
 
-export const CommunitiesScreen = ({ t, lang, onOpenItinerary }: { t: any, lang: string, onOpenItinerary: (it: Itinerary) => void }) => {
-  const [selectedCommunity, setSelectedCommunity] = useState<Community | null>(null);
+export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId, onCommunityOpened }: { t: any, lang: string, onOpenItinerary: (it: Itinerary) => void, initialCommunityId?: string, onCommunityOpened?: () => void }) => {
+  const [selectedCommunity, setSelectedCommunity] = useState<Community | null>(() => {
+    if (!initialCommunityId) return null;
+    return MOCK_COMMUNITIES.find(c => c.id === initialCommunityId) ?? null;
+  });
   const [activeTab, setActiveTab] = useState<'majlis' | 'requests' | 'events'>('majlis');
+
+  // ── Traveling Together state ──────────────────────────────────────────────
+  const [mainTab, setMainTab] = useState<'communities' | 'traveling'>('communities');
+  const [travelPosts, setTravelPosts] = useState<TravelPost[]>(getTravelPosts);
+  const [showPostTripModal, setShowPostTripModal] = useState(false);
+  const [newTripPost, setNewTripPost] = useState({
+    placeName: '',
+    date: '',
+    maxSize: 4,
+    description: '',
+    interests: [] as string[],
+  });
   const [showFazaModal, setShowFazaModal] = useState<FazaRequest | null>(null);
   const [showCreateEventModal, setShowCreateEventModal] = useState(false);
   const [fazaAnswer, setFazaAnswer] = useState('');
   const [chatInput, setChatInput] = useState('');
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
-  // 🟢 States للبيانات (فارغة افتراضياً لانتظار الـ API)
-  const [communities, setCommunities] = useState<Community[]>([]);
-  const [localEvents, setLocalEvents] = useState<CommunityEvent[]>([]);
-  const [localFazaRequests, setLocalFazaRequests] = useState<FazaRequest[]>([]);
-  const [joinedEvents, setJoinedEvents] = useState<string[]>([]);
+  const [communities, setCommunities] = useState<Community[]>(MOCK_COMMUNITIES);
+  const [localEvents, setLocalEvents] = useState<CommunityEvent[]>(() => {
+    try { return JSON.parse(localStorage.getItem('tripo_events') || '[]'); } catch { return []; }
+  });
+  const [localFazaRequests, setLocalFazaRequests] = useState<FazaRequest[]>(() => {
+    try { return JSON.parse(localStorage.getItem('tripo_faza') || '[]'); } catch { return []; }
+  });
+  const [joinedEvents, setJoinedEvents] = useState<string[]>(() => {
+    try { return JSON.parse(localStorage.getItem('tripo_joined_events') || '[]'); } catch { return []; }
+  });
   const [userProfile, setUserProfile] = useState<User>(SAFE_DEFAULT_USER);
   const [allPlaces, setAllPlaces] = useState<Place[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  // جلب الأماكن الحقيقية لاقتراحات المجالس
+  // Thread state
+  const [threads, setThreads] = useState<Record<string, MajlisThread[]>>(() => {
+    try { return JSON.parse(localStorage.getItem('tripo_threads') || '{}'); } catch { return {}; }
+  });
+  const [threadSearch, setThreadSearch] = useState('');
+  const [selectedThread, setSelectedThread] = useState<MajlisThread | null>(null);
+  const [showCreateThread, setShowCreateThread] = useState(false);
+  const [newThread, setNewThread] = useState({ title: '', body: '', tags: '' });
+  const [replyText, setReplyText] = useState('');
+
+  // Persist events, faza requests, joined events, and threads to localStorage on every change
+  useEffect(() => {
+    if (initialCommunityId) onCommunityOpened?.();
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem('tripo_events', JSON.stringify(localEvents));
+  }, [localEvents]);
+
+  useEffect(() => {
+    localStorage.setItem('tripo_faza', JSON.stringify(localFazaRequests));
+  }, [localFazaRequests]);
+
+  useEffect(() => {
+    localStorage.setItem('tripo_joined_events', JSON.stringify(joinedEvents));
+  }, [joinedEvents]);
+
+  useEffect(() => {
+    localStorage.setItem('tripo_threads', JSON.stringify(threads));
+  }, [threads]);
+
+  useEffect(() => {
+    // Persist travel posts (filter out past dates on save)
+    const today = new Date().toISOString().split('T')[0];
+    const valid = travelPosts.filter(p => p.date >= today);
+    localStorage.setItem(TRAVEL_POSTS_KEY, JSON.stringify(valid));
+  }, [travelPosts]);
+
   useEffect(() => {
     const fetchInitialData = async () => {
       try {
         setIsLoading(true);
-        const placesData = await placeAPI.getPlaces();
-        const formattedPlaces = Array.isArray(placesData) ? placesData : (placesData.data || placesData.places || []);
-        setAllPlaces(formattedPlaces);
+        const [placesData, communitiesData] = await Promise.allSettled([
+          placeAPI.getPlaces(),
+          communityAPI.getCommunities(),
+        ]);
 
-        // TODO: هنا يمكنك لاحقاً استدعاء communityAPI.getCommunities() و fazaAPI وغيرها
-        // setCommunities(await communityAPI.getCommunities());
+        if (placesData.status === 'fulfilled') {
+          const formatted = Array.isArray(placesData.value) ? placesData.value : (placesData.value.data || placesData.value.places || []);
+          setAllPlaces(formatted);
+        }
+
+        if (communitiesData.status === 'fulfilled' && communitiesData.value.length > 0) {
+          setCommunities(communitiesData.value);
+        }
+        // If API has no communities yet, MOCK_COMMUNITIES stays as the default
       } catch (error) {
         console.error("Failed to load community data:", error);
       } finally {
@@ -65,15 +222,21 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary }: { t: any, lang: 
     location: ''
   });
 
-  // رسائل محادثة افتراضية للمجالس
-  const [communityMessages, setCommunityMessages] = useState<Record<string, ChatMessage[]>>({});
+  const [communityMessages, setCommunityMessages] = useState<Record<string, ChatMessage[]>>(() => {
+    try { return JSON.parse(localStorage.getItem('tripo_community_messages') || '{}'); } catch { return {}; }
+  });
   const chatEndRef = useRef<HTMLDivElement>(null);
+  const threadEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (activeTab === 'majlis') {
-      chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    localStorage.setItem('tripo_community_messages', JSON.stringify(communityMessages));
+  }, [communityMessages]);
+
+  useEffect(() => {
+    if (activeTab === 'majlis' && selectedThread) {
+      threadEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }
-  }, [activeTab, communityMessages, selectedCommunity]);
+  }, [activeTab, selectedThread, communityMessages]);
 
   const handleFazaSubmit = () => {
     if (!fazaAnswer.trim() || !showFazaModal) return;
@@ -155,10 +318,84 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary }: { t: any, lang: 
     }
   };
 
+  // ── Travel Post handlers ──────────────────────────────────────────────────
+  const handlePostTrip = () => {
+    if (!newTripPost.placeName || !newTripPost.date) return;
+    const post: TravelPost = {
+      id: Date.now().toString(),
+      userId: userProfile.id,
+      userName: userProfile.name,
+      userAvatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${userProfile.id}`,
+      placeName: newTripPost.placeName,
+      date: newTripPost.date,
+      groupSize: 1,
+      maxSize: newTripPost.maxSize,
+      description: newTripPost.description,
+      interests: newTripPost.interests,
+      timestamp: Date.now(),
+    };
+    setTravelPosts(prev => [post, ...prev]);
+    setShowPostTripModal(false);
+    setNewTripPost({ placeName: '', date: '', maxSize: 4, description: '', interests: [] });
+    setSuccessMessage("Trip posted! Looking forward to meeting fellow travelers 🤝");
+    setTimeout(() => setSuccessMessage(null), 3000);
+  };
+
+  const handleJoinTrip = (postId: string) => {
+    setTravelPosts(prev => prev.map(p => {
+      if (p.id !== postId) return p;
+      if (p.joinedByMe) return p; // already joined
+      return { ...p, groupSize: p.groupSize + 1, joinedByMe: true };
+    }));
+    setSuccessMessage("You're in! 🎉 Have a great trip!");
+    setTimeout(() => setSuccessMessage(null), 3000);
+  };
+
+  const handleCreateThread = () => {
+    if (!newThread.title || !selectedCommunity) return;
+    const thread: MajlisThread = {
+      id: Date.now().toString(),
+      communityId: selectedCommunity.id,
+      title: newThread.title,
+      body: newThread.body,
+      authorName: userProfile.name,
+      createdAt: new Date().toISOString(),
+      tags: newThread.tags.split(',').map(t => t.trim()).filter(Boolean),
+      replies: []
+    };
+    setThreads(prev => ({ ...prev, [selectedCommunity.id]: [thread, ...(prev[selectedCommunity.id] || [])] }));
+    setShowCreateThread(false);
+    setNewThread({ title: '', body: '', tags: '' });
+    setSuccessMessage("تم نشر الموضوع بنجاح!");
+    setTimeout(() => setSuccessMessage(null), 3000);
+  };
+
+  const handleReplyToThread = () => {
+    if (!replyText.trim() || !selectedThread || !selectedCommunity) return;
+    const reply = { id: Date.now().toString(), text: replyText, authorName: userProfile.name, createdAt: new Date().toISOString() };
+    const updated = { ...selectedThread, replies: [...selectedThread.replies, reply] };
+    setSelectedThread(updated);
+    setThreads(prev => ({
+      ...prev,
+      [selectedCommunity.id]: (prev[selectedCommunity.id] || []).map(t => t.id === updated.id ? updated : t)
+    }));
+    setReplyText('');
+  };
+
+  const formatRelativeTime = (iso: string) => {
+    const diff = Date.now() - new Date(iso).getTime();
+    const mins = Math.floor(diff / 60000);
+    if (mins < 1) return 'الآن';
+    if (mins < 60) return `منذ ${mins} دقيقة`;
+    const hrs = Math.floor(mins / 60);
+    if (hrs < 24) return `منذ ${hrs} ساعة`;
+    return `منذ ${Math.floor(hrs / 24)} يوم`;
+  };
+
   const renderCommunityCard = (comm: Community) => (
     <div
       key={comm.id}
-      onClick={() => { setSelectedCommunity(comm); setActiveTab('majlis'); }}
+      onClick={() => { setSelectedCommunity(comm); setActiveTab('majlis'); setSelectedThread(null); setShowCreateThread(false); }}
       className="bg-white rounded-3xl overflow-hidden shadow-sm border border-slate-100 mb-4 active:scale-[0.98] transition-transform cursor-pointer"
     >
       <div className="h-28 relative">
@@ -186,6 +423,12 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary }: { t: any, lang: 
       timestamp: Date.now()
     }];
 
+    // Computed threads for current community with search filter
+    const communityThreads = (threads[selectedCommunity?.id || ''] || []).filter(t =>
+      !threadSearch || t.title.toLowerCase().includes(threadSearch.toLowerCase()) ||
+      t.tags.some(tag => tag.toLowerCase().includes(threadSearch.toLowerCase()))
+    );
+
     // اقتراح أماكن للمجلس بناءً على تصنيف المجتمع والأماكن الحقيقية
     const suggestions = allPlaces.filter(p => {
       const placeCategory = p.categoryTags?.[0] || p.category || '';
@@ -197,7 +440,7 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary }: { t: any, lang: 
         <div className="relative h-44 shrink-0">
           <img src={selectedCommunity.image} className="w-full h-full object-cover" />
           <div className="absolute inset-0 bg-black/50 backdrop-blur-[1px]"></div>
-          <button onClick={() => setSelectedCommunity(null)} className="absolute top-6 left-6 w-10 h-10 bg-white/20 backdrop-blur-md rounded-full flex items-center justify-center text-white z-10 rtl:right-6 rtl:left-auto">
+          <button onClick={() => { setSelectedCommunity(null); setSelectedThread(null); setShowCreateThread(false); setThreadSearch(''); }} className="absolute top-6 left-6 w-10 h-10 bg-white/20 backdrop-blur-md rounded-full flex items-center justify-center text-white z-10 rtl:right-6 rtl:left-auto">
             <ChevronRight className="w-6 h-6 rotate-180 rtl:rotate-0" />
           </button>
           <div className="absolute bottom-4 left-6 right-6 text-white flex justify-between items-end">
@@ -226,42 +469,274 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary }: { t: any, lang: 
         </div>
 
         <div className="flex-1 overflow-hidden relative">
+          {/* ──────────────────────────────────────────────────────── */}
+          {/* MAJLIS TAB — Forum Thread Views                          */}
+          {/* ──────────────────────────────────────────────────────── */}
           {activeTab === 'majlis' && (
             <div className="h-full flex flex-col">
-              <div className="flex-1 overflow-y-auto p-4 space-y-4">
-                {suggestions.length > 0 && (
-                  <div className="bg-white p-4 rounded-3xl border border-slate-100 mb-4 shadow-sm">
-                    <div className="flex items-center gap-2 mb-3">
-                      <Star className="w-4 h-4 text-orange-500 fill-orange-500" />
-                      <h4 className="font-bold text-xs">ترشيحات المجتمع</h4>
-                    </div>
-                    <div className="flex gap-3 overflow-x-auto no-scrollbar">
-                      {suggestions.map(p => (
-                        <div key={p._id || p.id} className="min-w-[100px] text-center">
-                          <img src={p.photos?.[0] || p.image || 'https://images.unsplash.com/photo-1557683311-eac922347aa1?w=200'} className="w-full h-14 rounded-xl object-cover mb-1 border border-slate-100" />
-                          <p className="text-[8px] font-bold text-slate-800 line-clamp-1">{p.name}</p>
-                        </div>
-                      ))}
+              {/* ── THREAD DETAIL VIEW ── */}
+              {selectedThread ? (
+                <div className="h-full flex flex-col">
+                  {/* Detail header */}
+                  <div className="bg-white border-b border-slate-100 px-4 py-3 flex items-center gap-3 shrink-0">
+                    <button
+                      onClick={() => setSelectedThread(null)}
+                      className="w-9 h-9 bg-slate-50 rounded-full flex items-center justify-center text-slate-600 active:scale-90 transition-transform"
+                    >
+                      <ArrowLeft className="w-4 h-4" />
+                    </button>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-black text-slate-900 text-sm truncate">{selectedThread.title}</p>
+                      <p className="text-[10px] text-slate-400">{selectedThread.replies.length} رد · {selectedThread.authorName}</p>
                     </div>
                   </div>
-                )}
 
-                {messages.map(m => (
-                  <div key={m.id} className={`flex ${m.userId === userProfile.id ? 'justify-end' : 'justify-start'}`}>
-                    <div className={`max-w-[80%] p-3 rounded-2xl shadow-sm ${m.userId === userProfile.id ? 'bg-emerald-600 text-white rounded-tr-none' : m.userId === 'system' ? 'bg-slate-100 text-slate-500 mx-auto text-center rounded-2xl' : 'bg-white border border-slate-100 rounded-tl-none'}`}>
-                      {m.userId !== userProfile.id && m.userId !== 'system' && <p className="text-[9px] font-bold opacity-60 mb-1">{m.userName}</p>}
-                      <p className="text-sm">{m.text}</p>
+                  {/* Thread body + replies scroll area */}
+                  <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                    {/* Original post */}
+                    <div className="bg-white rounded-3xl p-5 border border-slate-100 shadow-sm">
+                      <h3 className="font-black text-slate-900 text-base mb-3 leading-snug">{selectedThread.title}</h3>
+                      {selectedThread.body ? (
+                        <p className="text-sm text-slate-700 leading-relaxed mb-4">{selectedThread.body}</p>
+                      ) : null}
+                      {selectedThread.tags.length > 0 && (
+                        <div className="flex flex-wrap gap-1.5 mb-4">
+                          {selectedThread.tags.map(tag => (
+                            <span key={tag} className="inline-flex items-center gap-1 bg-emerald-50 text-emerald-700 text-[10px] font-bold px-2.5 py-1 rounded-full">
+                              <Hash className="w-2.5 h-2.5" />{tag}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                      <div className="flex items-center gap-2 pt-3 border-t border-slate-50">
+                        <div className="w-6 h-6 bg-emerald-100 rounded-full flex items-center justify-center text-[10px] font-black text-emerald-700">
+                          {selectedThread.authorName.charAt(0)}
+                        </div>
+                        <p className="text-[10px] text-slate-400 font-bold">{selectedThread.authorName} · {formatRelativeTime(selectedThread.createdAt)}</p>
+                      </div>
                     </div>
+
+                    {/* Divider */}
+                    {selectedThread.replies.length > 0 && (
+                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">
+                        {selectedThread.replies.length} {selectedThread.replies.length === 1 ? 'رد' : 'ردود'}
+                      </p>
+                    )}
+
+                    {/* Replies as chat bubbles */}
+                    {selectedThread.replies.map(reply => (
+                      <div key={reply.id} className={`flex ${reply.authorName === userProfile.name ? 'justify-end' : 'justify-start'}`}>
+                        <div className={`max-w-[80%] p-3 rounded-2xl shadow-sm ${reply.authorName === userProfile.name ? 'bg-emerald-600 text-white rounded-tr-none' : 'bg-white border border-slate-100 rounded-tl-none'}`}>
+                          {reply.authorName !== userProfile.name && (
+                            <p className="text-[9px] font-bold opacity-60 mb-1">{reply.authorName}</p>
+                          )}
+                          <p className="text-sm">{reply.text}</p>
+                          <p className={`text-[9px] mt-1 ${reply.authorName === userProfile.name ? 'opacity-60 text-right' : 'text-slate-400'}`}>
+                            {formatRelativeTime(reply.createdAt)}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+
+                    {selectedThread.replies.length === 0 && (
+                      <div className="text-center py-8 text-slate-300">
+                        <MessageCircle className="w-10 h-10 mx-auto mb-2 opacity-20" />
+                        <p className="text-xs font-bold">لا يوجد ردود بعد. كن أول من يرد!</p>
+                      </div>
+                    )}
+
+                    <div ref={threadEndRef} />
                   </div>
-                ))}
-                <div ref={chatEndRef} />
-              </div>
-              <div className="p-4 bg-white border-t border-slate-100 flex gap-2">
-                <input className="flex-1 bg-slate-50 rounded-full px-4 py-2 text-sm outline-none" placeholder="شاركونا مقترح أو سالفة..." value={chatInput} onChange={(e) => setChatInput(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()} />
-                <button onClick={handleSendMessage} className="w-10 h-10 bg-emerald-600 rounded-full flex items-center justify-center text-white shadow-md active:scale-90 transition-transform rtl:rotate-180">
-                  <Send className="w-4 h-4" />
-                </button>
-              </div>
+
+                  {/* Reply input */}
+                  <div className="p-4 bg-white border-t border-slate-100 flex gap-2 shrink-0">
+                    <input
+                      className="flex-1 bg-slate-50 rounded-full px-4 py-2.5 text-sm outline-none"
+                      placeholder="اكتب ردك هنا..."
+                      value={replyText}
+                      onChange={(e) => setReplyText(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && handleReplyToThread()}
+                    />
+                    <button
+                      onClick={handleReplyToThread}
+                      className="w-10 h-10 bg-emerald-600 rounded-full flex items-center justify-center text-white shadow-md active:scale-90 transition-transform rtl:rotate-180"
+                    >
+                      <Send className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              ) : showCreateThread ? (
+                /* ── CREATE THREAD FORM (inline) ── */
+                <div className="h-full flex flex-col">
+                  <div className="bg-white border-b border-slate-100 px-4 py-3 flex items-center gap-3 shrink-0">
+                    <button
+                      onClick={() => { setShowCreateThread(false); setNewThread({ title: '', body: '', tags: '' }); }}
+                      className="w-9 h-9 bg-slate-50 rounded-full flex items-center justify-center text-slate-600 active:scale-90 transition-transform"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                    <p className="font-black text-slate-900 text-sm">موضوع جديد</p>
+                  </div>
+
+                  <div className="flex-1 overflow-y-auto p-5 space-y-4">
+                    <div>
+                      <label className="text-xs font-black text-slate-600 mb-1.5 block">عنوان الموضوع *</label>
+                      <input
+                        className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                        placeholder="مثال: أفضل أماكن التمرين في الرياض"
+                        value={newThread.title}
+                        onChange={(e) => setNewThread({ ...newThread, title: e.target.value })}
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-xs font-black text-slate-600 mb-1.5 block">تفاصيل الموضوع</label>
+                      <textarea
+                        rows={5}
+                        className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent resize-none"
+                        placeholder="شارك أفكارك وتفاصيل الموضوع هنا..."
+                        value={newThread.body}
+                        onChange={(e) => setNewThread({ ...newThread, body: e.target.value })}
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-xs font-black text-slate-600 mb-1.5 block">الوسوم (مفصولة بفاصلة)</label>
+                      <input
+                        className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                        placeholder="مثال: رياضة, تمرين, نصيحة"
+                        value={newThread.tags}
+                        onChange={(e) => setNewThread({ ...newThread, tags: e.target.value })}
+                      />
+                      {newThread.tags.trim() && (
+                        <div className="flex flex-wrap gap-1.5 mt-2">
+                          {newThread.tags.split(',').map(t => t.trim()).filter(Boolean).map(tag => (
+                            <span key={tag} className="inline-flex items-center gap-1 bg-emerald-50 text-emerald-700 text-[10px] font-bold px-2.5 py-1 rounded-full">
+                              <Hash className="w-2.5 h-2.5" />{tag}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    <Button
+                      onClick={handleCreateThread}
+                      className="w-full py-4 font-black"
+                      disabled={!newThread.title.trim()}
+                    >
+                      نشر الموضوع
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                /* ── THREAD LIST VIEW ── */
+                <div className="h-full flex flex-col">
+                  {/* Search + New Thread toolbar */}
+                  <div className="bg-white border-b border-slate-100 px-4 py-3 flex items-center gap-3 shrink-0">
+                    <div className="flex-1 flex items-center gap-2 bg-slate-50 rounded-full px-3 py-2">
+                      <Search className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                      <input
+                        className="flex-1 bg-transparent text-sm outline-none placeholder:text-slate-400"
+                        placeholder="ابحث في المواضيع..."
+                        value={threadSearch}
+                        onChange={(e) => setThreadSearch(e.target.value)}
+                      />
+                      {threadSearch && (
+                        <button onClick={() => setThreadSearch('')} className="text-slate-400">
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
+                    <button
+                      onClick={() => setShowCreateThread(true)}
+                      className="flex items-center gap-1.5 bg-emerald-600 text-white text-xs font-black px-3.5 py-2.5 rounded-full shadow-md active:scale-95 transition-transform whitespace-nowrap"
+                    >
+                      <Plus className="w-3.5 h-3.5" /> موضوع +
+                    </button>
+                  </div>
+
+                  {/* Thread list */}
+                  <div className="flex-1 overflow-y-auto p-4 space-y-3">
+                    {/* Place suggestions strip */}
+                    {suggestions.length > 0 && (
+                      <div className="bg-white p-4 rounded-3xl border border-slate-100 mb-2 shadow-sm">
+                        <div className="flex items-center gap-2 mb-3">
+                          <Star className="w-4 h-4 text-orange-500 fill-orange-500" />
+                          <h4 className="font-bold text-xs">ترشيحات المجتمع</h4>
+                        </div>
+                        <div className="flex gap-3 overflow-x-auto no-scrollbar">
+                          {suggestions.map(p => (
+                            <div key={p._id || p.id} className="min-w-[100px] text-center">
+                              <img src={p.photos?.[0] || p.image || 'https://images.unsplash.com/photo-1557683311-eac922347aa1?w=200'} className="w-full h-14 rounded-xl object-cover mb-1 border border-slate-100" />
+                              <p className="text-[8px] font-bold text-slate-800 line-clamp-1">{p.name}</p>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {communityThreads.length === 0 ? (
+                      <div className="flex flex-col items-center justify-center py-16 text-center">
+                        <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mb-4">
+                          <MessageSquare className="w-8 h-8 text-slate-300" />
+                        </div>
+                        <h4 className="font-black text-slate-600 mb-1">
+                          {threadSearch ? 'لا توجد مواضيع مطابقة' : 'لا توجد مواضيع بعد'}
+                        </h4>
+                        <p className="text-xs text-slate-400 mb-5">
+                          {threadSearch ? 'جرب كلمة بحث مختلفة' : 'كن أول من يبدأ النقاش في هذا المجتمع!'}
+                        </p>
+                        {!threadSearch && (
+                          <button
+                            onClick={() => setShowCreateThread(true)}
+                            className="flex items-center gap-2 bg-emerald-600 text-white text-sm font-black px-5 py-3 rounded-full shadow-md active:scale-95 transition-transform"
+                          >
+                            <Plus className="w-4 h-4" /> ابدأ أول نقاش
+                          </button>
+                        )}
+                      </div>
+                    ) : (
+                      communityThreads.map(thread => (
+                        <div
+                          key={thread.id}
+                          onClick={() => setSelectedThread(thread)}
+                          className="bg-white rounded-3xl p-5 border border-slate-100 shadow-sm active:scale-[0.98] transition-transform cursor-pointer"
+                        >
+                          {/* Title */}
+                          <h4 className="font-black text-slate-900 text-sm leading-snug mb-2">{thread.title}</h4>
+                          {/* Body preview */}
+                          {thread.body ? (
+                            <p className="text-xs text-slate-500 leading-relaxed mb-3 line-clamp-2">{thread.body}</p>
+                          ) : null}
+                          {/* Tags */}
+                          {thread.tags.length > 0 && (
+                            <div className="flex flex-wrap gap-1.5 mb-3">
+                              {thread.tags.map(tag => (
+                                <span key={tag} className="inline-flex items-center gap-1 bg-emerald-50 text-emerald-700 text-[9px] font-bold px-2 py-0.5 rounded-full">
+                                  <Hash className="w-2 h-2" />{tag}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                          {/* Footer: author, date, replies */}
+                          <div className="flex items-center justify-between pt-3 border-t border-slate-50">
+                            <div className="flex items-center gap-2">
+                              <div className="w-5 h-5 bg-emerald-100 rounded-full flex items-center justify-center text-[8px] font-black text-emerald-700">
+                                {thread.authorName.charAt(0)}
+                              </div>
+                              <p className="text-[10px] text-slate-400 font-bold">{thread.authorName} · {formatRelativeTime(thread.createdAt)}</p>
+                            </div>
+                            <div className="flex items-center gap-1 text-[10px] font-bold text-slate-400">
+                              <MessageCircle className="w-3 h-3" />
+                              <span>{thread.replies.length}</span>
+                            </div>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -385,74 +860,310 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary }: { t: any, lang: 
   }
 
   return (
-    <div className="p-6 pb-28 space-y-8 overflow-y-auto h-full bg-slate-50">
-      <div className="flex justify-between items-start">
-        <div>
-          <h1 className="text-3xl font-black text-slate-900 tracking-tighter leading-none mb-2">{t.tabCommunities || 'المجتمعات'}</h1>
-          <p className="text-slate-500 text-sm font-medium">مجالسنا حية بالفعاليات والفزعات.. اختر جوّك!</p>
-        </div>
-        <div className="bg-white px-4 py-2 rounded-2xl shadow-sm border border-slate-100 flex items-center gap-2">
-          <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600">
-            <WalletIcon className="w-4 h-4" />
-          </div>
+    <div className="pb-28 overflow-y-auto h-full bg-slate-50">
+      {/* ── Main Tab Bar ─────────────────────────────────────────────────── */}
+      <div className="sticky top-0 z-20 bg-white border-b border-slate-100 px-6 pt-6 pb-0">
+        <div className="flex justify-between items-center mb-4">
           <div>
-            <p className="text-[8px] font-black text-slate-400 uppercase">رصيدك</p>
-            <p className="text-xs font-black text-slate-900">{(userProfile.walletBalance || 0).toFixed(2)} ريال</p>
+            <h1 className="text-3xl font-black text-slate-900 tracking-tighter leading-none">{t.tabCommunities || 'المجتمعات'}</h1>
           </div>
+          <div className="bg-white px-3 py-1.5 rounded-2xl shadow-sm border border-slate-100 flex items-center gap-2">
+            <div className="w-7 h-7 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600">
+              <WalletIcon className="w-3.5 h-3.5" />
+            </div>
+            <p className="text-xs font-black text-slate-900">{(userProfile.walletBalance || 0).toFixed(2)} ر.س</p>
+          </div>
+        </div>
+        <div className="flex gap-2">
+          <button
+            onClick={() => setMainTab('communities')}
+            className={`flex items-center gap-1.5 px-4 py-2.5 rounded-t-2xl text-sm font-black transition-all border-b-2 ${mainTab === 'communities' ? 'border-emerald-600 text-emerald-600 bg-emerald-50' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
+          >
+            <Users className="w-4 h-4" /> المجتمعات
+          </button>
+          <button
+            onClick={() => setMainTab('traveling')}
+            className={`flex items-center gap-1.5 px-4 py-2.5 rounded-t-2xl text-sm font-black transition-all border-b-2 ${mainTab === 'traveling' ? 'border-emerald-600 text-emerald-600 bg-emerald-50' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
+          >
+            🤝 Traveling Together
+            {travelPosts.length > 0 && (
+              <span className="ml-1 px-1.5 py-0.5 bg-emerald-100 text-emerald-700 text-[9px] font-black rounded-full">{travelPosts.length}</span>
+            )}
+          </button>
         </div>
       </div>
 
-      <div className="bg-slate-900 rounded-[35px] p-6 text-white shadow-2xl relative overflow-hidden">
-        <div className="relative z-10">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="w-10 h-10 bg-emerald-500 rounded-2xl flex items-center justify-center">
-              <TrendingUp className="w-6 h-6 text-white" />
+      {/* ── COMMUNITIES TAB ─────────────────────────────────────────────── */}
+      {mainTab === 'communities' && (
+        <div className="p-6 space-y-8">
+          <div className="bg-slate-900 rounded-[35px] p-6 text-white shadow-2xl relative overflow-hidden">
+            <div className="relative z-10">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-10 h-10 bg-emerald-500 rounded-2xl flex items-center justify-center">
+                  <TrendingUp className="w-6 h-6 text-white" />
+                </div>
+                <div>
+                  <h3 className="font-black text-lg">تقدّمك في الكرم</h3>
+                  <p className="text-[10px] opacity-60 uppercase font-black tracking-widest">{userProfile.rank}</p>
+                </div>
+              </div>
+
+              <div className="mb-4">
+                <div className="flex justify-between text-[10px] font-black mb-1">
+                  <span>الفزعات المنجزة: {userProfile.fazaCount || 0}</span>
+                  <span>الهدف القادم: {(userProfile.fazaCount || 0) < 3 ? '3' : (userProfile.fazaCount || 0) < 10 ? '10' : 'ماستر'}</span>
+                </div>
+                <div className="h-2 w-full bg-white/10 rounded-full overflow-hidden">
+                  <div className="h-full bg-emerald-500 transition-all duration-1000" style={{ width: `${Math.min(100, ((userProfile.fazaCount || 0) / ((userProfile.fazaCount || 0) < 3 ? 3 : 10)) * 100)}%` }} />
+                </div>
+              </div>
+
+              <div className="flex justify-between items-center border-t border-white/10 pt-4">
+                <div className="flex items-center gap-2">
+                  <Trophy className="w-4 h-4 text-yellow-400" />
+                  <span className="text-xs font-black">{userProfile.karamPoints || 0} نقطة</span>
+                </div>
+                <button className="text-[10px] font-black bg-white/10 px-3 py-1 rounded-lg">سجل الفزعات</button>
+              </div>
             </div>
+            <Crown className="absolute -bottom-8 -right-8 w-40 h-40 text-white/5 rotate-12" />
+          </div>
+
+          <div>
+            <h2 className="text-xs font-black text-slate-400 mb-4 uppercase tracking-[0.2em] flex items-center gap-2">
+              <Users className="w-4 h-4 text-emerald-600" /> استكشف المجالس والمجتمعات
+            </h2>
+            <div className="grid gap-2">
+              {communities.length > 0 ? (
+                communities.map(renderCommunityCard)
+              ) : (
+                <div className="text-center py-12 bg-white rounded-3xl border border-dashed border-slate-200">
+                  <Users className="w-10 h-10 mx-auto text-slate-300 mb-3" />
+                  <h3 className="font-bold text-slate-600">لا توجد مجتمعات حالياً</h3>
+                  <p className="text-xs text-slate-400 mt-1">اربط الواجهة بـ communityAPI لعرض المجالس هنا.</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── TRAVELING TOGETHER TAB ───────────────────────────────────────── */}
+      {mainTab === 'traveling' && (
+        <div className="p-6 space-y-4">
+          {/* Header & Post Trip button */}
+          <div className="flex items-center justify-between">
             <div>
-              <h3 className="font-black text-lg">تقدّمك في الكرم</h3>
-              <p className="text-[10px] opacity-60 uppercase font-black tracking-widest">{userProfile.rank}</p>
+              <p className="text-slate-500 text-sm">Find travel companions for your next micro-escape!</p>
             </div>
+            <button
+              onClick={() => setShowPostTripModal(true)}
+              className="flex items-center gap-1.5 px-4 py-2.5 bg-emerald-600 text-white text-sm font-black rounded-2xl shadow-md active:scale-95 transition-transform"
+            >
+              <Plus className="w-4 h-4" /> Post a Trip
+            </button>
           </div>
 
-          <div className="mb-4">
-            <div className="flex justify-between text-[10px] font-black mb-1">
-              <span>الفزعات المنجزة: {userProfile.fazaCount || 0}</span>
-              <span>الهدف القادم: {(userProfile.fazaCount || 0) < 3 ? '3' : (userProfile.fazaCount || 0) < 10 ? '10' : 'ماستر'}</span>
+          {/* Travel Posts Feed */}
+          {travelPosts.length === 0 ? (
+            <div className="text-center py-16 bg-white rounded-3xl border border-dashed border-slate-200">
+              <div className="text-4xl mb-3">🤝</div>
+              <h3 className="font-bold text-slate-600 mb-1">No trips posted yet</h3>
+              <p className="text-xs text-slate-400 mb-4">Be the first to find travel companions!</p>
+              <button
+                onClick={() => setShowPostTripModal(true)}
+                className="px-5 py-2.5 bg-emerald-600 text-white text-sm font-bold rounded-full"
+              >
+                Post Your Trip
+              </button>
             </div>
-            <div className="h-2 w-full bg-white/10 rounded-full overflow-hidden">
-              <div className="h-full bg-emerald-500 transition-all duration-1000" style={{ width: `${Math.min(100, ((userProfile.fazaCount || 0) / ((userProfile.fazaCount || 0) < 3 ? 3 : 10)) * 100)}%` }} />
-            </div>
-          </div>
+          ) : travelPosts.map(post => {
+            const spotsLeft = post.maxSize - post.groupSize;
+            const isFull = spotsLeft <= 0;
+            const isMyPost = post.userId === userProfile.id;
+            return (
+              <div key={post.id} className="bg-white rounded-3xl p-5 border border-slate-100 shadow-sm">
+                {/* Header */}
+                <div className="flex items-center gap-3 mb-3">
+                  <img
+                    src={post.userAvatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${post.userId}`}
+                    className="w-10 h-10 rounded-full border-2 border-slate-100"
+                    alt={post.userName}
+                  />
+                  <div className="flex-1 min-w-0">
+                    <p className="font-black text-slate-900 text-sm">{post.userName}</p>
+                    <p className="text-xs text-slate-500">is heading to <span className="font-bold text-emerald-700">{post.placeName}</span></p>
+                  </div>
+                  <div className="text-right flex-shrink-0">
+                    <p className="text-[10px] text-slate-400 font-bold flex items-center gap-1 justify-end">
+                      <Calendar className="w-3 h-3" />
+                      {new Date(post.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                    </p>
+                  </div>
+                </div>
 
-          <div className="flex justify-between items-center border-t border-white/10 pt-4">
-            <div className="flex items-center gap-2">
-              <Trophy className="w-4 h-4 text-yellow-400" />
-              <span className="text-xs font-black">{userProfile.karamPoints || 0} نقطة</span>
+                {/* Description */}
+                {post.description && (
+                  <p className="text-sm text-slate-600 leading-relaxed mb-3">{post.description}</p>
+                )}
+
+                {/* Interests */}
+                {post.interests.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 mb-3">
+                    {post.interests.map(i => (
+                      <span key={i} className="px-2 py-0.5 bg-emerald-50 text-emerald-700 text-[10px] font-bold rounded-full">
+                        {i}
+                      </span>
+                    ))}
+                  </div>
+                )}
+
+                {/* Footer: group size + join */}
+                <div className="flex items-center justify-between pt-3 border-t border-slate-50">
+                  <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1">
+                      {Array.from({ length: post.maxSize }).map((_, idx) => (
+                        <div
+                          key={idx}
+                          className={`w-5 h-5 rounded-full border-2 ${idx < post.groupSize ? 'bg-emerald-500 border-emerald-500' : 'bg-slate-100 border-slate-200'}`}
+                        />
+                      ))}
+                    </div>
+                    <span className="text-xs text-slate-500 font-bold">
+                      {post.groupSize}/{post.maxSize} spots
+                      {!isFull && <span className="text-emerald-600"> · {spotsLeft} left</span>}
+                    </span>
+                  </div>
+                  {!isMyPost && (
+                    <button
+                      onClick={() => handleJoinTrip(post.id)}
+                      disabled={isFull || post.joinedByMe}
+                      className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-black transition-all
+                        ${post.joinedByMe
+                          ? 'bg-emerald-50 text-emerald-700 cursor-default'
+                          : isFull
+                          ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
+                          : 'bg-emerald-600 text-white hover:bg-emerald-700 active:scale-95'
+                        }`}
+                    >
+                      {post.joinedByMe ? <><CheckCircle2 className="w-3.5 h-3.5" /> Joined</> : isFull ? 'Full' : <><UserPlus className="w-3.5 h-3.5" /> Join</>}
+                    </button>
+                  )}
+                  {isMyPost && (
+                    <span className="text-[10px] font-bold text-slate-400 bg-slate-50 px-3 py-1.5 rounded-xl">Your post</span>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* ── Post a Trip Modal ────────────────────────────────────────────── */}
+      {showPostTripModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-4">
+          <div className="bg-white rounded-[32px] w-full max-w-sm p-6 shadow-2xl relative">
+            <button
+              onClick={() => setShowPostTripModal(false)}
+              className="absolute top-5 right-5 p-2 bg-slate-50 rounded-full"
+            >
+              <X className="w-5 h-5 text-slate-400" />
+            </button>
+            <h3 className="font-black text-xl text-slate-900 mb-1">Post a Trip 🗺️</h3>
+            <p className="text-xs text-slate-400 mb-5">Let others join your next micro-escape</p>
+
+            <div className="space-y-4">
+              {/* Place name */}
+              <div>
+                <label className="text-xs font-black text-slate-500 uppercase tracking-wide mb-1.5 block">Place / Destination *</label>
+                <input
+                  className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-emerald-500"
+                  placeholder="e.g. Al Bujairi Heritage Park"
+                  value={newTripPost.placeName}
+                  onChange={e => setNewTripPost(p => ({ ...p, placeName: e.target.value }))}
+                />
+              </div>
+
+              {/* Date */}
+              <div>
+                <label className="text-xs font-black text-slate-500 uppercase tracking-wide mb-1.5 block">Date *</label>
+                <input
+                  type="date"
+                  className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-emerald-500"
+                  value={newTripPost.date}
+                  min={new Date().toISOString().split('T')[0]}
+                  onChange={e => setNewTripPost(p => ({ ...p, date: e.target.value }))}
+                />
+              </div>
+
+              {/* Max group size */}
+              <div>
+                <label className="text-xs font-black text-slate-500 uppercase tracking-wide mb-1.5 block">Looking for (total group size)</label>
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={() => setNewTripPost(p => ({ ...p, maxSize: Math.max(2, p.maxSize - 1) }))}
+                    className="w-9 h-9 bg-slate-100 rounded-full flex items-center justify-center font-bold text-slate-600 hover:bg-slate-200 transition"
+                  >
+                    −
+                  </button>
+                  <span className="font-black text-lg text-slate-900 w-8 text-center">{newTripPost.maxSize}</span>
+                  <button
+                    onClick={() => setNewTripPost(p => ({ ...p, maxSize: Math.min(10, p.maxSize + 1) }))}
+                    className="w-9 h-9 bg-slate-100 rounded-full flex items-center justify-center font-bold text-slate-600 hover:bg-slate-200 transition"
+                  >
+                    +
+                  </button>
+                  <span className="text-xs text-slate-400">people total</span>
+                </div>
+              </div>
+
+              {/* Description */}
+              <div>
+                <label className="text-xs font-black text-slate-500 uppercase tracking-wide mb-1.5 block">Description</label>
+                <textarea
+                  rows={3}
+                  className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-emerald-500 resize-none"
+                  placeholder="Tell others about your plans..."
+                  value={newTripPost.description}
+                  onChange={e => setNewTripPost(p => ({ ...p, description: e.target.value }))}
+                />
+              </div>
+
+              {/* Interests */}
+              <div>
+                <label className="text-xs font-black text-slate-500 uppercase tracking-wide mb-1.5 block">Interests</label>
+                <div className="flex flex-wrap gap-2">
+                  {INTEREST_OPTIONS.map(interest => {
+                    const active = newTripPost.interests.includes(interest);
+                    return (
+                      <button
+                        key={interest}
+                        onClick={() => setNewTripPost(p => ({
+                          ...p,
+                          interests: active
+                            ? p.interests.filter(i => i !== interest)
+                            : [...p.interests, interest]
+                        }))}
+                        className={`px-3 py-1.5 rounded-full text-xs font-bold border transition-all ${active ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-slate-50 text-slate-600 border-slate-200 hover:border-emerald-400'}`}
+                      >
+                        {interest}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <button
+                onClick={handlePostTrip}
+                disabled={!newTripPost.placeName.trim() || !newTripPost.date}
+                className="w-full py-3.5 bg-emerald-600 text-white font-black rounded-2xl hover:bg-emerald-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Post Trip 🤝
+              </button>
             </div>
-            <button className="text-[10px] font-black bg-white/10 px-3 py-1 rounded-lg">سجل الفزعات</button>
           </div>
         </div>
-        <Crown className="absolute -bottom-8 -right-8 w-40 h-40 text-white/5 rotate-12" />
-      </div>
-
-      <div>
-        <h2 className="text-xs font-black text-slate-400 mb-4 uppercase tracking-[0.2em] flex items-center gap-2">
-          <Users className="w-4 h-4 text-emerald-600" /> استكشف المجالس والمجتمعات
-        </h2>
-
-        {/* عرض المجتمعات أو شاشة فارغة في حال لم تكن موجودة بعد في الـ API */}
-        <div className="grid gap-2">
-          {communities.length > 0 ? (
-            communities.map(renderCommunityCard)
-          ) : (
-            <div className="text-center py-12 bg-white rounded-3xl border border-dashed border-slate-200">
-              <Users className="w-10 h-10 mx-auto text-slate-300 mb-3" />
-              <h3 className="font-bold text-slate-600">لا توجد مجتمعات حالياً</h3>
-              <p className="text-xs text-slate-400 mt-1">اربط الواجهة بـ communityAPI لعرض المجالس هنا.</p>
-            </div>
-          )}
-        </div>
-      </div>
+      )}
     </div>
   );
 };

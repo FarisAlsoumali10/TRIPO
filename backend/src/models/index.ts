@@ -26,3 +26,8 @@ export { Favorite, IFavorite } from './Favorite';
 // ==========================================
 export { Notification, INotification } from './Notification';
 export { Report, IReport } from './Report';
+
+// ==========================================
+// 🗺️ Tours & Experiences (الجولات السياحية)
+// ==========================================
+export { Tour, ITour } from './Tour';

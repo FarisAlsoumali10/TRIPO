@@ -41,7 +41,7 @@ const smartProfileSchema = new Schema({
   activityStyles: { type: [String], default: [] },
   typicalFreeTimeWindow: { type: Number, default: 180 }, // بالدقائق
   mood: { type: String },
-  city: { type: String, required: true },
+  city: { type: String, required: false, default: '' },
   travelVibe: {
     type: String,
     enum: ['chill', 'adventurous', 'cultural', 'foodie'],
@@ -111,7 +111,7 @@ const userSchema = new Schema({
   },
   smartProfile: {
     type: smartProfileSchema,
-    required: true
+    required: false
   }
 }, {
   timestamps: true

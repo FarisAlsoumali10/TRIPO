@@ -24,9 +24,14 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
+      const hadToken = !!error.config?.headers?.Authorization;
       localStorage.removeItem('token');
       localStorage.removeItem('user');
-      window.location.href = '/login';
+      // Only redirect to auth if the request had a token that was rejected (expired/invalid)
+      // Guests (no token) should not be redirected — let the screen handle it gracefully
+      if (hadToken) {
+        window.dispatchEvent(new CustomEvent('auth:unauthorized'));
+      }
     }
     return Promise.reject(error);
   }
@@ -60,6 +65,8 @@ export const authAPI = {
     const { data } = await api.patch('/profile/smart-profile', smartProfile);
     return data;
   },
+
+  getMe: (): Promise<User> => api.get('/auth/me').then(r => r.data),
 };
 
 // ==========================================
@@ -74,6 +81,12 @@ export const itineraryAPI = {
       ...item,
       id: item._id || item.id,
     }));
+  },
+
+  getItineraries: async (params?: { page?: number; limit?: number; status?: string }) => {
+    const { data } = await api.get('/itineraries', { params });
+    const rawItineraries = Array.isArray(data) ? data : (data.itineraries || data.data || []);
+    return rawItineraries.map((item: any) => ({ ...item, id: item._id || item.id }));
   },
 
   getItinerary: async (id: string) => {
@@ -114,6 +127,80 @@ export const placeAPI = {
   getPlace: async (id: string) => {
     const { data } = await api.get(`/places/${id}`);
     return data;
+  },
+
+  createPlace: (data: any) => api.post('/places', data).then(r => r.data),
+
+  updatePlace: (id: string, updates: any) => api.patch(`/places/${id}`, updates).then(r => r.data),
+};
+
+// ==========================================
+// Group Trip API
+// ==========================================
+const isMongoId = (id: string) => /^[0-9a-fA-F]{24}$/.test(id);
+
+export const groupTripAPI = {
+  create: async (baseItineraryId: string, title: string) => {
+    const { data } = await api.post('/group-trips', { baseItineraryId, title });
+    return data;
+  },
+
+  getMessages: async (groupTripId: string) => {
+    const { data } = await api.get('/messages', { params: { groupTripId } });
+    const raw = data.messages || data || [];
+    return raw.map((m: any) => ({
+      id: m._id || m.id,
+      userId: m.senderId?._id || m.senderId || '',
+      userName: m.senderId?.name || 'Unknown',
+      text: m.content || m.text || '',
+      timestamp: m.createdAt ? new Date(m.createdAt).getTime() : Date.now(),
+    }));
+  },
+
+  sendMessage: async (groupTripId: string, content: string) => {
+    const { data } = await api.post('/messages', { groupTripId, content, type: 'text' });
+    return {
+      id: data._id || data.id,
+      userId: data.senderId?._id || data.senderId || '',
+      userName: data.senderId?.name || 'Me',
+      text: data.content || content,
+      timestamp: data.createdAt ? new Date(data.createdAt).getTime() : Date.now(),
+    };
+  },
+
+  getExpenses: async (groupTripId: string) => {
+    const { data } = await api.get('/expenses', { params: { groupTripId } });
+    const raw = Array.isArray(data) ? data : [];
+    return raw.map((e: any) => ({
+      id: e._id || e.id,
+      payerId: e.payerId?._id || e.payerId || '',
+      description: e.description,
+      amount: e.amount,
+      timestamp: e.createdAt ? new Date(e.createdAt).getTime() : Date.now(),
+    }));
+  },
+
+  addExpense: async (groupTripId: string, description: string, amount: number, payerId: string, memberIds: string[]) => {
+    const involvedMemberIds = memberIds.filter(isMongoId);
+    if (isMongoId(payerId) && !involvedMemberIds.includes(payerId)) {
+      involvedMemberIds.push(payerId);
+    }
+    const { data } = await api.post('/expenses', {
+      groupTripId,
+      description,
+      amount,
+      currency: 'SAR',
+      category: 'other',
+      splitType: 'equal',
+      involvedMemberIds: involvedMemberIds.length > 0 ? involvedMemberIds : [payerId],
+    });
+    return {
+      id: data._id || data.id,
+      payerId: data.payerId?._id || data.payerId || payerId,
+      description: data.description || description,
+      amount: data.amount || amount,
+      timestamp: data.createdAt ? new Date(data.createdAt).getTime() : Date.now(),
+    };
   },
 };
 
@@ -198,6 +285,99 @@ export const favoriteAPI = {
   removeFavorite: async (placeId: string) => {
     const { data } = await api.delete(`/favorites/${placeId}`);
     return data;
+  },
+};
+
+// ==========================================
+// Tour API
+// ==========================================
+export const tourAPI = {
+  getTours: async (params?: { category?: string }) => {
+    const { data } = await api.get('/tours', { params });
+    const raw = Array.isArray(data) ? data : (data.tours || data.data || []);
+    return raw.map((t: any) => ({ ...t, id: t._id || t.id }));
+  },
+  getTour: async (id: string) => {
+    const { data } = await api.get(`/tours/${id}`);
+    return { ...data, id: data._id || data.id };
+  },
+  bookTour: async (tourId: string, payload: { date: string; guests: number; paymentDetails?: any }) => {
+    const { data } = await api.post(`/tours/${tourId}/book`, payload);
+    return data; // { booking, groupTrip }
+  },
+};
+
+// ==========================================
+// Private Trip API
+// ==========================================
+export const privateTripAPI = {
+  create: async (payload: { title: string; startDate?: string; endDate?: string; inviteIds?: string[] }) => {
+    const { data } = await api.post('/group-trips/private', payload);
+    return data;
+  },
+
+  getMyTrips: async () => {
+    const { data } = await api.get('/group-trips/mine/private');
+    return Array.isArray(data) ? data : [];
+  },
+
+  getMessages: async (tripId: string) => {
+    const { data } = await api.get('/messages', { params: { groupTripId: tripId } });
+    const raw = data.messages || data || [];
+    return raw.map((m: any) => ({
+      id: m._id || m.id,
+      userId: m.senderId?._id || m.senderId || '',
+      userName: m.senderId?.name || 'Unknown',
+      text: m.content || m.text || '',
+      timestamp: m.createdAt ? new Date(m.createdAt).getTime() : Date.now(),
+    }));
+  },
+
+  sendMessage: async (tripId: string, content: string) => {
+    const { data } = await api.post('/messages', { groupTripId: tripId, content, type: 'text' });
+    return {
+      id: data._id || data.id,
+      userId: data.senderId?._id || data.senderId || '',
+      userName: data.senderId?.name || 'Me',
+      text: data.content || content,
+      timestamp: data.createdAt ? new Date(data.createdAt).getTime() : Date.now(),
+    };
+  },
+
+  getExpenses: async (tripId: string) => {
+    const { data } = await api.get('/expenses', { params: { groupTripId: tripId } });
+    const raw = Array.isArray(data) ? data : [];
+    return raw.map((e: any) => ({
+      id: e._id || e.id,
+      payerId: e.payerId?._id || e.payerId || '',
+      description: e.description,
+      amount: e.amount,
+      timestamp: e.createdAt ? new Date(e.createdAt).getTime() : Date.now(),
+    }));
+  },
+
+  addExpense: async (tripId: string, description: string, amount: number, payerId: string, memberIds: string[]) => {
+    const { data } = await api.post('/expenses', {
+      groupTripId: tripId,
+      description,
+      amount,
+      currency: 'SAR',
+      category: 'other',
+      splitType: 'equal',
+      involvedMemberIds: memberIds,
+    });
+    return {
+      id: data._id || data.id,
+      payerId: data.payerId?._id || data.payerId || payerId,
+      description: data.description || description,
+      amount: data.amount || amount,
+      timestamp: data.createdAt ? new Date(data.createdAt).getTime() : Date.now(),
+    };
+  },
+
+  searchUsers: async (q: string) => {
+    const { data } = await api.get('/users/search', { params: { q } });
+    return Array.isArray(data) ? data.map((u: any) => ({ ...u, id: u._id || u.id })) : [];
   },
 };
 

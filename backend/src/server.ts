@@ -31,6 +31,14 @@ const allowedOrigins: string[] = process.env.FRONTEND_URL
 
 const corsOptions: CorsOptions = {
   origin: allowedOrigins,
+// ✅ توحيد إعدادات الـ CORS
+const corsOptions = {
+  origin: [
+    'http://localhost:5173',
+    'http://localhost:5174',
+    'http://localhost:5175',
+    process.env.FRONTEND_URL,
+  ].filter(Boolean),
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS']
 };
@@ -58,11 +66,12 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 // 🚦 Rate Limiting (حماية من الـ DDoS)
 // ==========================================
 const limiter = rateLimit({
-  windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS || '900000', 10), // 15 دقيقة
-  max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS || '100', 10),
-  message: { success: false, error: 'طلبات كثيرة جداً من هذا الجهاز، يرجى المحاولة لاحقاً' },
+  windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS || '900000', 10),
+  max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS || '10000', 10), // high limit for development
+  message: { success: false, error: 'Too many requests, please try again later.' },
   standardHeaders: true,
   legacyHeaders: false,
+  skip: () => process.env.NODE_ENV !== 'production', // disable in development
 });
 app.use('/api/', limiter);
 

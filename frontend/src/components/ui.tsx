@@ -31,6 +31,37 @@ export const Input = ({ label, ...props }: any) => (
   </div>
 );
 
+// Skeleton loader — use instead of spinners for content-shaped placeholders
+export const Skeleton = ({ className = '' }: { className?: string }) => (
+  <div className={`animate-pulse bg-slate-200 rounded-xl ${className}`} />
+);
+
+export const SkeletonCard = () => (
+  <div className="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm space-y-3">
+    <Skeleton className="h-40 w-full rounded-xl" />
+    <Skeleton className="h-4 w-3/4" />
+    <Skeleton className="h-3 w-1/2" />
+    <div className="flex gap-2 pt-1">
+      <Skeleton className="h-3 w-16" />
+      <Skeleton className="h-3 w-12" />
+    </div>
+  </div>
+);
+
+export const SkeletonList = ({ count = 3 }: { count?: number }) => (
+  <div className="space-y-3">
+    {Array.from({ length: count }).map((_, i) => (
+      <div key={i} className="bg-white rounded-2xl p-3 border border-slate-100 shadow-sm flex items-center gap-3">
+        <Skeleton className="w-14 h-14 rounded-xl flex-shrink-0" />
+        <div className="flex-1 space-y-2">
+          <Skeleton className="h-4 w-3/4" />
+          <Skeleton className="h-3 w-1/2" />
+        </div>
+      </div>
+    ))}
+  </div>
+);
+
 export const Badge = ({ children, color = 'emerald' }: any) => {
   const colors = {
     emerald: "bg-emerald-100 text-emerald-700",

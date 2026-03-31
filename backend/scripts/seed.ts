@@ -1,3 +1,7 @@
+import 'dotenv/config';
+import mongoose from 'mongoose';
+import { Place } from '../src/models';
+
 const RIYADH_PLACES = [
   {
     name: 'Al Masmak Fortress',
@@ -6,10 +10,23 @@ const RIYADH_PLACES = [
     categoryTags: ['history', 'museum', 'culture'],
     category: 'Culture',
     coordinates: { lat: 24.6308, lng: 46.7143 },
-    photos: ['https://images.unsplash.com/photo-1588614959060-4d144f28b207?w=800&q=80'],
-    image: 'https://images.unsplash.com/photo-1588614959060-4d144f28b207?w=800&q=80',
+    photos: ['https://images.pexels.com/photos/15131579/pexels-photo-15131579.jpeg?auto=compress&cs=tinysrgb&w=800'],
+    image: 'https://images.pexels.com/photos/15131579/pexels-photo-15131579.jpeg?auto=compress&cs=tinysrgb&w=800',
     avgCost: 0,
-    duration: 60
+    duration: 60,
+    priceRange: 1,
+    ratingSummary: { avgRating: 4.6, reviewCount: 312 },
+    bestSeasons: ['autumn', 'winter', 'spring'],
+    accessibility: { wheelchair: true, parking: true, family: true },
+    openingHours: {
+      saturday:  { open: '08:00', close: '21:00' },
+      sunday:    { open: '08:00', close: '21:00' },
+      monday:    { open: '08:00', close: '21:00' },
+      tuesday:   { open: '08:00', close: '21:00' },
+      wednesday: { open: '08:00', close: '21:00' },
+      thursday:  { open: '08:00', close: '22:00' },
+      friday:    { open: '14:00', close: '22:00' },
+    },
   },
   {
     name: 'Kingdom Centre',
@@ -18,10 +35,23 @@ const RIYADH_PLACES = [
     categoryTags: ['shopping', 'viewpoint', 'modern'],
     category: 'Attraction',
     coordinates: { lat: 24.7119, lng: 46.6742 },
-    photos: ['https://images.unsplash.com/photo-1577785237255-6b5894e63777?w=800&q=80'],
-    image: 'https://images.unsplash.com/photo-1577785237255-6b5894e63777?w=800&q=80',
+    photos: ['https://images.pexels.com/photos/31849529/pexels-photo-31849529.jpeg?auto=compress&cs=tinysrgb&w=800'],
+    image: 'https://images.pexels.com/photos/31849529/pexels-photo-31849529.jpeg?auto=compress&cs=tinysrgb&w=800',
     avgCost: 69,
-    duration: 90
+    duration: 90,
+    priceRange: 2,
+    ratingSummary: { avgRating: 4.5, reviewCount: 1024 },
+    bestSeasons: ['autumn', 'winter', 'spring'],
+    accessibility: { wheelchair: true, parking: true, family: true },
+    openingHours: {
+      saturday:  { open: '10:00', close: '23:00' },
+      sunday:    { open: '10:00', close: '23:00' },
+      monday:    { open: '10:00', close: '23:00' },
+      tuesday:   { open: '10:00', close: '23:00' },
+      wednesday: { open: '10:00', close: '23:00' },
+      thursday:  { open: '10:00', close: '00:00' },
+      friday:    { open: '13:00', close: '00:00' },
+    },
   },
   {
     name: 'Diriyah',
@@ -30,10 +60,23 @@ const RIYADH_PLACES = [
     categoryTags: ['history', 'culture', 'unesco'],
     category: 'History',
     coordinates: { lat: 24.7342, lng: 46.5747 },
-    photos: ['https://images.unsplash.com/photo-1629853316041-94ce1214dcac?w=800&q=80'],
-    image: 'https://images.unsplash.com/photo-1629853316041-94ce1214dcac?w=800&q=80',
+    photos: ['https://images.pexels.com/photos/11215342/pexels-photo-11215342.jpeg?auto=compress&cs=tinysrgb&w=800'],
+    image: 'https://images.pexels.com/photos/11215342/pexels-photo-11215342.jpeg?auto=compress&cs=tinysrgb&w=800',
     avgCost: 100,
-    duration: 120
+    duration: 120,
+    priceRange: 2,
+    ratingSummary: { avgRating: 4.8, reviewCount: 876 },
+    bestSeasons: ['autumn', 'winter', 'spring'],
+    accessibility: { wheelchair: true, parking: true, family: true },
+    openingHours: {
+      saturday:  { open: '09:00', close: '22:00' },
+      sunday:    { open: '09:00', close: '22:00' },
+      monday:    { open: '09:00', close: '22:00' },
+      tuesday:   { open: '09:00', close: '22:00' },
+      wednesday: { open: '09:00', close: '22:00' },
+      thursday:  { open: '09:00', close: '23:00' },
+      friday:    { open: '14:00', close: '23:00' },
+    },
   },
   {
     name: 'Al Nakheel Mall',
@@ -42,10 +85,23 @@ const RIYADH_PLACES = [
     categoryTags: ['shopping', 'food', 'entertainment'],
     category: 'Shopping',
     coordinates: { lat: 24.7706, lng: 46.7394 },
-    photos: ['https://images.unsplash.com/photo-1519567281799-9e23b7a54829?w=800&q=80'],
-    image: 'https://images.unsplash.com/photo-1519567281799-9e23b7a54829?w=800&q=80',
+    photos: ['https://images.pexels.com/photos/14230221/pexels-photo-14230221.jpeg?auto=compress&cs=tinysrgb&w=800'],
+    image: 'https://images.pexels.com/photos/14230221/pexels-photo-14230221.jpeg?auto=compress&cs=tinysrgb&w=800',
     avgCost: 200,
-    duration: 180
+    duration: 180,
+    priceRange: 3,
+    ratingSummary: { avgRating: 4.2, reviewCount: 543 },
+    bestSeasons: ['spring', 'summer', 'autumn', 'winter'],
+    accessibility: { wheelchair: true, parking: true, family: true },
+    openingHours: {
+      saturday:  { open: '10:00', close: '23:30' },
+      sunday:    { open: '10:00', close: '23:30' },
+      monday:    { open: '10:00', close: '23:30' },
+      tuesday:   { open: '10:00', close: '23:30' },
+      wednesday: { open: '10:00', close: '23:30' },
+      thursday:  { open: '10:00', close: '00:00' },
+      friday:    { open: '13:00', close: '00:00' },
+    },
   },
   {
     name: 'King Abdullah Park',
@@ -54,10 +110,23 @@ const RIYADH_PLACES = [
     categoryTags: ['park', 'nature', 'family'],
     category: 'Nature',
     coordinates: { lat: 24.8069, lng: 46.6372 },
-    photos: ['https://images.unsplash.com/photo-1578401340277-3e582846dd6c?w=800&q=80'],
-    image: 'https://images.unsplash.com/photo-1578401340277-3e582846dd6c?w=800&q=80',
+    photos: ['https://images.unsplash.com/photo-1547234935-80c7145ec969?w=800&q=80'],
+    image: 'https://images.unsplash.com/photo-1547234935-80c7145ec969?w=800&q=80',
     avgCost: 15,
-    duration: 120
+    duration: 120,
+    priceRange: 1,
+    ratingSummary: { avgRating: 4.4, reviewCount: 728 },
+    bestSeasons: ['autumn', 'winter', 'spring'],
+    accessibility: { wheelchair: true, parking: true, family: true },
+    openingHours: {
+      saturday:  { open: '07:00', close: '23:00' },
+      sunday:    { open: '07:00', close: '23:00' },
+      monday:    { open: '07:00', close: '23:00' },
+      tuesday:   { open: '07:00', close: '23:00' },
+      wednesday: { open: '07:00', close: '23:00' },
+      thursday:  { open: '07:00', close: '23:30' },
+      friday:    { open: '07:00', close: '23:30' },
+    },
   },
   {
     name: 'Najd Village Restaurant',
@@ -69,7 +138,20 @@ const RIYADH_PLACES = [
     photos: ['https://images.unsplash.com/photo-1555939594-58d7cb561ad1?w=800&q=80'],
     image: 'https://images.unsplash.com/photo-1555939594-58d7cb561ad1?w=800&q=80',
     avgCost: 120,
-    duration: 90
+    duration: 90,
+    priceRange: 3,
+    ratingSummary: { avgRating: 4.7, reviewCount: 415 },
+    bestSeasons: ['spring', 'summer', 'autumn', 'winter'],
+    accessibility: { wheelchair: false, parking: true, family: true },
+    openingHours: {
+      saturday:  { open: '12:00', close: '23:30' },
+      sunday:    { open: '12:00', close: '23:30' },
+      monday:    { open: '12:00', close: '23:30' },
+      tuesday:   { open: '12:00', close: '23:30' },
+      wednesday: { open: '12:00', close: '23:30' },
+      thursday:  { open: '12:00', close: '00:30' },
+      friday:    { open: '13:00', close: '00:30' },
+    },
   },
   {
     name: 'Riyadh Zoo',
@@ -81,19 +163,45 @@ const RIYADH_PLACES = [
     photos: ['https://images.unsplash.com/photo-1534567153574-2b12153a87f0?w=800&q=80'],
     image: 'https://images.unsplash.com/photo-1534567153574-2b12153a87f0?w=800&q=80',
     avgCost: 10,
-    duration: 150
+    duration: 150,
+    priceRange: 1,
+    ratingSummary: { avgRating: 4.1, reviewCount: 892 },
+    bestSeasons: ['autumn', 'winter', 'spring'],
+    accessibility: { wheelchair: true, parking: true, family: true },
+    openingHours: {
+      saturday:  { open: '08:00', close: '20:00' },
+      sunday:    { open: '08:00', close: '20:00' },
+      monday:    { open: '08:00', close: '20:00' },
+      tuesday:   { open: '08:00', close: '20:00' },
+      wednesday: { open: '08:00', close: '20:00' },
+      thursday:  { open: '08:00', close: '21:00' },
+      friday:    { open: '14:00', close: '21:00' },
+    },
   },
   {
     name: 'National Museum',
     city: 'Riyadh',
-    description: 'Comprehensive museum showcasing Saudi Arabia\'s history',
+    description: "Comprehensive museum showcasing Saudi Arabia's history",
     categoryTags: ['museum', 'culture', 'history'],
     category: 'Museum',
     coordinates: { lat: 24.6482, lng: 46.7095 },
-    photos: ['https://images.unsplash.com/photo-1582239616016-160fa6020ce8?w=800&q=80'],
-    image: 'https://images.unsplash.com/photo-1582239616016-160fa6020ce8?w=800&q=80',
+    photos: ['https://images.unsplash.com/photo-1586724237569-f3d0c1dee8c6?w=800&q=80'],
+    image: 'https://images.unsplash.com/photo-1586724237569-f3d0c1dee8c6?w=800&q=80',
     avgCost: 10,
-    duration: 120
+    duration: 120,
+    priceRange: 1,
+    ratingSummary: { avgRating: 4.5, reviewCount: 634 },
+    bestSeasons: ['spring', 'summer', 'autumn', 'winter'],
+    accessibility: { wheelchair: true, parking: true, family: true },
+    openingHours: {
+      saturday:  { open: '09:00', close: '20:00' },
+      sunday:    { open: '09:00', close: '20:00' },
+      monday:    { open: '09:00', close: '20:00' },
+      tuesday:   { open: '09:00', close: '20:00' },
+      wednesday: { open: '09:00', close: '20:00' },
+      thursday:  { open: '09:00', close: '21:00' },
+      friday:    { closed: true, open: '', close: '' },
+    },
   },
   {
     name: 'Wadi Hanifah',
@@ -102,10 +210,23 @@ const RIYADH_PLACES = [
     categoryTags: ['nature', 'hiking', 'outdoor'],
     category: 'Nature',
     coordinates: { lat: 24.6092, lng: 46.6195 },
-    photos: ['https://images.unsplash.com/photo-1625528379432-841f3e7b16d4?w=800&q=80'],
-    image: 'https://images.unsplash.com/photo-1625528379432-841f3e7b16d4?w=800&q=80',
+    photos: ['https://images.pexels.com/photos/68358/pexels-photo-68358.jpeg?auto=compress&cs=tinysrgb&w=800'],
+    image: 'https://images.pexels.com/photos/68358/pexels-photo-68358.jpeg?auto=compress&cs=tinysrgb&w=800',
     avgCost: 0,
-    duration: 180
+    duration: 180,
+    priceRange: 1,
+    ratingSummary: { avgRating: 4.6, reviewCount: 521 },
+    bestSeasons: ['autumn', 'winter', 'spring'],
+    accessibility: { wheelchair: false, parking: true, family: true },
+    openingHours: {
+      saturday:  { open: '05:00', close: '22:00' },
+      sunday:    { open: '05:00', close: '22:00' },
+      monday:    { open: '05:00', close: '22:00' },
+      tuesday:   { open: '05:00', close: '22:00' },
+      wednesday: { open: '05:00', close: '22:00' },
+      thursday:  { open: '05:00', close: '23:00' },
+      friday:    { open: '05:00', close: '23:00' },
+    },
   },
   {
     name: 'Granada Center',
@@ -114,9 +235,46 @@ const RIYADH_PLACES = [
     categoryTags: ['shopping', 'food', 'entertainment'],
     category: 'Shopping',
     coordinates: { lat: 24.7358, lng: 46.6819 },
-    photos: ['https://images.unsplash.com/photo-1497366216548-37526070297c?w=800&q=80'],
-    image: 'https://images.unsplash.com/photo-1497366216548-37526070297c?w=800&q=80',
+    photos: ['https://images.pexels.com/photos/15485843/pexels-photo-15485843.jpeg?auto=compress&cs=tinysrgb&w=800'],
+    image: 'https://images.pexels.com/photos/15485843/pexels-photo-15485843.jpeg?auto=compress&cs=tinysrgb&w=800',
     avgCost: 150,
-    duration: 180
-  }
+    duration: 180,
+    priceRange: 2,
+    ratingSummary: { avgRating: 4.3, reviewCount: 389 },
+    bestSeasons: ['spring', 'summer', 'autumn', 'winter'],
+    accessibility: { wheelchair: true, parking: true, family: true },
+    openingHours: {
+      saturday:  { open: '10:00', close: '23:30' },
+      sunday:    { open: '10:00', close: '23:30' },
+      monday:    { open: '10:00', close: '23:30' },
+      tuesday:   { open: '10:00', close: '23:30' },
+      wednesday: { open: '10:00', close: '23:30' },
+      thursday:  { open: '10:00', close: '00:00' },
+      friday:    { open: '13:00', close: '00:00' },
+    },
+  },
 ];
+
+async function seed() {
+  const mongoUri = process.env.MONGODB_URI || 'mongodb://localhost:27017/tripo';
+  await mongoose.connect(mongoUri);
+  console.log('✅ Connected to MongoDB');
+
+  // Upsert each place by name so we can re-run to add new fields
+  for (const place of RIYADH_PLACES) {
+    await Place.findOneAndUpdate(
+      { name: place.name, city: place.city },
+      { $set: place },
+      { upsert: true, new: true }
+    );
+  }
+  console.log(`✅ Upserted ${RIYADH_PLACES.length} places with full TripAdvisor fields`);
+
+  await mongoose.disconnect();
+  console.log('✅ Done');
+}
+
+seed().catch((err) => {
+  console.error('❌ Seed failed:', err);
+  process.exit(1);
+});

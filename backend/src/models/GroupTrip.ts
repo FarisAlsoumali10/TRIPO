@@ -3,7 +3,8 @@ import { GroupTripStatus, Invitation } from '../types';
 
 export interface IGroupTrip extends Document {
   organizerId: Types.ObjectId;
-  baseItineraryId: Types.ObjectId;
+  baseItineraryId?: Types.ObjectId;
+  isPrivate?: boolean;
   title: string;
   description?: string; // ✅ وصف اختياري للرحلة
   coverImage?: string; // ✅ صورة الغلاف
@@ -44,7 +45,11 @@ const groupTripSchema = new Schema({
   baseItineraryId: {
     type: Schema.Types.ObjectId,
     ref: 'Itinerary',
-    required: true
+    required: false
+  },
+  isPrivate: {
+    type: Boolean,
+    default: false
   },
   title: {
     type: String,

@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { User } from '../models';
 import { hashPassword, comparePassword } from '../utils/password';
 import { generateToken } from '../utils/jwt';
+import { AuthRequest } from '../types';
 
 export const register = async (req: Request, res: Response) => {
   try {
@@ -115,5 +116,34 @@ export const resetPassword = async (req: Request, res: Response) => {
   } catch (error: any) {
     console.error('❌ Error in resetPassword:', error);
     res.status(500).json({ error: 'فشل في إعادة تعيين كلمة المرور' });
+  }
+};
+
+export const getMe = async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user?.userId;
+
+    if (!userId) {
+      return res.status(401).json({ error: 'غير مصرح' });
+    }
+
+    const user = await User.findById(userId).select('-passwordHash');
+
+    if (!user) {
+      return res.status(401).json({ error: 'المستخدم غير موجود' });
+    }
+
+    res.json({
+      id: user._id,
+      email: user.email,
+      name: user.name,
+      avatar: user.avatar,
+      role: user.role,
+      language: user.language,
+      smartProfile: user.smartProfile
+    });
+  } catch (error: any) {
+    console.error('❌ Error in getMe:', error);
+    res.status(500).json({ error: 'حدث خطأ أثناء جلب بيانات المستخدم' });
   }
 };

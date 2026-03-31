@@ -1,31 +1,111 @@
 import React, { useState, useEffect } from 'react';
-import { Home, Search, Plus, User as UserIcon, Settings, ChevronLeft, LogOut, Globe, Users, Menu, X } from 'lucide-react';
-import { User, Itinerary, GroupTrip, SmartProfile } from './src/types/index';
+import { Home, Search, Plus, User as UserIcon, Settings, ChevronLeft, LogOut, Globe, Users, Menu, X, Heart, Shield, Users2, Sparkles, Download, Trash2, WifiOff, ChevronDown, ChevronUp, MapPin, Calendar, Star, Store, Tent, Compass, Lock, LayoutGrid } from 'lucide-react';
+import { User, Itinerary, GroupTrip, SmartProfile, PrivateTrip } from './src/types/index';
 import { TRANSLATIONS } from './translations';
-import { authAPI } from './src/services/api';
+import { authAPI, itineraryAPI, groupTripAPI } from './src/services/api';
+import { getOfflineItineraries, removeOfflineItinerary } from './src/screens/ItineraryDetailScreen';
 
 // Screens
 import { AuthScreen } from './src/screens/AuthScreen';
 import { SmartProfileScreen } from './src/screens/SmartProfileScreen';
 import { HomeScreen } from './src/screens/HomeScreen';
+import { OnboardingWizard } from './src/components/OnboardingWizard';
 import { CreateScreen } from './src/screens/CreateScreen';
 import { ItineraryDetailScreen } from './src/screens/ItineraryDetailScreen';
 import { GroupTripScreen } from './src/screens/GroupTripScreen';
 import { ExploreScreen } from './src/screens/ExploreScreen';
 import { CommunitiesScreen } from './src/screens/CommunitiesScreen';
+import { AdminScreen } from './src/screens/AdminScreen';
+import { HostDashboardScreen } from './src/screens/HostDashboardScreen';
 import { AIAssistant } from './src/components/AIAssistant';
 import { ARGuideScreen } from './src/screens/ARGuideScreen';
+import { AIPlannerScreen } from './src/screens/AIPlannerScreen';
+import { WishListModal } from './src/components/WishListModal';
+import { NotificationPanel } from './src/components/NotificationPanel';
+import { EventsScreen } from './src/screens/EventsScreen';
+import { RentalsScreen } from './src/screens/RentalsScreen';
+import { ToastContainer } from './src/components/Toast';
+import { GlobalSearch } from './src/components/GlobalSearch';
+import { ToursScreen } from './src/screens/ToursScreen';
+import { PlacesScreen } from './src/screens/PlacesScreen';
+import { MyTripsScreen } from './src/screens/MyTripsScreen';
+import { PrivateTripScreen } from './src/screens/PrivateTripScreen';
+
+// Stable layout wrappers — must be defined OUTSIDE App so React doesn't
+// treat them as new component types on every render (which would unmount children).
+const AppWrapper = ({ children }: { children: React.ReactNode }) => (
+  <div className="h-screen w-full bg-slate-50 font-sans overflow-hidden">
+    {children}
+  </div>
+);
+
+const ModalWrapper = ({ children }: { children: React.ReactNode }) => (
+  <div className="h-screen w-full max-w-2xl mx-auto bg-white shadow-2xl relative overflow-hidden flex flex-col">
+    {children}
+  </div>
+);
+
+// localStorage key for active group trip persistence (Feature 4)
+const ACTIVE_TRIP_KEY = 'tripo_active_group_trip';
+
+// Karam Points localStorage keys
+const KARAM_POINTS_KEY = 'tripo_karam_points';
+const KARAM_HISTORY_KEY = 'tripo_karam_history';
+
+const getKaramLevel = (points: number): string => {
+  if (points >= 1000) return 'Legend';
+  if (points >= 500) return 'Pathfinder';
+  if (points >= 200) return 'Adventurer';
+  return 'Explorer';
+};
+
+const getContributionTier = (count: number) => {
+  if (count >= 50) return { label: 'Expert Explorer',  color: 'text-purple-700',  bg: 'bg-purple-50',  icon: '💎' };
+  if (count >= 20) return { label: 'Trusted Guide',    color: 'text-blue-700',    bg: 'bg-blue-50',    icon: '🥇' };
+  if (count >= 5)  return { label: 'Active Traveller', color: 'text-emerald-700', bg: 'bg-emerald-50', icon: '🌟' };
+  return           { label: 'New Explorer',            color: 'text-slate-600',   bg: 'bg-slate-50',   icon: '🌱' };
+};
 
 export const App = () => {
-  const [view, setView] = useState<'auth' | 'onboarding' | 'main' | 'itinerary' | 'group' | 'ar' | 'loading'>('loading');
+  const [view, setView] = useState<'auth' | 'onboarding' | 'main' | 'itinerary' | 'group' | 'ar' | 'loading' | 'privateTrip'>('loading');
   const [activeTab, setActiveTab] = useState('home');
   const [user, setUser] = useState<User | null>(null);
   const [lang, setLang] = useState<'en' | 'ar'>('en');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+  // Controls the first-launch onboarding wizard overlay (separate from the SmartProfileScreen onboarding)
+  const [showOnboardingWizard, setShowOnboardingWizard] = useState(false);
+  const [userReviewCount, setUserReviewCount] = useState<number>(
+    parseInt(localStorage.getItem('tripo_review_count') || '0', 10)
+  );
+  const [showWishLists, setShowWishLists] = useState(false);
+  const [profileItineraryCount, setProfileItineraryCount] = useState<number | null>(null);
+  const [offlineTrips, setOfflineTrips] = useState<Itinerary[]>(() => getOfflineItineraries());
+  const [showOfflineTrips, setShowOfflineTrips] = useState(false);
+  const [karamPoints, setKaramPoints] = useState<number>(() => {
+    const stored = localStorage.getItem(KARAM_POINTS_KEY);
+    return stored ? parseInt(stored, 10) : 0;
+  });
+  const [karamHistory, setKaramHistory] = useState<{id: string; action: string; points: number; label: string; timestamp: number}[]>(() => {
+    try {
+      const raw = localStorage.getItem(KARAM_HISTORY_KEY);
+      return raw ? JSON.parse(raw) : [];
+    } catch { return []; }
+  });
+  const [showKaramHistory, setShowKaramHistory] = useState(false);
+  const [createInitialTitle, setCreateInitialTitle] = useState<string | undefined>(undefined);
+  const [pendingEventId, setPendingEventId] = useState<string | undefined>(undefined);
+  const [pendingTourId, setPendingTourId] = useState<string | undefined>(undefined);
+  const [pendingPlaceId, setPendingPlaceId] = useState<string | undefined>(undefined);
+  const [pendingRentalId, setPendingRentalId] = useState<string | undefined>(undefined);
+  const [pendingCommunityId, setPendingCommunityId] = useState<string | undefined>(undefined);
+  const [showEditProfile, setShowEditProfile] = useState(false);
+  const [showMoreSheet, setShowMoreSheet] = useState(false);
 
   // Navigation State
   const [selectedItinerary, setSelectedItinerary] = useState<Itinerary | null>(null);
   const [activeTrip, setActiveTrip] = useState<GroupTrip | null>(null);
+  const [selectedPrivateTrip, setSelectedPrivateTrip] = useState<PrivateTrip | null>(null);
 
   // Derived translation object
   const t = TRANSLATIONS[lang];
@@ -35,6 +115,49 @@ export const App = () => {
     document.documentElement.dir = lang === 'ar' ? 'rtl' : 'ltr';
     document.documentElement.lang = lang;
   }, [lang]);
+
+  // Handle 401 unauthorized from API interceptor
+  useEffect(() => {
+    const handleUnauthorized = () => {
+      setUser(null);
+      setView('auth');
+    };
+    window.addEventListener('auth:unauthorized', handleUnauthorized);
+    return () => window.removeEventListener('auth:unauthorized', handleUnauthorized);
+  }, []);
+
+  // Fetch fresh user data and itinerary count whenever the user state is set
+  useEffect(() => {
+    if (!user) return;
+    const fetchProfileData = async () => {
+      try {
+        const freshUser = await authAPI.getMe();
+        setUser(prev => prev ? { ...prev, ...freshUser } : freshUser);
+        localStorage.setItem('user', JSON.stringify({ ...user, ...freshUser }));
+      } catch (_) {
+        // silently fall back to stored user — already displayed
+      }
+      try {
+        const itins = await itineraryAPI.getItineraries({ limit: 200 });
+        const userId = user.id;
+        const mine = Array.isArray(itins)
+          ? itins.filter((it: any) => {
+              if (typeof it.userId === 'object' && it.userId !== null) {
+                return (it.userId._id || it.userId.id) === userId;
+              }
+              return it.userId === userId || it.authorId === userId;
+            })
+          : [];
+        setProfileItineraryCount(mine.length);
+      } catch (_) {
+        // leave count as null — will not render
+      }
+      // Sync review count from localStorage in case it changed
+      setUserReviewCount(parseInt(localStorage.getItem('tripo_review_count') || '0', 10));
+    };
+    fetchProfileData();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]);
 
   // Auto-Login and initial data load
   useEffect(() => {
@@ -53,6 +176,14 @@ export const App = () => {
             setView('onboarding');
           } else {
             setView('main');
+            // Feature 4: Restore active group trip after successful auth
+            try {
+              const raw = localStorage.getItem(ACTIVE_TRIP_KEY);
+              if (raw) {
+                const trip: GroupTrip = JSON.parse(raw);
+                if (trip?.id && trip?.itinerary) setActiveTrip(trip);
+              }
+            } catch (_) { /* noop */ }
           }
         } catch (e) {
           console.error("Failed to fetch fresh profile, falling back to local storage...", e);
@@ -64,6 +195,14 @@ export const App = () => {
                 setView('onboarding');
               } else {
                 setView('main');
+                // Feature 4: Restore active group trip from localStorage
+                try {
+                  const raw = localStorage.getItem(ACTIVE_TRIP_KEY);
+                  if (raw) {
+                    const trip: GroupTrip = JSON.parse(raw);
+                    if (trip?.id && trip?.itinerary) setActiveTrip(trip);
+                  }
+                } catch (_) { /* noop */ }
               }
             } catch (err) {
               console.error("Local storage user parse failed", err);
@@ -95,6 +234,14 @@ export const App = () => {
         setView('onboarding');
       } else {
         setView('main');
+        // Feature 4: Restore active group trip on login
+        try {
+          const raw = localStorage.getItem(ACTIVE_TRIP_KEY);
+          if (raw) {
+            const trip: GroupTrip = JSON.parse(raw);
+            if (trip?.id && trip?.itinerary) setActiveTrip(trip);
+          }
+        } catch (_) { /* noop */ }
       }
     } else {
       // Backup in case localStorage isn't set instantly by AuthScreen
@@ -102,10 +249,50 @@ export const App = () => {
         const profile = await authAPI.getProfile();
         setUser(profile);
         if (!profile.smartProfile) setView('onboarding');
-        else setView('main');
+        else {
+          setView('main');
+          try {
+            const raw = localStorage.getItem(ACTIVE_TRIP_KEY);
+            if (raw) {
+              const trip: GroupTrip = JSON.parse(raw);
+              if (trip?.id && trip?.itinerary) setActiveTrip(trip);
+            }
+          } catch (_) { /* noop */ }
+        }
       } catch (e) {
         setView('auth');
       }
+    }
+  };
+
+  /**
+   * Called after a NEW user registers (not a login).
+   * Load the user into state then show the first-launch onboarding wizard
+   * unless this device has already completed it.
+   */
+  const handleRegister = async () => {
+    setView('loading');
+    const storedUser = localStorage.getItem('user');
+    let resolvedUser: User | null = null;
+    if (storedUser) {
+      try { resolvedUser = JSON.parse(storedUser); } catch (_) { /* ignore */ }
+    }
+    if (!resolvedUser) {
+      try {
+        resolvedUser = await authAPI.getProfile();
+        localStorage.setItem('user', JSON.stringify(resolvedUser));
+      } catch (_) {
+        setView('auth');
+        return;
+      }
+    }
+    setUser(resolvedUser);
+    setView('main');
+
+    // Show the onboarding wizard overlay if this device hasn't completed it
+    const alreadyOnboarded = localStorage.getItem('tripo_onboarded') === 'true';
+    if (!alreadyOnboarded) {
+      setShowOnboardingWizard(true);
     }
   };
 
@@ -116,8 +303,52 @@ export const App = () => {
   const handleLogout = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
+    localStorage.removeItem(ACTIVE_TRIP_KEY);
     setUser(null);
+    setActiveTrip(null);
     setView('auth');
+  };
+
+  // Karam Points: award points for actions
+  const awardKaramPoints = (action: string, points: number, label: string) => {
+    const entry = { id: `${action}_${Date.now()}`, action, points, label, timestamp: Date.now() };
+    setKaramPoints(prev => {
+      const next = prev + points;
+      localStorage.setItem(KARAM_POINTS_KEY, String(next));
+      return next;
+    });
+    setKaramHistory(prev => {
+      const next = [entry, ...prev].slice(0, 50);
+      localStorage.setItem(KARAM_HISTORY_KEY, JSON.stringify(next));
+      return next;
+    });
+  };
+
+  // First daily login check — award 10 points on first login of the day
+  useEffect(() => {
+    if (!user) return;
+    const today = new Date().toDateString();
+    const lastLogin = localStorage.getItem('tripo_last_login_date');
+    if (lastLogin !== today) {
+      localStorage.setItem('tripo_last_login_date', today);
+      awardKaramPoints('daily_login', 10, 'First login of the day');
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]);
+
+  // Feature 4: Restore persisted active group trip from localStorage
+  const restoreActiveTrip = () => {
+    try {
+      const raw = localStorage.getItem(ACTIVE_TRIP_KEY);
+      if (raw) {
+        const trip: GroupTrip = JSON.parse(raw);
+        if (trip && trip.id && trip.itinerary) {
+          setActiveTrip(trip);
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to restore active group trip:', e);
+    }
   };
 
   const handleOnboardingComplete = (prefs: SmartProfile) => {
@@ -125,7 +356,17 @@ export const App = () => {
       const updatedUser = { ...user, smartProfile: prefs };
       setUser(updatedUser);
       localStorage.setItem('user', JSON.stringify(updatedUser));
-      setView('main');
+    }
+    setView('main');
+  };
+
+  /** Called when the first-launch OnboardingWizard completes its 3 steps. */
+  const handleWizardComplete = (prefs: SmartProfile) => {
+    setShowOnboardingWizard(false);
+    const updatedUser = user ? { ...user, smartProfile: prefs } : null;
+    if (updatedUser) {
+      setUser(updatedUser);
+      localStorage.setItem('user', JSON.stringify(updatedUser));
     }
   };
 
@@ -134,31 +375,70 @@ export const App = () => {
     setView('itinerary');
   };
 
-  const startGroupTrip = () => {
+  const handleRemoveOfflineTrip = (id: string) => {
+    removeOfflineItinerary(id);
+    setOfflineTrips(getOfflineItineraries());
+  };
+
+  const handleOpenOfflineItinerary = (it: Itinerary) => {
+    setSelectedItinerary(it);
+    setView('itinerary');
+  };
+
+  const startGroupTrip = async () => {
     if (!selectedItinerary || !user) return;
+    const itineraryBackendId = selectedItinerary._id || selectedItinerary.id;
+    const isMongoId = (id: string) => /^[0-9a-fA-F]{24}$/.test(id);
+
     const newTrip: GroupTrip = {
       id: Date.now().toString(),
       itinerary: selectedItinerary,
-      members: [user, { id: 'u3', name: 'Sara K.', avatar: 'https://i.pravatar.cc/150?u=u3', email: 's@s.com' } as User],
+      members: [user],
       chatMessages: [],
       expenses: []
     };
+
+    if (itineraryBackendId && isMongoId(itineraryBackendId)) {
+      try {
+        const backendTrip = await groupTripAPI.create(itineraryBackendId, selectedItinerary.title);
+        newTrip.backendId = backendTrip._id || backendTrip.id;
+      } catch (e) {
+        console.warn('Could not create backend group trip, running locally:', e);
+      }
+    }
+
+    // Feature 4: Persist group trip to localStorage so it survives refresh
+    try {
+      localStorage.setItem(ACTIVE_TRIP_KEY, JSON.stringify(newTrip));
+    } catch (e) {
+      console.warn('Could not persist group trip to localStorage:', e);
+    }
+
     setActiveTrip(newTrip);
     setView('group');
   };
 
-  // Base wrappers for unified styling
-  const AppWrapper = ({ children }: { children: React.ReactNode }) => (
-    <div className="h-screen w-full bg-slate-50 font-sans overflow-hidden">
-      {children}
-    </div>
-  );
+  // Feature 4: Wrapper around setActiveTrip that also syncs to localStorage
+  const handleUpdateTrip = (tripOrUpdater: GroupTrip | ((prev: GroupTrip) => GroupTrip)) => {
+    setActiveTrip(prev => {
+      const resolved = typeof tripOrUpdater === 'function'
+        ? (prev ? (tripOrUpdater as (p: GroupTrip) => GroupTrip)(prev) : prev)
+        : tripOrUpdater;
+      if (resolved) {
+        try {
+          localStorage.setItem(ACTIVE_TRIP_KEY, JSON.stringify(resolved));
+        } catch (_) { /* noop */ }
+      }
+      return resolved;
+    });
+  };
 
-  const ModalWrapper = ({ children }: { children: React.ReactNode }) => (
-    <div className="h-screen w-full max-w-2xl mx-auto bg-white shadow-2xl relative overflow-hidden flex flex-col">
-      {children}
-    </div>
-  );
+  // Feature 4: End trip and clear localStorage
+  const handleEndTrip = () => {
+    localStorage.removeItem(ACTIVE_TRIP_KEY);
+    setActiveTrip(null);
+    setView('main');
+  };
 
   if (view === 'loading') {
     return (
@@ -168,13 +448,38 @@ export const App = () => {
     );
   }
 
-  if (view === 'auth') return <AuthScreen onLogin={handleLogin} onGuestLogin={handleGuestLogin} t={t} lang={lang} onToggleLang={toggleLanguage} />;
+  if (view === 'auth') return <AuthScreen onLogin={handleLogin} onRegister={handleRegister} onGuestLogin={handleGuestLogin} t={t} lang={lang} onToggleLang={toggleLanguage} />;
   if (view === 'onboarding') return <ModalWrapper><SmartProfileScreen onComplete={handleOnboardingComplete} t={t} /></ModalWrapper>;
-  if (view === 'itinerary' && selectedItinerary) return <ModalWrapper><ItineraryDetailScreen itinerary={selectedItinerary} onBack={() => setView('main')} onStartGroup={startGroupTrip} t={t} /></ModalWrapper>;
-  if (view === 'group' && activeTrip && user) return <ModalWrapper><GroupTripScreen trip={activeTrip} currentUser={user} onBack={() => setView('main')} onUpdateTrip={setActiveTrip} t={t} /></ModalWrapper>;
+  if (view === 'itinerary' && selectedItinerary) return <ModalWrapper><ItineraryDetailScreen itinerary={selectedItinerary} onBack={() => setView('main')} onStartGroup={startGroupTrip} t={t} onAwardKaramPoints={awardKaramPoints} /></ModalWrapper>;
+  if (view === 'group' && activeTrip && user) return <AppWrapper><ModalWrapper><GroupTripScreen trip={activeTrip} currentUser={user} onBack={handleEndTrip} onUpdateTrip={handleUpdateTrip as any} t={t} /></ModalWrapper></AppWrapper>;
+  if (view === 'privateTrip' && selectedPrivateTrip && user) return (
+    <AppWrapper>
+      <ModalWrapper>
+        <PrivateTripScreen
+          trip={selectedPrivateTrip}
+          currentUser={user}
+          onBack={() => { setView('main'); setActiveTab('my_trips'); }}
+          onUpdateTrip={(updated) => setSelectedPrivateTrip(updated)}
+        />
+      </ModalWrapper>
+    </AppWrapper>
+  );
 
-  // 🔴 الشاشة المضافة للواقع المعزز 
-  if (view === 'ar') return <ARGuideScreen onBack={() => setView('main')} t={t} user={user!} lang={lang} nearbyPlaces={[]} itineraryPlaces={[]} />;  // Main Desktop/Mobile Shell
+  // AR screen
+  if (view === 'ar') return <ARGuideScreen onBack={() => setView('main')} t={t} user={user!} lang={lang} nearbyPlaces={[]} itineraryPlaces={[]} />;
+
+  const tier = getContributionTier(userReviewCount);
+  const isAdmin = (user as any)?.role === 'admin';
+
+  // Feature 2: Check if user has any claimed places
+  const hasClaimedPlaces = (() => {
+    try {
+      const claimed = JSON.parse(localStorage.getItem('tripo_claimed_places') || '[]');
+      return Array.isArray(claimed) && claimed.length > 0;
+    } catch { return false; }
+  })();
+
+  // Main Desktop/Mobile Shell
   return (
     <AppWrapper>
       <div className="flex h-full relative">
@@ -182,7 +487,7 @@ export const App = () => {
         {/* Mobile Sidebar Overlay */}
         {isSidebarOpen && (
           <div
-            className="fixed inset-0 bg-black/50 z-40 lg:hidden"
+            className="fixed inset-0 bg-slate-800/40 z-40 lg:hidden"
             onClick={() => setIsSidebarOpen(false)}
           />
         )}
@@ -204,14 +509,27 @@ export const App = () => {
               </button>
             </div>
 
+            {/* Global Search */}
+            <div className="px-4 mb-4">
+              <GlobalSearch onNavigate={(tab) => { setActiveTab(tab); setIsSidebarOpen(false); }} />
+            </div>
+
             {/* Navigation Links */}
             <nav className="flex-1 px-4 space-y-2">
               {[
                 { id: 'home', icon: Home, label: t.tabHome },
                 { id: 'explore', icon: Search, label: t.tabExplore },
-                { id: 'create', icon: Plus, label: (t as any).tabCreate || 'Create' },
+                { id: 'places', icon: MapPin, label: 'Places' },
+                { id: 'tours', icon: Compass, label: 'Tours' },
+                { id: 'my_trips', icon: Lock, label: 'My Private Trips' },
+                { id: 'create', icon: Plus, label: (t as any).tabCreate || 'New Trip' },
                 { id: 'communities', icon: Users, label: t.tabCommunities },
-                { id: 'profile', icon: UserIcon, label: t.tabProfile }
+                { id: 'ai_planner', icon: Sparkles, label: '✨ AI Planner' },
+                { id: 'events', icon: Calendar, label: 'Events' },
+                { id: 'rentals', icon: Tent, label: 'Rentals' },
+                { id: 'profile', icon: UserIcon, label: t.tabProfile },
+                ...(isAdmin ? [{ id: 'admin', icon: Shield, label: 'Admin' }] : []),
+                ...(hasClaimedPlaces ? [{ id: 'host', icon: Store, label: 'Host Dashboard' }] : []),
               ].map((nav) => (
                 <button
                   key={nav.id}
@@ -227,7 +545,9 @@ export const App = () => {
             {/* Sidebar Footer User Info */}
             <div className="mt-auto px-4">
               <div className="p-4 bg-slate-50 rounded-2xl flex items-center gap-3">
-                <img src={user?.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.name}`} alt="Avatar" className="w-10 h-10 rounded-full border border-slate-200 bg-white" />
+                <div className="w-10 h-10 rounded-full bg-emerald-100 border border-slate-200 flex items-center justify-center text-emerald-700 font-bold text-sm flex-shrink-0">
+                  {user?.name?.charAt(0).toUpperCase()}
+                </div>
                 <div className="flex-1 min-w-0">
                   <p className="font-bold text-sm text-slate-900 truncate">{user?.name}</p>
                   <p className="text-xs text-slate-500 truncate">{user?.email || 'Guest'}</p>
@@ -240,32 +560,117 @@ export const App = () => {
         {/* Main Content Area */}
         <div className="flex-1 flex flex-col h-full bg-slate-50 overflow-hidden relative">
 
-          {/* Mobile Header (Shows Hamburger) */}
+          {/* Mobile Header (Shows Hamburger + Notification Bell) */}
           <div className="lg:hidden bg-white px-4 py-3 border-b border-slate-200 flex items-center justify-between sticky top-0 z-30">
             <button onClick={() => setIsSidebarOpen(true)} className="p-2 -ml-2 text-slate-600 hover:bg-slate-100 rounded-full">
               <Menu className="w-6 h-6" />
             </button>
             <span className="font-bold text-lg text-slate-800">Tripo</span>
-            <div className="w-8"></div> {/* Spacer to center title */}
+            {/* Notification bell in mobile header */}
+            <NotificationPanel />
+          </div>
+
+          {/* Desktop Notification Bar (top-right, visible on lg+) */}
+          <div className="hidden lg:flex bg-white px-6 py-2.5 border-b border-slate-200 items-center justify-end sticky top-0 z-30">
+            <NotificationPanel />
           </div>
 
           {/* Scrollable Content View */}
           <div className="flex-1 overflow-y-auto w-full">
             <div className="max-w-7xl mx-auto h-full">
-              {activeTab === 'home' && user && <HomeScreen user={user} onOpenItinerary={openItinerary} t={t} onOpenAR={() => setView('ar')} />}
+              {activeTab === 'home' && user && (
+                <>
+                  {/* Feature 4: Resume Trip banner on home screen */}
+                  {activeTrip && (
+                    <div className="mx-6 mt-4 p-4 bg-emerald-50 border border-emerald-200 rounded-2xl flex items-center justify-between gap-4">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="w-9 h-9 bg-emerald-100 rounded-xl flex items-center justify-center flex-shrink-0">
+                          <Users2 className="w-5 h-5 text-emerald-700" />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-xs font-bold text-emerald-700 uppercase tracking-wider">Active Group Trip</p>
+                          <p className="text-sm font-semibold text-slate-800 truncate">{activeTrip.itinerary.title}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        <button
+                          onClick={() => setView('group')}
+                          className="px-4 py-2 bg-emerald-600 text-white text-sm font-bold rounded-xl hover:bg-emerald-700 transition"
+                        >
+                          Resume
+                        </button>
+                        <button
+                          onClick={handleEndTrip}
+                          className="px-3 py-2 border border-slate-200 text-slate-500 text-sm font-medium rounded-xl hover:bg-slate-100 transition"
+                        >
+                          End
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                  <HomeScreen user={user} onOpenItinerary={openItinerary} t={t} onOpenAR={() => setView('ar')} onNavigate={(tab: string, id?: string) => { setActiveTab(tab); if (id && tab === 'events') setPendingEventId(id); if (id && tab === 'tours') setPendingTourId(id); if (id && tab === 'places') setPendingPlaceId(id); if (id && tab === 'rentals') setPendingRentalId(id); if (id && tab === 'communities') setPendingCommunityId(id); }} />
+                </>
+              )}
+
+              {activeTab === 'places' && <PlacesScreen t={t} initialPlaceId={pendingPlaceId} onPlaceOpened={() => setPendingPlaceId(undefined)} />}
 
               {activeTab === 'explore' && <ExploreScreen t={t} onOpenPlace={(p) => console.log('Place clicked', p)} />}
 
-              {/* 🔴 الشاشة المضافة لإنشاء الرحلات */}
-              {activeTab === 'create' && <CreateScreen onSave={(it) => { console.log('Saved:', it); setActiveTab('home'); }} t={t} />}
+              {activeTab === 'tours' && (
+                <ToursScreen
+                  t={t}
+                  initialTourId={pendingTourId}
+                  onTourOpened={() => setPendingTourId(undefined)}
+                  onBookingComplete={(itinerary, groupTrip) => {
+                    const trip: GroupTrip = {
+                      id: (groupTrip as any)._id || (groupTrip as any).id || Date.now().toString(),
+                      backendId: (groupTrip as any)._id || (groupTrip as any).id,
+                      itinerary,
+                      members: user ? [user] : [],
+                      chatMessages: [],
+                      expenses: [],
+                    };
+                    setActiveTrip(trip);
+                    setView('group');
+                  }}
+                />
+              )}
 
-              {activeTab === 'communities' && <CommunitiesScreen t={t} lang={lang} onOpenItinerary={openItinerary} />}
+              {activeTab === 'my_trips' && user && (
+                <MyTripsScreen
+                  currentUser={user}
+                  onOpenTrip={(trip) => {
+                    setSelectedPrivateTrip(trip);
+                    setView('privateTrip');
+                  }}
+                />
+              )}
+
+              {activeTab === 'create' && user && <CreateScreen onSave={(_it) => { awardKaramPoints('publish_itinerary', 100, 'Published a trip'); setCreateInitialTitle(undefined); setActiveTab('home'); }} t={t} initialTitle={createInitialTitle} currentUser={user} onPrivateTripCreated={() => { setCreateInitialTitle(undefined); setActiveTab('my_trips'); }} />}
+
+              {activeTab === 'communities' && <CommunitiesScreen t={t} lang={lang} onOpenItinerary={openItinerary} initialCommunityId={pendingCommunityId} onCommunityOpened={() => setPendingCommunityId(undefined)} />}
+
+              {activeTab === 'ai_planner' && (
+                <div className="h-full flex flex-col" style={{ height: 'calc(100vh - 120px)' }}>
+                  <AIPlannerScreen />
+                </div>
+              )}
+
+              {activeTab === 'events' && <EventsScreen onCreateWithEvent={(title) => { setCreateInitialTitle(title); setActiveTab('create'); }} initialEventId={pendingEventId} onEventOpened={() => setPendingEventId(undefined)} />}
+
+              {activeTab === 'rentals' && <RentalsScreen t={t} initialRentalId={pendingRentalId} onRentalOpened={() => setPendingRentalId(undefined)} />}
+
+              {activeTab === 'admin' && isAdmin && <AdminScreen t={t} />}
+
+              {activeTab === 'host' && <HostDashboardScreen />}
 
               {activeTab === 'profile' && user && (
                 <div className="p-6 pt-10 max-w-3xl mx-auto">
                   <div className="bg-white rounded-3xl p-8 shadow-sm border border-slate-100">
-                    <div className="text-center mb-10">
-                      <img src={user.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.name}`} alt="Avatar" className="w-32 h-32 rounded-full mx-auto mb-4 border-4 border-slate-50 bg-slate-100 shadow-md" />
+                    <div className="text-center mb-6">
+                      <div className="w-32 h-32 rounded-full mx-auto mb-4 bg-emerald-100 border-4 border-slate-50 shadow-md flex items-center justify-center text-emerald-700 font-extrabold text-5xl">
+                        {user.name?.charAt(0).toUpperCase()}
+                      </div>
                       <h2 className="text-3xl font-extrabold text-slate-900">{user.name}</h2>
                       <p className="text-lg text-slate-500">{user.email}</p>
                       <span className="inline-block mt-3 px-4 py-1.5 bg-emerald-100 text-emerald-800 text-sm font-bold rounded-full uppercase tracking-wider">
@@ -273,16 +678,164 @@ export const App = () => {
                       </span>
                     </div>
 
+                    {/* Stats Row */}
+                    <div className="flex justify-center gap-8 mb-6">
+                      <div className="text-center">
+                        <p className="text-2xl font-extrabold text-slate-900">
+                          {profileItineraryCount !== null ? profileItineraryCount : '—'}
+                        </p>
+                        <p className="text-xs text-slate-500 font-medium mt-0.5">Trips</p>
+                      </div>
+                      <div className="w-px bg-slate-100" />
+                      <div className="text-center">
+                        <p className="text-2xl font-extrabold text-slate-900">{userReviewCount}</p>
+                        <p className="text-xs text-slate-500 font-medium mt-0.5">Reviews</p>
+                      </div>
+                    </div>
+
+                    {/* Contribution Tier Badge */}
+                    <div className={`flex items-center gap-3 p-4 ${tier.bg} rounded-2xl border border-slate-100 mb-6`}>
+                      <span className="text-2xl">{tier.icon}</span>
+                      <div>
+                        <p className={`font-bold text-sm ${tier.color}`}>{tier.label}</p>
+                        <p className="text-xs text-slate-500">{userReviewCount} reviews written</p>
+                      </div>
+                    </div>
+
+                    {/* Karam Points Card */}
+                    <div className="mb-4 border border-amber-200 rounded-2xl overflow-hidden bg-gradient-to-br from-amber-50 to-yellow-50">
+                      <div className="p-4">
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="flex items-center gap-2">
+                            <Star className="w-5 h-5 text-amber-500 fill-amber-400" />
+                            <span className="font-bold text-amber-800 text-sm">Karam Points</span>
+                          </div>
+                          <span className="px-3 py-1 bg-amber-100 text-amber-700 text-xs font-bold rounded-full border border-amber-200">
+                            {getKaramLevel(karamPoints)}
+                          </span>
+                        </div>
+                        <p className="text-3xl font-extrabold text-amber-700">{karamPoints.toLocaleString()}</p>
+                        <p className="text-xs text-amber-600 mt-0.5">points earned</p>
+                        <div className="mt-3 text-xs text-amber-500 space-y-0.5">
+                          <p>Write a review: +50 pts &bull; Create trip: +100 pts</p>
+                          <p>Complete trip: +75 pts &bull; Daily login: +10 pts</p>
+                        </div>
+                        <button
+                          onClick={() => setShowKaramHistory(v => !v)}
+                          className="mt-3 flex items-center gap-1 text-xs font-bold text-amber-700 hover:text-amber-900 transition-colors"
+                        >
+                          View History
+                          {showKaramHistory ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                        </button>
+                      </div>
+                      {showKaramHistory && (
+                        <div className="border-t border-amber-100 bg-white divide-y divide-amber-50">
+                          {karamHistory.length === 0 ? (
+                            <p className="text-center text-xs text-slate-400 py-4">No history yet</p>
+                          ) : karamHistory.slice(0, 10).map(h => (
+                            <div key={h.id} className="flex items-center justify-between px-4 py-2.5">
+                              <div>
+                                <p className="text-xs font-semibold text-slate-700">{h.label}</p>
+                                <p className="text-xs text-slate-400">{new Date(h.timestamp).toLocaleDateString()}</p>
+                              </div>
+                              <span className="text-sm font-bold text-amber-600">+{h.points}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Offline Trips Section */}
+                    <div className="mb-4 border border-slate-100 rounded-2xl overflow-hidden">
+                      <button
+                        onClick={() => { setOfflineTrips(getOfflineItineraries()); setShowOfflineTrips(v => !v); }}
+                        className="w-full flex items-center justify-between p-4 bg-slate-50 hover:bg-slate-100 transition-colors"
+                      >
+                        <span className="flex items-center gap-2 font-bold text-slate-700 text-sm">
+                          <WifiOff className="w-4 h-4 text-emerald-600" />
+                          Offline Trips
+                          {offlineTrips.length > 0 && (
+                            <span className="ml-1 px-2 py-0.5 bg-emerald-100 text-emerald-700 text-xs font-bold rounded-full">{offlineTrips.length}</span>
+                          )}
+                        </span>
+                        {showOfflineTrips ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
+                      </button>
+                      {showOfflineTrips && (
+                        <div className="divide-y divide-slate-50">
+                          {offlineTrips.length === 0 ? (
+                            <div className="text-center py-8 bg-white">
+                              <Download className="w-8 h-8 mx-auto text-slate-200 mb-2" />
+                              <p className="text-sm text-slate-400 font-medium">No offline trips saved yet.</p>
+                              <p className="text-xs text-slate-300 mt-1">Tap "Save Offline" on any trip.</p>
+                            </div>
+                          ) : offlineTrips.map(it => {
+                            const itId = it._id || it.id || '';
+                            return (
+                              <div key={itId} className="flex items-center gap-3 p-4 bg-white">
+                                <div className="w-10 h-10 bg-emerald-50 rounded-xl flex items-center justify-center flex-shrink-0">
+                                  <MapPin className="w-5 h-5 text-emerald-600" />
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <p className="font-semibold text-slate-800 text-sm truncate">{it.title}</p>
+                                  <p className="text-xs text-slate-400">{it.places?.length ?? 0} stops</p>
+                                </div>
+                                <button
+                                  onClick={() => handleOpenOfflineItinerary(it)}
+                                  className="px-3 py-1.5 bg-emerald-600 text-white text-xs font-bold rounded-xl hover:bg-emerald-700 transition flex-shrink-0"
+                                >
+                                  Open
+                                </button>
+                                <button
+                                  onClick={() => handleRemoveOfflineTrip(itId)}
+                                  className="p-1.5 text-slate-400 hover:text-red-500 transition flex-shrink-0"
+                                  aria-label="Remove offline trip"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Feature 4: Resume Trip card in profile */}
+                    {activeTrip && (
+                      <div className="mb-4 p-4 bg-emerald-50 border border-emerald-200 rounded-2xl flex items-center justify-between gap-4">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <Users2 className="w-5 h-5 text-emerald-700 flex-shrink-0" />
+                          <div className="min-w-0">
+                            <p className="text-xs font-bold text-emerald-700 uppercase tracking-wider">Active Trip</p>
+                            <p className="text-sm font-semibold text-slate-800 truncate">{activeTrip.itinerary.title}</p>
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => setView('group')}
+                          className="flex-shrink-0 px-4 py-2 bg-emerald-600 text-white text-sm font-bold rounded-xl hover:bg-emerald-700 transition"
+                        >
+                          Resume Trip
+                        </button>
+                      </div>
+                    )}
+
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <button onClick={() => setShowEditProfile(true)} className="flex items-center justify-between p-5 bg-emerald-50 hover:bg-emerald-100 transition-colors rounded-2xl font-medium border border-emerald-100 md:col-span-2">
+                        <span className="flex items-center gap-3 text-emerald-800 font-bold"><Sparkles className="w-5 h-5 text-emerald-600" /> Edit Travel Preferences</span>
+                        <ChevronLeft className="w-4 h-4 text-emerald-400 rotate-180" />
+                      </button>
                       <button onClick={toggleLanguage} className="flex items-center justify-between p-5 bg-slate-50 hover:bg-slate-100 transition-colors rounded-2xl font-medium border border-slate-100">
                         <span className="flex items-center gap-3 text-slate-700 font-bold"><Globe className="w-5 h-5 text-emerald-600" /> Language / اللغة</span>
                         <span className="text-sm font-bold text-emerald-600">{lang === 'en' ? 'English' : 'العربية'}</span>
                       </button>
-                      <button className="flex items-center justify-between p-5 bg-slate-50 hover:bg-slate-100 transition-colors rounded-2xl font-medium border border-slate-100">
+                      <button onClick={() => setShowSettings(true)} className="flex items-center justify-between p-5 bg-slate-50 hover:bg-slate-100 transition-colors rounded-2xl font-medium border border-slate-100">
                         <span className="flex items-center gap-3 text-slate-700 font-bold"><Settings className="w-5 h-5 text-emerald-600" /> {t.settings}</span>
-                        <span className="text-sm font-bold text-emerald-600">{t.settings}</span>
+                        <ChevronLeft className="w-4 h-4 text-slate-400 rotate-180" />
                       </button>
-                      <button onClick={handleLogout} className="md:col-span-2 flex items-center justify-center p-5 bg-red-50 hover:bg-red-100 transition-colors text-red-600 rounded-2xl font-bold border border-red-100 shadow-sm mt-4">
+                      <button onClick={() => setShowWishLists(true)} className="flex items-center justify-between p-5 bg-slate-50 hover:bg-slate-100 transition-colors rounded-2xl font-medium border border-slate-100">
+                        <span className="flex items-center gap-3 text-slate-700 font-bold"><Heart className="w-5 h-5 text-emerald-600" /> My Wish Lists</span>
+                        <ChevronLeft className="w-4 h-4 text-slate-400 rotate-180" />
+                      </button>
+                      <button onClick={handleLogout} className="flex items-center justify-center p-5 bg-red-50 hover:bg-red-100 transition-colors text-red-600 rounded-2xl font-bold border border-red-100 shadow-sm">
                         <span className="flex items-center gap-3"><LogOut className="w-5 h-5" /> {t.logout}</span>
                       </button>
                     </div>
@@ -296,28 +849,133 @@ export const App = () => {
         {/* AI Assistant - Floating Button */}
         {user && <AIAssistant user={user as any} t={t} lang={lang} />}
 
-        {/* Mobile Bottom Nav (Hidden on Desktop) */}
-        <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 px-6 py-4 flex justify-between items-center z-40 pb-safe">
-          <button onClick={() => setActiveTab('home')} className={`flex flex-col items-center gap-1 transition-colors ${activeTab === 'home' ? 'text-emerald-600' : 'text-slate-400'}`}>
-            <Home className={`w-6 h-6 ${activeTab === 'home' ? 'fill-emerald-100' : ''}`} />
-          </button>
-          <button onClick={() => setActiveTab('explore')} className={`flex flex-col items-center gap-1 transition-colors ${activeTab === 'explore' ? 'text-emerald-600' : 'text-slate-400'}`}>
-            <Search className={`w-6 h-6 ${activeTab === 'explore' ? 'fill-emerald-100' : ''}`} />
-          </button>
-          <div className="relative -top-6">
+        {/* Settings Modal */}
+        {showSettings && (
+          <div className="fixed inset-0 z-[200] bg-black/50 flex items-center justify-center p-4" onClick={() => setShowSettings(false)}>
+            <div className="bg-white rounded-3xl w-full max-w-sm p-6 shadow-2xl" onClick={e => e.stopPropagation()}>
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-xl font-bold text-slate-900">{t.settings}</h3>
+                <button onClick={() => setShowSettings(false)} className="p-2 rounded-full hover:bg-slate-100 transition"><ChevronLeft className="w-5 h-5 text-slate-400 rotate-180" /></button>
+              </div>
+              <div className="space-y-3">
+                <div className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl">
+                  <span className="font-medium text-slate-700">Language / اللغة</span>
+                  <button onClick={toggleLanguage} className="px-4 py-1.5 bg-emerald-600 text-white rounded-full text-sm font-bold hover:bg-emerald-700 transition">
+                    {lang === 'en' ? 'العربية' : 'English'}
+                  </button>
+                </div>
+                <div className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl">
+                  <span className="font-medium text-slate-700">Account</span>
+                  <span className="text-sm text-slate-500">{user?.email}</span>
+                </div>
+                <div className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl">
+                  <span className="font-medium text-slate-700">Version</span>
+                  <span className="text-sm text-slate-400">1.0.0</span>
+                </div>
+                <button onClick={() => { setShowSettings(false); handleLogout(); }} className="w-full p-4 bg-red-50 hover:bg-red-100 text-red-600 rounded-2xl font-bold transition text-sm">
+                  {t.logout}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Wish Lists Modal */}
+        {showWishLists && <WishListModal onClose={() => setShowWishLists(false)} />}
+
+        {/* First-launch Onboarding Wizard — shown once per device after registration */}
+        {showOnboardingWizard && (
+          <OnboardingWizard onComplete={handleWizardComplete} />
+        )}
+
+        {/* Mobile Bottom Nav — 5 core tabs + More */}
+        <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 px-2 py-2 flex justify-around items-center z-40 pb-safe">
+          {[
+            { id: 'home', icon: Home, label: 'Home' },
+            { id: 'explore', icon: Search, label: 'Map' },
+            { id: 'communities', icon: Users, label: 'Community' },
+            { id: 'rentals', icon: Tent, label: 'Rentals' },
+          ].map(nav => (
+            <button key={nav.id} onClick={() => setActiveTab(nav.id)} className={`flex flex-col items-center gap-0.5 px-2 py-1 rounded-xl transition-colors min-w-0 ${activeTab === nav.id ? 'text-emerald-600' : 'text-slate-400'}`}>
+              <nav.icon className={`w-6 h-6 ${activeTab === nav.id ? 'fill-emerald-100' : ''}`} />
+              <span className="text-[10px] font-medium truncate">{nav.label}</span>
+            </button>
+          ))}
+
+          {/* Create FAB */}
+          <div className="relative -top-4">
             <button onClick={() => setActiveTab('create')} className="w-14 h-14 bg-gradient-to-tr from-emerald-600 to-teal-500 rounded-full flex items-center justify-center text-white shadow-xl shadow-emerald-200 active:scale-95 transition-transform hover:scale-105">
               <Plus className="w-7 h-7" />
             </button>
           </div>
-          <button onClick={() => setActiveTab('communities')} className={`flex flex-col items-center gap-1 transition-colors ${activeTab === 'communities' ? 'text-emerald-600' : 'text-slate-400'}`}>
-            <Users className={`w-6 h-6 ${activeTab === 'communities' ? 'fill-emerald-100' : ''}`} />
-          </button>
-          <button onClick={() => setActiveTab('profile')} className={`flex flex-col items-center gap-1 transition-colors ${activeTab === 'profile' ? 'text-emerald-600' : 'text-slate-400'}`}>
-            <UserIcon className={`w-6 h-6 ${activeTab === 'profile' ? 'fill-emerald-100' : ''}`} />
+
+          {/* More button */}
+          <button onClick={() => setShowMoreSheet(true)} className={`flex flex-col items-center gap-0.5 px-2 py-1 rounded-xl transition-colors min-w-0 ${['places','tours','my_trips','ai_planner','events','profile','admin','host'].includes(activeTab) ? 'text-emerald-600' : 'text-slate-400'}`}>
+            <Menu className="w-6 h-6" />
+            <span className="text-[10px] font-medium">More</span>
           </button>
         </div>
 
+        {/* More Sheet */}
+        {showMoreSheet && (
+          <>
+            <div className="fixed inset-0 bg-slate-900/40 z-[60] lg:hidden" onClick={() => setShowMoreSheet(false)} />
+            <div className="fixed bottom-0 left-0 right-0 bg-white rounded-t-3xl z-[70] lg:hidden shadow-2xl pb-safe">
+              <div className="flex justify-between items-center px-6 pt-5 pb-3">
+                <h3 className="font-bold text-slate-900">More</h3>
+                <button onClick={() => setShowMoreSheet(false)} className="p-2 rounded-full hover:bg-slate-100 transition"><X className="w-5 h-5 text-slate-500" /></button>
+              </div>
+              <div className="grid grid-cols-3 gap-3 px-6 pb-8">
+                {[
+                  { id: 'places', icon: MapPin, label: 'Places', color: 'bg-slate-50 text-slate-600' },
+                  { id: 'tours', icon: Compass, label: 'Tours', color: 'bg-teal-50 text-teal-600' },
+                  { id: 'my_trips', icon: Lock, label: 'My Trips', color: 'bg-emerald-50 text-emerald-600' },
+                  { id: 'ai_planner', icon: Sparkles, label: 'AI Planner', color: 'bg-purple-50 text-purple-600' },
+                  { id: 'events', icon: Calendar, label: 'Events', color: 'bg-blue-50 text-blue-600' },
+                  { id: 'profile', icon: UserIcon, label: 'Profile', color: 'bg-slate-50 text-slate-600' },
+                  ...(isAdmin ? [{ id: 'admin', icon: Shield, label: 'Admin', color: 'bg-red-50 text-red-600' }] : []),
+                  ...(hasClaimedPlaces ? [{ id: 'host', icon: Store, label: 'Host', color: 'bg-emerald-50 text-emerald-600' }] : []),
+                ].map(item => (
+                  <button
+                    key={item.id}
+                    onClick={() => { setActiveTab(item.id); setShowMoreSheet(false); }}
+                    className={`flex flex-col items-center gap-2 p-4 rounded-2xl border transition-all ${activeTab === item.id ? 'border-emerald-300 bg-emerald-50' : 'border-slate-100 hover:border-slate-200'}`}
+                  >
+                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${item.color}`}>
+                      <item.icon className="w-5 h-5" />
+                    </div>
+                    <span className="text-xs font-bold text-slate-700">{item.label}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </>
+        )}
+
       </div>
+
+      {/* Toast notifications */}
+      <ToastContainer />
+
+      {/* Edit Preferences Modal */}
+      {showEditProfile && user && (
+        <div className="fixed inset-0 z-[250] overflow-y-auto bg-white">
+          <SmartProfileScreen
+            onComplete={(profile) => {
+              setUser(prev => prev ? { ...prev, smartProfile: profile } : prev);
+              setShowEditProfile(false);
+            }}
+            t={t}
+          />
+          <button
+            onClick={() => setShowEditProfile(false)}
+            className="fixed top-4 right-4 z-[260] w-10 h-10 bg-white/90 backdrop-blur-sm rounded-full shadow-lg flex items-center justify-center border border-slate-200"
+          >
+            <X className="w-5 h-5 text-slate-600" />
+          </button>
+        </div>
+      )}
+
     </AppWrapper>
   );
 };
