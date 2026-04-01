@@ -62,7 +62,11 @@ const formatDate = (d: string | Date) =>
 
 export const TourDetailScreen: React.FC<TourDetailScreenProps> = ({ tour, onBack, onBook, t, allTours, onSelectTour }) => {
   const difficulty = difficultyConfig[tour.difficulty] || difficultyConfig.easy;
-  const tourImages = [tour.heroImage, ...(tour.images || [])].filter(Boolean) as string[];
+  const tourImages = (() => {
+    const imgs = (tour.images && tour.images.length > 0) ? tour.images : [tour.heroImage];
+    const seen = new Set<string>();
+    return imgs.filter(Boolean).filter(u => { if (seen.has(u)) return false; seen.add(u); return true; }) as string[];
+  })();
   const [imgIdx, setImgIdx] = useState(0);
   const [lightboxIdx, setLightboxIdx] = useState<number | null>(null);
 

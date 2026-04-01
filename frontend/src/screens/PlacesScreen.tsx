@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { MapPin, Star, Search, X, TrendingUp, Award, Navigation, Wallet } from 'lucide-react';
+import { MapPin, Star, Search, X, TrendingUp, Award, Navigation, Wallet, WifiOff } from 'lucide-react';
 import { Place } from '../types/index';
 import { placeAPI } from '../services/api';
 import { MOCK_PLACES } from './HomeScreen';
@@ -42,6 +42,7 @@ function cityDistanceKm(cityName: string, userLat: number, userLon: number): num
 export const PlacesScreen = ({ t, initialPlaceId, onPlaceOpened }: { t: any; initialPlaceId?: string; onPlaceOpened?: () => void }) => {
   const [places, setPlaces] = useState<Place[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [hasNetworkError, setHasNetworkError] = useState(false);
   const [selectedPlace, setSelectedPlace] = useState<Place | null>(null);
   const [category, setCategory] = useState('All');
   const [search, setSearch] = useState('');
@@ -56,7 +57,7 @@ export const PlacesScreen = ({ t, initialPlaceId, onPlaceOpened }: { t: any; ini
         const list = Array.isArray(data) ? data : [];
         setPlaces(list.length > 0 ? list : MOCK_PLACES);
       })
-      .catch(() => setPlaces(MOCK_PLACES))
+      .catch(() => { setPlaces(MOCK_PLACES); setHasNetworkError(true); })
       .finally(() => setIsLoading(false));
   }, []);
 
@@ -173,7 +174,8 @@ export const PlacesScreen = ({ t, initialPlaceId, onPlaceOpened }: { t: any; ini
         </div>
 
         {/* Quick filter pills */}
-        <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1 mb-2">
+        <div className="relative mb-2">
+        <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
           {QUICK_FILTERS.map(f => (
             <button
               key={f.id}
@@ -189,8 +191,11 @@ export const PlacesScreen = ({ t, initialPlaceId, onPlaceOpened }: { t: any; ini
             </button>
           ))}
         </div>
+        <div className="pointer-events-none absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-white to-transparent" />
+        </div>
 
         {/* Category Pills */}
+        <div className="relative">
         <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
           {CATEGORY_KEYS.map(cat => {
             const catLabels: Record<string, string> = {
@@ -215,6 +220,8 @@ export const PlacesScreen = ({ t, initialPlaceId, onPlaceOpened }: { t: any; ini
             );
           })}
         </div>
+        <div className="pointer-events-none absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-white to-transparent" />
+        </div>
       </div>
 
       {/* Featured slideshow */}
@@ -229,6 +236,18 @@ export const PlacesScreen = ({ t, initialPlaceId, onPlaceOpened }: { t: any; ini
         />
       )}
 
+      {/* Network error banner */}
+      {hasNetworkError && !isLoading && (
+        <div className="mx-4 mt-3 flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">
+          <WifiOff className="w-4 h-4 text-amber-500 flex-shrink-0" />
+          <p className="text-xs font-medium text-amber-700">Showing cached results — check your connection</p>
+          <button
+            onClick={() => { setHasNetworkError(false); setIsLoading(true); placeAPI.getPlaces().then(data => { const list = Array.isArray(data) ? data : []; setPlaces(list.length > 0 ? list : MOCK_PLACES); }).catch(() => { setPlaces(MOCK_PLACES); setHasNetworkError(true); }).finally(() => setIsLoading(false)); }}
+            className="ml-auto text-xs font-bold text-amber-700 underline"
+          >Retry</button>
+        </div>
+      )}
+
       {/* Content */}
       <div className="flex-1 overflow-y-auto p-4 pb-24">
         {isLoading ? (
@@ -237,6 +256,12 @@ export const PlacesScreen = ({ t, initialPlaceId, onPlaceOpened }: { t: any; ini
           </div>
         ) : (
           <>
+            {(search || quickFilter || category !== 'All') && (
+              <p className="text-xs text-slate-500 mb-3 font-medium">
+                {filtered.length === 0 ? 'No places found' : `${filtered.length} place${filtered.length !== 1 ? 's' : ''} found`}
+                {search && <span className="text-slate-400"> for "<span className="text-slate-600">{search}</span>"</span>}
+              </p>
+            )}
             {filtered.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-20 text-center">
                 <MapPin className="w-12 h-12 text-slate-200 mb-3" />

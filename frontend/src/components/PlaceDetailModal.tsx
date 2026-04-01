@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { X, Star, MapPin, Sparkles, Send, MessageSquare, Clock, ChevronDown, ChevronUp, ThumbsUp, Award, Camera, Building2, CheckCircle, ArrowLeft, ChevronLeft, ChevronRight } from 'lucide-react';
+import { X, Star, MapPin, Sparkles, Send, MessageSquare, Clock, ThumbsUp, Award, Camera, Building2, CheckCircle, ArrowLeft, ChevronLeft, ChevronRight, Bookmark, ExternalLink } from 'lucide-react';
 import { GoogleGenAI } from "@google/genai";
 import { Place, Rental, QAItem } from '../types/index';
 import { PhotoLightbox } from './PhotoLightbox';
@@ -85,8 +85,7 @@ export const PlaceDetailModal = ({ place, onClose, t, allPlaces, onSwitchPlace, 
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // ── new state ───────────────────────────────────────────────────────────
-  const [activeSection, setActiveSection] = useState<'reviews' | 'qa'>('reviews');
-  const [hoursExpanded, setHoursExpanded] = useState(false);
+  const [activeSection, setActiveSection] = useState<'reviews' | 'qa' | 'info'>('reviews');
 
   // Helpful votes
   const [helpfulVotes, setHelpfulVotes] = useState<Record<string, number>>(() => {
@@ -224,7 +223,7 @@ export const PlaceDetailModal = ({ place, onClose, t, allPlaces, onSwitchPlace, 
   useEffect(() => {
     const fetchSummary = async () => {
       try {
-        const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+        const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY });
         const prompt = `Provide a concise 50-word summary of the "Google Maps" reviews and general public reputation for "${placeName}" in Riyadh. Mention what people love and any common complaints. Tone: Helpful and informative. Language: ${t.aiSummaryTitle?.includes('ملخص') ? 'Arabic' : 'English'}.`;
         const response = await ai.models.generateContent({ model: 'gemini-2.5-flash', contents: prompt });
         setSummary(response.text || t.aiSummaryError || 'No summary available.');
@@ -372,74 +371,122 @@ export const PlaceDetailModal = ({ place, onClose, t, allPlaces, onSwitchPlace, 
   };
 
   // ── render ───────────────────────────────────────────────────────────────
+
+  const [saved, setSaved] = useState(() => {
+    try { return (JSON.parse(localStorage.getItem('tripo_saved_places') || '[]') as string[]).includes(placeId); } catch { return false; }
+  });
+
+  const handleSave = () => {
+    try {
+      const list: string[] = JSON.parse(localStorage.getItem('tripo_saved_places') || '[]');
+      const updated = saved ? list.filter(id => id !== placeId) : [...list, placeId];
+      localStorage.setItem('tripo_saved_places', JSON.stringify(updated));
+      setSaved(!saved);
+    } catch {}
+  };
+
+  const handleShare = async () => {
+    if (navigator.share) {
+      try { await navigator.share({ title: placeName, text: `Check out ${placeName} on Tripo!` }); } catch {}
+    } else {
+      try { await navigator.clipboard.writeText(window.location.href); } catch {}
+    }
+  };
+
   return (
     <>
       {lightboxIdx !== null && (
-        <PhotoLightbox
-          photos={placePhotos}
-          initialIndex={lightboxIdx}
-          onClose={() => setLightboxIdx(null)}
-        />
+        <PhotoLightbox photos={placePhotos} initialIndex={lightboxIdx} onClose={() => setLightboxIdx(null)} />
       )}
       <div className={mode === 'page'
-        ? "fixed inset-0 z-[100] bg-white overflow-y-auto"
+        ? "fixed inset-0 z-[100] bg-slate-50 dark:bg-slate-950 overflow-y-auto"
         : "fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-4 animate-in fade-in duration-200"
       }>
         <div className={mode === 'page'
-          ? "relative w-full max-w-2xl mx-auto min-h-full flex flex-col pb-16"
-          : "bg-white w-full max-w-sm rounded-3xl overflow-hidden shadow-2xl relative animate-in slide-in-from-bottom duration-300 max-h-[90vh] flex flex-col"
+          ? "relative w-full max-w-2xl mx-auto min-h-full flex flex-col"
+          : "bg-white dark:bg-slate-900 w-full max-w-sm rounded-3xl overflow-hidden shadow-2xl relative animate-in slide-in-from-bottom duration-300 max-h-[90vh] flex flex-col"
         }>
 
-          {/* Back (page mode) or Close (modal mode) button */}
-          {mode === 'page' ? (
-            <button onClick={onClose} className="absolute top-4 left-4 z-10 flex items-center gap-1.5 bg-white/90 backdrop-blur-sm text-slate-800 px-3 py-2 rounded-xl font-semibold text-sm shadow hover:bg-white transition-colors">
-              <ArrowLeft className="w-4 h-4" />
-              {t.backBtn || 'Back'}
-            </button>
-          ) : (
-            <button onClick={onClose} className="absolute top-4 right-4 z-10 w-8 h-8 bg-black/30 backdrop-blur-md rounded-full flex items-center justify-center text-white hover:bg-black/50 transition-colors">
-              <X className="w-5 h-5" />
-            </button>
-          )}
-
-          {/* Hero image slideshow */}
-          <div className={`${mode === 'page' ? 'h-72' : 'h-48'} w-full relative bg-slate-200 shrink-0 overflow-hidden`}>
+          {/* ── CINEMATIC HERO ── */}
+          <div className={`${mode === 'page' ? 'h-[55vh]' : 'h-64'} w-full relative bg-slate-900 shrink-0 overflow-hidden`}>
             <img
               src={placePhotos[photoIdx] || (googleData?.photos?.[0] ? googlePlacesAPI.photoSrc(googleData.photos[0].url) : null) || 'https://images.unsplash.com/photo-1557683311-eac922347aa1?w=800&q=80'}
-              className="w-full h-full object-cover transition-opacity duration-300 cursor-zoom-in"
+              className="w-full h-full object-cover transition-opacity duration-500 cursor-zoom-in"
               alt={placeName}
               onClick={() => placePhotos.length > 0 && setLightboxIdx(photoIdx)}
               onError={(e) => { (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1557683311-eac922347aa1?w=800&q=80'; }}
             />
-            <div className="absolute bottom-0 left-0 w-full h-20 bg-gradient-to-t from-black/80 to-transparent" />
-            <div className="absolute bottom-4 left-4 text-white">
-              <h2 className="text-xl font-bold">{placeName}</h2>
-              <p className="text-sm opacity-90 flex items-center gap-1"><MapPin className="w-3.5 h-3.5" /> {placeLocation}</p>
+            {/* Top scrim */}
+            <div className="absolute inset-x-0 top-0 h-28 bg-gradient-to-b from-black/70 to-transparent pointer-events-none" />
+            {/* Bottom scrim */}
+            <div className="absolute inset-x-0 bottom-0 h-56 bg-gradient-to-t from-black/95 via-black/50 to-transparent pointer-events-none" />
+
+            {/* Back / close button */}
+            <button
+              onClick={onClose}
+              className="absolute top-5 left-4 z-10 flex items-center gap-1.5 bg-white/20 backdrop-blur-md text-white px-3 py-1.5 rounded-full text-sm font-semibold border border-white/30 hover:bg-white/30 transition-colors"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              {mode === 'page' ? (t.backBtn || 'Back') : ''}
+            </button>
+
+            {/* Photo count badge */}
+            {placePhotos.length > 1 && (
+              <button
+                onClick={() => setLightboxIdx(photoIdx)}
+                className="absolute top-5 right-4 z-10 flex items-center gap-1.5 bg-black/45 backdrop-blur-md text-white px-3 py-1.5 rounded-full text-xs font-bold border border-white/20 hover:bg-black/60 transition"
+              >
+                <Camera className="w-3.5 h-3.5" />
+                {placePhotos.length}
+              </button>
+            )}
+
+            {/* Title + rating overlaid on hero */}
+            <div className="absolute bottom-0 left-0 right-0 p-5 z-10">
+              <div className="flex items-center gap-2 mb-2 flex-wrap">
+                {placeCat && (
+                  <span className="text-[11px] font-bold bg-emerald-500/90 text-white px-2.5 py-0.5 rounded-full backdrop-blur-sm">
+                    {placeCat}
+                  </span>
+                )}
+                {isTravellersChoice && (
+                  <span className="flex items-center gap-1 text-[11px] font-bold bg-amber-400/90 text-amber-900 px-2.5 py-0.5 rounded-full backdrop-blur-sm">
+                    <Award className="w-3 h-3" /> {t.travellersChoice || "Travellers' Choice"}
+                  </span>
+                )}
+              </div>
+              <h1 className="text-2xl font-extrabold text-white leading-tight drop-shadow-lg mb-2">{placeName}</h1>
+              <div className="flex items-center gap-3 flex-wrap">
+                <span className="flex items-center gap-1 text-white/90 text-sm">
+                  <MapPin className="w-3.5 h-3.5 text-white/70" />
+                  {placeLocation}
+                </span>
+                {avgRating > 0 && (
+                  <span className="flex items-center gap-1 bg-white/15 backdrop-blur-sm text-white text-sm font-bold px-2.5 py-0.5 rounded-full">
+                    <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
+                    {avgRating.toFixed(1)}
+                    {reviewCount > 0 && <span className="text-white/60 font-normal text-xs">({reviewCount})</span>}
+                  </span>
+                )}
+              </div>
             </div>
 
-            {/* Arrows */}
+            {/* Carousel arrows */}
             {placePhotos.length > 1 && (
               <>
-                <button
-                  onClick={() => setPhotoIdx(i => (i - 1 + placePhotos.length) % placePhotos.length)}
-                  className="absolute left-2 top-1/2 -translate-y-1/2 w-8 h-8 bg-black/40 backdrop-blur-sm rounded-full flex items-center justify-center text-white hover:bg-black/60 transition z-10"
-                >
+                <button onClick={() => setPhotoIdx(i => (i - 1 + placePhotos.length) % placePhotos.length)}
+                  className="absolute left-3 top-1/2 -translate-y-1/2 w-8 h-8 bg-black/40 backdrop-blur-sm rounded-full flex items-center justify-center text-white hover:bg-black/60 transition z-10">
                   <ChevronLeft className="w-4 h-4" />
                 </button>
-                <button
-                  onClick={() => setPhotoIdx(i => (i + 1) % placePhotos.length)}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 bg-black/40 backdrop-blur-sm rounded-full flex items-center justify-center text-white hover:bg-black/60 transition z-10"
-                >
+                <button onClick={() => setPhotoIdx(i => (i + 1) % placePhotos.length)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 w-8 h-8 bg-black/40 backdrop-blur-sm rounded-full flex items-center justify-center text-white hover:bg-black/60 transition z-10">
                   <ChevronRight className="w-4 h-4" />
                 </button>
-                {/* Dots */}
-                <div className="absolute bottom-4 right-4 flex items-center gap-1.5">
-                  {placePhotos.map((_, i) => (
-                    <button
-                      key={i}
-                      onClick={() => setPhotoIdx(i)}
+                <div className="absolute bottom-5 right-5 flex items-center gap-1.5 z-10">
+                  {placePhotos.slice(0, 6).map((_, i) => (
+                    <button key={i} onClick={() => setPhotoIdx(i)}
                       className="transition-all duration-300 rounded-full"
-                      style={{ width: i === photoIdx ? 16 : 5, height: 5, background: i === photoIdx ? '#10b981' : 'rgba(255,255,255,0.55)' }}
+                      style={{ width: i === photoIdx ? 16 : 5, height: 5, background: i === photoIdx ? '#10b981' : 'rgba(255,255,255,0.5)' }}
                     />
                   ))}
                 </div>
@@ -447,611 +494,605 @@ export const PlaceDetailModal = ({ place, onClose, t, allPlaces, onSwitchPlace, 
             )}
           </div>
 
-          {/* Thumbnail strip (when multiple photos) */}
-          {placePhotos.length > 1 && (
-            <div className="shrink-0 bg-white border-b border-slate-100">
-              <div className="flex gap-1.5 overflow-x-auto no-scrollbar px-3 py-2">
-                {placePhotos.map((src, i) => (
-                  <button
-                    key={i}
-                    onClick={() => { setPhotoIdx(i); setLightboxIdx(i); }}
-                    className={`flex-shrink-0 w-16 h-12 rounded-xl overflow-hidden border-2 transition-all ${i === photoIdx ? 'border-emerald-500 shadow-md' : 'border-transparent opacity-60 hover:opacity-100'}`}
-                  >
-                    <img src={src} className="w-full h-full object-cover" alt="" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
-                  </button>
-                ))}
+          {/* ── ACTION PILL BAR ── */}
+          <div className="flex items-center gap-2.5 px-4 py-3 bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-white/8 shrink-0 overflow-x-auto no-scrollbar">
+            <a
+              href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${placeName} ${placeLocation}`)}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex-shrink-0 flex items-center gap-1.5 bg-emerald-600 text-white px-4 py-2 rounded-full text-sm font-bold hover:bg-emerald-700 transition-colors shadow-sm"
+            >
+              <MapPin className="w-4 h-4" />
+              {t.directions || 'Directions'}
+            </a>
+            {placePhotos.length > 0 && (
+              <button
+                onClick={() => setLightboxIdx(0)}
+                className="flex-shrink-0 flex items-center gap-1.5 bg-slate-100 dark:bg-white/10 text-slate-700 dark:text-slate-200 px-4 py-2 rounded-full text-sm font-semibold hover:bg-slate-200 dark:hover:bg-white/15 transition-colors"
+              >
+                <Camera className="w-4 h-4" />
+                {t.photos || 'Photos'}
+              </button>
+            )}
+            <button
+              onClick={handleShare}
+              className="flex-shrink-0 flex items-center gap-1.5 bg-slate-100 dark:bg-white/10 text-slate-700 dark:text-slate-200 px-4 py-2 rounded-full text-sm font-semibold hover:bg-slate-200 dark:hover:bg-white/15 transition-colors"
+            >
+              <ExternalLink className="w-4 h-4" />
+              {t.share || 'Share'}
+            </button>
+            <button
+              onClick={handleSave}
+              className={`flex-shrink-0 flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-semibold transition-colors ${saved ? 'bg-rose-50 dark:bg-rose-500/15 text-rose-600 dark:text-rose-400' : 'bg-slate-100 dark:bg-white/10 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-white/15'}`}
+            >
+              <Bookmark className={`w-4 h-4 ${saved ? 'fill-rose-500 text-rose-500' : ''}`} />
+              {saved ? (t.saved || 'Saved') : (t.save || 'Save')}
+            </button>
+          </div>
+
+          {/* ── INFO CHIPS STRIP ── */}
+          <div className="flex items-center gap-2 px-4 py-2.5 overflow-x-auto no-scrollbar bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-white/8 shrink-0">
+            {avgRating > 0 && (
+              <span className="flex-shrink-0 flex items-center gap-1 bg-orange-50 dark:bg-orange-500/15 border border-orange-100 dark:border-orange-500/20 text-orange-700 dark:text-orange-400 px-2.5 py-1 rounded-full text-xs font-bold">
+                <Star className="w-3 h-3 fill-orange-500 text-orange-500" /> {avgRating.toFixed(1)}
+              </span>
+            )}
+            {openNow === true && (
+              <span className="flex-shrink-0 flex items-center gap-1.5 bg-emerald-50 dark:bg-emerald-500/15 border border-emerald-100 dark:border-emerald-500/20 text-emerald-700 dark:text-emerald-400 px-2.5 py-1 rounded-full text-xs font-bold">
+                <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
+                {t.openNow || 'Open Now'}
+              </span>
+            )}
+            {openNow === false && (
+              <span className="flex-shrink-0 bg-red-50 dark:bg-red-500/15 border border-red-100 dark:border-red-500/20 text-red-600 dark:text-red-400 px-2.5 py-1 rounded-full text-xs font-bold">
+                {t.closedStatus || 'Closed'}
+              </span>
+            )}
+            {priceLevel && (
+              <span className="flex-shrink-0 bg-slate-50 dark:bg-white/8 border border-slate-200 dark:border-white/10 text-slate-600 dark:text-slate-300 px-2.5 py-1 rounded-full text-xs font-bold">
+                {'$'.repeat(priceLevel)}{'·'.repeat(4 - priceLevel)}
+              </span>
+            )}
+            {placeCat && (
+              <span className="flex-shrink-0 bg-slate-50 dark:bg-white/8 border border-slate-200 dark:border-white/10 text-slate-600 dark:text-slate-300 px-2.5 py-1 rounded-full text-xs font-semibold">
+                {placeCat}
+              </span>
+            )}
+            {accessibility?.wheelchair && (
+              <span className="flex-shrink-0 bg-blue-50 dark:bg-blue-500/15 border border-blue-100 dark:border-blue-500/20 text-blue-700 dark:text-blue-400 px-2.5 py-1 rounded-full text-xs font-semibold">
+                ♿ {t.accessWheelchair || 'Accessible'}
+              </span>
+            )}
+            {accessibility?.family && (
+              <span className="flex-shrink-0 bg-purple-50 dark:bg-purple-500/15 border border-purple-100 dark:border-purple-500/20 text-purple-700 dark:text-purple-400 px-2.5 py-1 rounded-full text-xs font-semibold">
+                👨‍👩‍👧 {t.accessFamily || 'Family'}
+              </span>
+            )}
+            {accessibility?.parking && (
+              <span className="flex-shrink-0 bg-slate-50 dark:bg-white/8 border border-slate-200 dark:border-white/10 text-slate-600 dark:text-slate-300 px-2.5 py-1 rounded-full text-xs font-semibold">
+                🅿 {t.accessParking || 'Parking'}
+              </span>
+            )}
+          </div>
+
+          {/* ── SCROLLABLE BODY ── */}
+          <div className={`${mode === 'page' ? 'flex-1 max-w-2xl mx-auto w-full' : 'overflow-y-auto flex-1'} bg-slate-50 dark:bg-slate-950`}>
+
+            {/* ── PHOTO MOSAIC GRID ── */}
+            {placePhotos.length >= 2 && (
+              <div className="px-4 pt-4">
+                <div className="grid gap-1.5 rounded-2xl overflow-hidden"
+                  style={{ gridTemplateColumns: '2fr 1fr', gridTemplateRows: '120px 120px' }}>
+                  <div className="row-span-2 overflow-hidden cursor-zoom-in" onClick={() => setLightboxIdx(0)}>
+                    <img src={placePhotos[0]} alt="" className="w-full h-full object-cover hover:scale-105 transition duration-300"
+                      onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                  </div>
+                  <div className="overflow-hidden cursor-zoom-in" onClick={() => setLightboxIdx(1)}>
+                    <img src={placePhotos[1]} alt="" className="w-full h-full object-cover hover:scale-105 transition duration-300"
+                      onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                  </div>
+                  <div className="relative overflow-hidden cursor-zoom-in bg-slate-200 dark:bg-slate-800"
+                    onClick={() => setLightboxIdx(Math.min(2, placePhotos.length - 1))}>
+                    {placePhotos[2] && (
+                      <img src={placePhotos[2]} alt="" className="w-full h-full object-cover hover:scale-105 transition duration-300"
+                        onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                    )}
+                    {placePhotos.length > 3 && (
+                      <div className="absolute inset-0 bg-black/60 flex flex-col items-center justify-center text-white">
+                        <Camera className="w-5 h-5 mb-0.5" />
+                        <span className="text-sm font-bold">+{placePhotos.length - 3}</span>
+                        <span className="text-[10px] opacity-75">{t.seeAllPhotos || 'See all'}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
               </div>
-            </div>
-          )}
+            )}
 
-          {/* Scrollable body */}
-          <div className={mode === 'page' ? "p-5 flex-1 max-w-2xl mx-auto w-full" : "p-5 overflow-y-auto flex-1"}>
-
-            {/* ── Feature 2: Promo banner ── */}
+            {/* ── PROMO BANNER ── */}
             {activePromo && (
-              <div className="mb-4 bg-emerald-50 border border-emerald-200 rounded-2xl px-4 py-3 flex items-center gap-2">
+              <div className="mx-4 mt-4 bg-emerald-50 dark:bg-emerald-500/15 border border-emerald-200 dark:border-emerald-500/20 rounded-2xl px-4 py-3 flex items-center gap-2">
                 <span className="text-base">🎉</span>
-                <p className="text-sm font-semibold text-emerald-800">{activePromo}</p>
+                <p className="text-sm font-semibold text-emerald-800 dark:text-emerald-300">{activePromo}</p>
               </div>
             )}
 
-            {/* ── Top meta row ── */}
-            <div className="flex justify-between items-start mb-3">
-              {/* Rating + Travellers' Choice */}
-              <div className="flex flex-col gap-1.5">
-                <div className="flex items-center gap-1.5 bg-orange-50 px-2 py-1 rounded-lg border border-orange-100 self-start">
-                  <Star className="w-4 h-4 text-orange-500 fill-orange-500" />
-                  <span className="font-bold text-slate-900">{avgRating > 0 ? avgRating.toFixed(1) : 'N/A'}</span>
-                  <span className="text-xs text-slate-500">{t.ratingLabel || 'rating'}</span>
-                </div>
-                {isTravellersChoice && (
-                  <div className="flex items-center gap-1 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-lg self-start">
-                    <Award className="w-3.5 h-3.5 text-amber-500" />
-                    <span className="text-xs font-semibold text-amber-700">{t.travellersChoice || "Travellers' Choice"}</span>
-                  </div>
-                )}
-              </div>
-
-              {/* Price */}
-              <div className="text-right">
-                {priceLevel ? (
-                  <p className="font-bold text-lg">{renderPriceDollars(priceLevel)}</p>
-                ) : (
-                  <p className="font-bold text-emerald-600 text-lg">{placePrice} <span className="text-xs text-slate-500">{t.sarLabel || 'SAR'}</span></p>
-                )}
-                <p className="text-xs text-slate-400">{placeCat}</p>
-              </div>
-            </div>
-
-            {/* ── Accessibility badges ── */}
-            {accessibility && (accessibility.wheelchair || accessibility.parking || accessibility.family) && (
-              <div className="flex flex-wrap gap-2 mb-4">
-                {accessibility.wheelchair && (
-                  <span className="text-xs bg-blue-50 border border-blue-100 text-blue-700 px-2 py-0.5 rounded-full">
-                    ♿ {t.accessWheelchair || 'Wheelchair'}
-                  </span>
-                )}
-                {accessibility.parking && (
-                  <span className="text-xs bg-slate-50 border border-slate-200 text-slate-700 px-2 py-0.5 rounded-full">
-                    🅿 {t.accessParking || 'Parking'}
-                  </span>
-                )}
-                {accessibility.family && (
-                  <span className="text-xs bg-green-50 border border-green-100 text-green-700 px-2 py-0.5 rounded-full">
-                    👨‍👩‍👧 {t.accessFamily || 'Family-Friendly'}
-                  </span>
-                )}
-              </div>
-            )}
-
-            {/* ── Opening Hours ── */}
-            {asPlace?.openingHours && (
-              <div className="mb-4 bg-slate-50 rounded-2xl border border-slate-100 overflow-hidden">
-                {/* Today's status row */}
-                <div className="flex items-center justify-between px-4 py-3">
-                  <div className="flex items-center gap-2">
-                    <Clock className="w-4 h-4 text-slate-500" />
-                    {openNow === true && (
-                      <span className="text-xs font-semibold text-white bg-emerald-500 px-2 py-0.5 rounded-full">{t.openNow || 'Open Now'}</span>
-                    )}
-                    {openNow === false && (
-                      <span className="text-xs font-semibold text-white bg-red-400 px-2 py-0.5 rounded-full">{t.closedStatus || 'Closed'}</span>
-                    )}
-                    {todayHours && (
-                      <span className="text-xs text-slate-600">{todayHours === 'Closed today' ? (t.closedToday || 'Closed today') : todayHours}</span>
-                    )}
-                  </div>
-                  <button
-                    onClick={() => setHoursExpanded(v => !v)}
-                    className="flex items-center gap-0.5 text-xs text-emerald-600 font-medium"
-                  >
-                    {hoursExpanded ? (t.hideHours || 'Hide') : (t.seeAllHours || 'See all hours')}
-                    {hoursExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-                  </button>
-                </div>
-
-                {/* Full week */}
-                {hoursExpanded && (
-                  <div className="border-t border-slate-100 px-4 py-2 space-y-1">
-                    {DAY_KEYS.map((key, i) => {
-                      const h = asPlace.openingHours![key];
-                      const isToday = i === new Date().getDay();
-                      return (
-                        <div key={key} className={`flex justify-between text-xs py-0.5 ${isToday ? 'font-semibold text-slate-900' : 'text-slate-500'}`}>
-                          <span>{DAY_LABELS[i]}{isToday ? ` ${t.todayLabel || '(today)'}` : ''}</span>
-                          <span>{h ? (h.closed ? (t.closedStatus || 'Closed') : `${h.open} – ${h.close}`) : '—'}</span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* ── AI Summary ── */}
-            <div className="bg-slate-50 rounded-2xl p-4 border border-slate-100 relative overflow-hidden mb-5">
-              <div className="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-purple-500 to-blue-500" />
+            {/* ── AI SUMMARY ── */}
+            <div className="mx-4 mt-4 bg-white dark:bg-slate-900 rounded-2xl p-4 border border-slate-100 dark:border-white/8 relative overflow-hidden shadow-sm">
+              <div className="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-violet-500 to-blue-500 rounded-l-2xl" />
               <div className="flex items-center gap-2 mb-2">
-                <Sparkles className="w-4 h-4 text-purple-600" />
-                <h3 className="font-bold text-sm text-slate-900">{t.aiSummaryTitle || 'AI Summary'}</h3>
+                <Sparkles className="w-4 h-4 text-violet-600 dark:text-violet-400" />
+                <h3 className="font-bold text-sm text-slate-900 dark:text-white">{t.aiSummaryTitle || 'AI Summary'}</h3>
               </div>
               {isSummaryLoading ? (
                 <div className="space-y-2 animate-pulse">
-                  <div className="h-3 bg-slate-200 rounded w-3/4" />
-                  <div className="h-3 bg-slate-200 rounded w-full" />
-                  <div className="h-3 bg-slate-200 rounded w-5/6" />
+                  <div className="h-3 bg-slate-200 dark:bg-white/10 rounded w-3/4" />
+                  <div className="h-3 bg-slate-200 dark:bg-white/10 rounded w-full" />
+                  <div className="h-3 bg-slate-200 dark:bg-white/10 rounded w-5/6" />
                 </div>
               ) : (
                 <>
-                  <p className="text-sm text-slate-700 leading-relaxed">{summary}</p>
+                  <p className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed">{summary}</p>
                   <p className="text-[10px] text-slate-400 mt-3 text-right italic">{t.aiSource || 'Generated by Gemini AI'}</p>
                 </>
               )}
             </div>
 
-            {/* ── Reviews / Q&A — only for real places ── */}
-            {isPlace && placeId && /^[0-9a-fA-F]{24}$/.test(placeId) && (
-              <div>
-                {/* Tab toggle */}
-                <div className="flex gap-1 mb-4 bg-slate-100 p-1 rounded-xl">
-                  <button
-                    onClick={() => setActiveSection('reviews')}
-                    className={`flex-1 py-1.5 rounded-lg text-xs font-semibold transition-all ${activeSection === 'reviews' ? 'bg-white shadow text-slate-900' : 'text-slate-500'}`}
-                  >
-                    <span className="flex items-center justify-center gap-1">
-                      <MessageSquare className="w-3.5 h-3.5" />
-                      {t.reviews || 'Reviews'}
-                      {reviews.length > 0 && <span className="text-[10px] font-normal text-slate-400">({reviews.length})</span>}
-                    </span>
-                  </button>
-                  <button
-                    onClick={() => setActiveSection('qa')}
-                    className={`flex-1 py-1.5 rounded-lg text-xs font-semibold transition-all ${activeSection === 'qa' ? 'bg-white shadow text-slate-900' : 'text-slate-500'}`}
-                  >
-                    Q&A
-                    {qaItems.length > 0 && <span className="text-[10px] font-normal text-slate-400 ml-1">({qaItems.length})</span>}
-                  </button>
+            {/* ── STICKY TAB BAR ── */}
+            {isPlace && (
+              <div className="sticky top-0 z-20 bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-white/8 mt-4 shadow-sm">
+                <div className="flex">
+                  {(['reviews', 'info', 'qa'] as const).map(tab => (
+                    <button
+                      key={tab}
+                      onClick={() => setActiveSection(tab)}
+                      className={`flex-1 py-3 text-xs font-bold transition-all border-b-2 ${
+                        activeSection === tab
+                          ? 'text-emerald-600 dark:text-emerald-400 border-emerald-500'
+                          : 'text-slate-400 dark:text-slate-500 border-transparent hover:text-slate-600 dark:hover:text-slate-300'
+                      }`}
+                    >
+                      {tab === 'reviews'
+                        ? `${t.reviews || 'Reviews'}${reviews.length > 0 ? ` (${reviews.length})` : ''}`
+                        : tab === 'info'
+                          ? (t.infoTab || 'Info')
+                          : `Q&A${qaItems.length > 0 ? ` (${qaItems.length})` : ''}`
+                      }
+                    </button>
+                  ))}
                 </div>
+              </div>
+            )}
 
-                {/* ── Reviews tab ── */}
-                {activeSection === 'reviews' && (
-                  <>
-                    {/* Write review */}
-                    <div className="bg-slate-50 rounded-2xl p-3 border border-slate-100 mb-3">
-                      <div className="flex gap-1 mb-2">
-                        {[1,2,3,4,5].map(s => (
-                          <button key={s} onClick={() => setReviewRating(s)}>
-                            <Star className={`w-5 h-5 transition-colors ${s <= reviewRating ? 'fill-orange-400 text-orange-400' : 'text-slate-300'}`} />
-                          </button>
-                        ))}
-                      </div>
-                      <div className="flex gap-2 mb-2">
-                        <input
-                          className="flex-1 bg-white rounded-xl px-3 py-2 text-sm border border-slate-200 outline-none focus:ring-2 focus:ring-emerald-500"
-                          placeholder={t.reviewPlaceholder || 'Share your experience...'}
-                          value={reviewComment}
-                          onChange={e => setReviewComment(e.target.value)}
-                          onKeyDown={e => e.key === 'Enter' && handleSubmitReview()}
-                        />
-                        <button
-                          onClick={handleSubmitReview}
-                          disabled={!reviewComment.trim() || isSubmitting}
-                          className="p-2 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 transition disabled:opacity-50"
-                        >
-                          <Send className="w-4 h-4" />
-                        </button>
-                      </div>
+            <div className="p-4 pb-24 space-y-3">
 
-                      {/* ── Feature 1: Photo upload section ── */}
-                      <div>
-                        {reviewPhotos.length > 0 && (
-                          <div className="flex gap-2 mb-2 flex-wrap">
-                            {reviewPhotos.map((photo, idx) => (
-                              <div key={idx} className="relative w-16 h-16 flex-shrink-0">
-                                <img src={photo} alt={`Review photo ${idx + 1}`} className="w-16 h-16 rounded-lg object-cover" />
-                                <button
-                                  onClick={() => removeReviewPhoto(idx)}
-                                  className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center shadow hover:bg-red-600 transition"
-                                >
-                                  <X className="w-3 h-3" />
-                                </button>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                        {reviewPhotos.length < 3 && (
-                          <button
-                            onClick={() => photoInputRef.current?.click()}
-                            className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-emerald-600 transition-colors px-2 py-1.5 border border-dashed border-slate-300 rounded-lg hover:border-emerald-400"
-                          >
-                            <Camera className="w-3.5 h-3.5" />
-                            {t.addPhotos || 'Add Photos'}{reviewPhotos.length > 0 ? ` (${reviewPhotos.length}/3)` : ''}
-                          </button>
-                        )}
-                        <input
-                          ref={photoInputRef}
-                          type="file"
-                          accept="image/*"
-                          multiple
-                          className="hidden"
-                          onChange={handlePhotoSelect}
-                        />
+              {/* ── INFO TAB ── */}
+              {activeSection === 'info' && isPlace && (
+                <>
+                  {/* Opening hours */}
+                  {asPlace?.openingHours ? (
+                    <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-white/8 overflow-hidden shadow-sm">
+                      <div className="flex items-center gap-2 px-4 pt-4 pb-2">
+                        <Clock className="w-4 h-4 text-slate-500" />
+                        <h4 className="font-bold text-sm text-slate-900 dark:text-white">{t.openingHours || 'Opening Hours'}</h4>
+                        {openNow === true && <span className="ml-auto text-[11px] font-bold bg-emerald-500 text-white px-2 py-0.5 rounded-full">{t.openNow || 'Open Now'}</span>}
+                        {openNow === false && <span className="ml-auto text-[11px] font-bold bg-red-400 text-white px-2 py-0.5 rounded-full">{t.closedStatus || 'Closed'}</span>}
                       </div>
-                    </div>
-
-                    {reviews.length === 0 ? (
-                      <div className="text-center py-6 text-slate-300">
-                        <MessageSquare className="w-8 h-8 mx-auto mb-1 opacity-50" />
-                        <p className="text-xs font-medium">{t.noReviews || 'No reviews yet — be the first!'}</p>
-                      </div>
-                    ) : (
-                      <div className="space-y-2">
-                        {reviews.slice(0, 5).map((r: any, i) => {
-                          const reviewId = r._id || String(i);
-                          const voted = myVotes.has(reviewId);
-                          const voteCount = helpfulVotes[reviewId] ?? 0;
-                          const reply = ownerReplies[reviewId];
-                          const photos = getPhotosForReview(reviewId);
+                      <div className="px-4 pb-4 space-y-1.5">
+                        {DAY_KEYS.map((key, i) => {
+                          const h = asPlace.openingHours![key];
+                          const isToday = i === new Date().getDay();
                           return (
-                            <div key={reviewId} className="bg-white rounded-xl border border-slate-100 p-3">
-                              {/* Review header */}
-                              <div className="flex items-center gap-2 mb-1">
-                                <img
-                                  src={typeof r.userId === 'object' ? r.userId?.avatar : undefined || `https://api.dicebear.com/7.x/avataaars/svg?seed=${reviewId}`}
-                                  className="w-6 h-6 rounded-full bg-slate-100"
-                                  alt=""
-                                />
-                                <p className="text-xs font-bold text-slate-900">{typeof r.userId === 'object' ? r.userId?.name : 'User'}</p>
-                                <div className="flex gap-0.5 ml-auto">
-                                  {[1,2,3,4,5].map(s => <Star key={s} className={`w-3 h-3 ${s <= r.rating ? 'fill-orange-400 text-orange-400' : 'text-slate-200'}`} />)}
-                                </div>
-                              </div>
-
-                              {r.comment && <p className="text-xs text-slate-600 mb-2">{r.comment}</p>}
-
-                              {/* ── Feature 1: Photo thumbnails in review display ── */}
-                              {photos.length > 0 && (
-                                <div className="flex gap-2 mb-2 overflow-x-auto">
-                                  {photos.map((photo, idx) => (
-                                    <img
-                                      key={idx}
-                                      src={photo}
-                                      alt={`Review photo ${idx + 1}`}
-                                      className="w-16 h-16 rounded-lg object-cover flex-shrink-0"
-                                    />
-                                  ))}
-                                </div>
-                              )}
-
-                              {/* Actions row */}
-                              <div className="flex items-center gap-2 mt-1">
-                                {/* Helpful vote */}
-                                <button
-                                  onClick={() => handleHelpfulVote(reviewId)}
-                                  disabled={voted}
-                                  className={`flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full border transition-colors ${voted ? 'border-emerald-300 text-emerald-600 bg-emerald-50 cursor-default' : 'border-slate-200 text-slate-500 hover:border-emerald-400 hover:text-emerald-600'}`}
-                                >
-                                  <ThumbsUp className="w-3 h-3" />
-                                  {t.helpfulBtn || 'Helpful'}{voteCount > 0 ? ` (${voteCount})` : ''}
-                                </button>
-
-                                {/* Reply as owner */}
-                                {!reply && (
-                                  <button
-                                    onClick={() => { setReplyingTo(reviewId); setReplyDraft(''); }}
-                                    className="text-[11px] text-slate-400 hover:text-slate-600 transition-colors ml-auto"
-                                  >
-                                    {t.replyAsOwner || 'Reply as Owner'}
-                                  </button>
-                                )}
-                              </div>
-
-                              {/* Inline reply input */}
-                              {replyingTo === reviewId && (
-                                <div className="mt-2 flex gap-1.5">
-                                  <input
-                                    className="flex-1 bg-slate-50 rounded-lg px-2.5 py-1.5 text-xs border border-slate-200 outline-none focus:ring-2 focus:ring-emerald-500"
-                                    placeholder={t.writeResponsePlaceholder || 'Write your response...'}
-                                    value={replyDraft}
-                                    onChange={e => setReplyDraft(e.target.value)}
-                                    onKeyDown={e => e.key === 'Enter' && handleOwnerReply(reviewId)}
-                                    autoFocus
-                                  />
-                                  <button
-                                    onClick={() => handleOwnerReply(reviewId)}
-                                    disabled={!replyDraft.trim()}
-                                    className="p-1.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition disabled:opacity-40"
-                                  >
-                                    <Send className="w-3 h-3" />
-                                  </button>
-                                  <button
-                                    onClick={() => setReplyingTo(null)}
-                                    className="p-1.5 text-slate-400 hover:text-slate-600 transition"
-                                  >
-                                    <X className="w-3 h-3" />
-                                  </button>
-                                </div>
-                              )}
-
-                              {/* Existing owner reply */}
-                              {reply && (
-                                <div className="mt-2 ml-3 pl-3 border-l-2 border-emerald-300 bg-emerald-50 rounded-r-lg p-2">
-                                  <p className="text-[10px] font-semibold text-emerald-700 mb-0.5">{t.ownerResponse || 'Owner Response'}</p>
-                                  <p className="text-xs text-slate-700">{reply.text}</p>
-                                </div>
-                              )}
+                            <div key={key} className={`flex justify-between text-xs py-1 border-b border-slate-50 dark:border-white/5 last:border-0 ${isToday ? 'font-semibold text-slate-900 dark:text-white' : 'text-slate-500 dark:text-slate-400'}`}>
+                              <span className="flex items-center gap-1.5">
+                                {isToday && <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full" />}
+                                {DAY_LABELS[i]}{isToday ? ` ${t.todayLabel || '(today)'}` : ''}
+                              </span>
+                              <span>{h ? (h.closed ? (t.closedStatus || 'Closed') : `${h.open} – ${h.close}`) : '—'}</span>
                             </div>
                           );
                         })}
                       </div>
-                    )}
-                  {/* ── Google Reviews ── */}
-                  {!googleLoading && googleData && googleData.reviews.length > 0 && (
-                    <div className="mt-4">
-                      <div className="flex items-center gap-2 mb-3">
-                        <img src="https://www.google.com/favicon.ico" alt="Google" className="w-3.5 h-3.5" />
-                        <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wide">
-                          Google Reviews
-                        </h4>
-                        {googleData.userRatingCount !== undefined && (
-                          <span className="text-[10px] text-slate-400">({googleData.userRatingCount.toLocaleString()} total)</span>
-                        )}
-                        {googleData.rating !== undefined && (
-                          <span className="ml-auto flex items-center gap-0.5 text-xs font-bold text-amber-600">
-                            <Star className="w-3 h-3 fill-amber-400 text-amber-400" />
-                            {googleData.rating.toFixed(1)}
-                          </span>
-                        )}
-                      </div>
-                      <div className="space-y-2">
-                        {googleData.reviews.map((r, i) => (
-                          <div key={i} className="bg-white rounded-xl border border-slate-100 p-3">
-                            <div className="flex items-center gap-2 mb-1.5">
-                              <img
-                                src={r.authorPhoto || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(r.author)}`}
-                                className="w-6 h-6 rounded-full bg-slate-100 object-cover flex-shrink-0"
-                                alt={r.author}
-                                onError={(e) => { (e.target as HTMLImageElement).src = `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(r.author)}`; }}
-                              />
-                              <div className="flex-1 min-w-0">
-                                <p className="text-xs font-bold text-slate-900 truncate">{r.author}</p>
-                                <p className="text-[10px] text-slate-400">{r.relativeTime}</p>
-                              </div>
-                              <div className="flex gap-0.5 flex-shrink-0">
-                                {[1, 2, 3, 4, 5].map(s => (
-                                  <Star key={s} className={`w-3 h-3 ${s <= r.rating ? 'fill-amber-400 text-amber-400' : 'text-slate-200'}`} />
-                                ))}
-                              </div>
-                            </div>
-                            {r.text && <p className="text-xs text-slate-600 leading-relaxed line-clamp-4">{r.text}</p>}
+                    </div>
+                  ) : (
+                    <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-white/8 p-6 text-center shadow-sm">
+                      <Clock className="w-8 h-8 mx-auto mb-2 text-slate-300 dark:text-white/20" />
+                      <p className="text-sm text-slate-400">{t.noHoursInfo || 'Opening hours not available'}</p>
+                    </div>
+                  )}
+
+                  {/* Accessibility */}
+                  {accessibility && (accessibility.wheelchair || accessibility.parking || accessibility.family) && (
+                    <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-white/8 p-4 shadow-sm">
+                      <h4 className="font-bold text-sm text-slate-900 dark:text-white mb-3">{t.accessibility || 'Accessibility'}</h4>
+                      <div className="space-y-2.5">
+                        {[
+                          { key: 'wheelchair', icon: '♿', label: t.accessWheelchair || 'Wheelchair Accessible' },
+                          { key: 'parking', icon: '🅿', label: t.accessParking || 'Parking Available' },
+                          { key: 'family', icon: '👨‍👩‍👧', label: t.accessFamily || 'Family-Friendly' },
+                        ].map(({ key, icon, label }) => (accessibility as any)[key] && (
+                          <div key={key} className="flex items-center gap-3">
+                            <span className="text-lg">{icon}</span>
+                            <span className="text-sm text-slate-700 dark:text-slate-300 flex-1">{label}</span>
+                            <CheckCircle className="w-4 h-4 text-emerald-500" />
                           </div>
                         ))}
                       </div>
                     </div>
                   )}
-                  </>
-                )}
 
-                {/* ── Q&A tab ── */}
-                {activeSection === 'qa' && (
-                  <div>
-                    {/* Ask a question */}
-                    <div className="bg-slate-50 rounded-2xl p-3 border border-slate-100 mb-3">
-                      <div className="flex gap-2">
+                  {/* Google rating summary */}
+                  {!googleLoading && googleData?.rating && (
+                    <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-white/8 p-4 shadow-sm">
+                      <div className="flex items-center gap-2 mb-3">
+                        <img src="https://www.google.com/favicon.ico" alt="Google" className="w-4 h-4" />
+                        <h4 className="font-bold text-sm text-slate-900 dark:text-white">Google Rating</h4>
+                      </div>
+                      <div className="flex items-center gap-4">
+                        <span className="text-4xl font-black text-slate-900 dark:text-white">{googleData.rating.toFixed(1)}</span>
+                        <div>
+                          <div className="flex gap-0.5 mb-1">
+                            {[1,2,3,4,5].map(s => <Star key={s} className={`w-4 h-4 ${s <= Math.round(googleData.rating!) ? 'fill-amber-400 text-amber-400' : 'text-slate-200 dark:text-white/15'}`} />)}
+                          </div>
+                          {googleData.userRatingCount && <span className="text-xs text-slate-400">{googleData.userRatingCount.toLocaleString()} reviews on Google</span>}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+
+              {/* ── REVIEWS TAB ── */}
+              {(activeSection === 'reviews' || !isPlace) && (
+                <>
+                  {/* Write review */}
+                  {isPlace && placeId && /^[0-9a-fA-F]{24}$/.test(placeId) && (
+                    <div className="bg-white dark:bg-slate-900 rounded-2xl p-4 border border-slate-100 dark:border-white/8 shadow-sm">
+                      <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-3">{t.writeReview || 'Write a review'}</p>
+                      <div className="flex items-center gap-1 mb-3">
+                        {[1,2,3,4,5].map(s => (
+                          <button key={s} onClick={() => setReviewRating(s)} className="transition-transform active:scale-90">
+                            <Star className={`w-7 h-7 transition-colors ${s <= reviewRating ? 'fill-amber-400 text-amber-400' : 'text-slate-200 dark:text-white/15'}`} />
+                          </button>
+                        ))}
+                        <span className="ml-2 text-xs font-semibold text-slate-500 dark:text-slate-400">
+                          {['', 'Poor', 'Fair', 'Good', 'Very Good', 'Excellent'][reviewRating]}
+                        </span>
+                      </div>
+                      <div className="flex gap-2 mb-2">
                         <input
-                          className="flex-1 bg-white rounded-xl px-3 py-2 text-sm border border-slate-200 outline-none focus:ring-2 focus:ring-emerald-500"
-                          placeholder={t.askQuestionPlaceholder || 'Ask a question about this place...'}
-                          value={qaQuestion}
-                          onChange={e => setQaQuestion(e.target.value)}
-                          onKeyDown={e => e.key === 'Enter' && handleAskQuestion()}
+                          className="flex-1 bg-slate-50 dark:bg-white/8 rounded-xl px-3 py-2.5 text-sm border border-slate-200 dark:border-white/10 outline-none focus:ring-2 focus:ring-emerald-500 dark:text-white dark:placeholder-slate-500"
+                          placeholder={t.reviewPlaceholder || 'Share your experience...'}
+                          value={reviewComment}
+                          onChange={e => setReviewComment(e.target.value)}
+                          onKeyDown={e => e.key === 'Enter' && handleSubmitReview()}
                         />
-                        <button
-                          onClick={handleAskQuestion}
-                          disabled={!qaQuestion.trim()}
-                          className="p-2 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 transition disabled:opacity-50"
-                        >
+                        <button onClick={handleSubmitReview} disabled={!reviewComment.trim() || isSubmitting}
+                          className="p-2.5 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 transition disabled:opacity-50">
                           <Send className="w-4 h-4" />
                         </button>
                       </div>
+                      {reviewPhotos.length > 0 && (
+                        <div className="flex gap-2 mb-2 flex-wrap">
+                          {reviewPhotos.map((photo, idx) => (
+                            <div key={idx} className="relative w-14 h-14 flex-shrink-0">
+                              <img src={photo} alt="" className="w-14 h-14 rounded-xl object-cover" />
+                              <button onClick={() => removeReviewPhoto(idx)}
+                                className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center shadow">
+                                <X className="w-2.5 h-2.5" />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      {reviewPhotos.length < 3 && (
+                        <button onClick={() => photoInputRef.current?.click()}
+                          className="flex items-center gap-1.5 text-xs text-slate-400 dark:text-slate-500 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors">
+                          <Camera className="w-3.5 h-3.5" />
+                          {t.addPhotos || 'Add Photos'}{reviewPhotos.length > 0 ? ` (${reviewPhotos.length}/3)` : ''}
+                        </button>
+                      )}
+                      <input ref={photoInputRef} type="file" accept="image/*" multiple className="hidden" onChange={handlePhotoSelect} />
                     </div>
+                  )}
 
-                    {qaItems.length === 0 ? (
-                      <div className="text-center py-6 text-slate-300">
-                        <MessageSquare className="w-8 h-8 mx-auto mb-1 opacity-50" />
-                        <p className="text-xs font-medium">{t.noQuestionsYet || 'No questions yet — ask the first one!'}</p>
-                      </div>
-                    ) : (
-                      <div className="space-y-3">
-                        {qaItems.map(q => (
-                          <div key={q.id} className="bg-white rounded-xl border border-slate-100 p-3">
-                            {/* Question */}
-                            <div className="flex items-start gap-2 mb-2">
-                              <span className="text-emerald-600 font-bold text-sm mt-0.5">Q</span>
-                              <div className="flex-1">
-                                <p className="text-sm font-semibold text-slate-800">{q.question}</p>
-                                <p className="text-[10px] text-slate-400">{q.askedBy} · {new Date(q.askedAt).toLocaleDateString()}</p>
+                  {/* Review list */}
+                  {reviews.length === 0 && (!googleData || googleData.reviews.length === 0) ? (
+                    <div className="text-center py-10 bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-white/8">
+                      <MessageSquare className="w-10 h-10 mx-auto mb-2 text-slate-200 dark:text-white/15" />
+                      <p className="text-sm font-medium text-slate-400">{t.noReviews || 'No reviews yet — be the first!'}</p>
+                    </div>
+                  ) : (
+                    <>
+                      {reviews.slice(0, 5).map((r: any, i) => {
+                        const reviewId = r._id || String(i);
+                        const voted = myVotes.has(reviewId);
+                        const voteCount = helpfulVotes[reviewId] ?? 0;
+                        const reply = ownerReplies[reviewId];
+                        const photos = getPhotosForReview(reviewId);
+                        const authorName: string = typeof r.userId === 'object' ? (r.userId?.name ?? 'User') : 'User';
+                        const initials = authorName.split(' ').map((w: string) => w[0]).join('').slice(0, 2).toUpperCase();
+                        return (
+                          <div key={reviewId} className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-white/8 p-4 shadow-sm">
+                            <div className="flex items-start gap-3 mb-3">
+                              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-emerald-400 to-teal-600 flex items-center justify-center text-white text-xs font-bold flex-shrink-0 shadow-sm">
+                                {initials}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="font-bold text-sm text-slate-900 dark:text-white">{authorName}</p>
+                                {r.createdAt && <p className="text-[11px] text-slate-400">{new Date(r.createdAt).toLocaleDateString()}</p>}
+                              </div>
+                              <div className="flex gap-0.5 flex-shrink-0">
+                                {[1,2,3,4,5].map(s => (
+                                  <Star key={s} className={`w-3.5 h-3.5 ${s <= r.rating ? 'fill-amber-400 text-amber-400' : 'text-slate-200 dark:text-white/15'}`} />
+                                ))}
                               </div>
                             </div>
-
-                            {/* Answers */}
-                            {q.answers.length > 0 && (
-                              <div className="ml-5 space-y-1.5 mb-2">
-                                {q.answers.map(a => (
-                                  <div key={a.id} className="flex items-start gap-2">
-                                    <span className="text-blue-500 font-bold text-sm mt-0.5">A</span>
-                                    <div className="flex-1 bg-slate-50 rounded-lg p-2">
-                                      <p className="text-xs text-slate-700">{a.text}</p>
-                                      <p className="text-[10px] text-slate-400 mt-0.5">{a.answeredBy} · {new Date(a.answeredAt).toLocaleDateString()}</p>
-                                    </div>
-                                  </div>
+                            {r.comment && <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed mb-3">{r.comment}</p>}
+                            {photos.length > 0 && (
+                              <div className="flex gap-2 mb-3 overflow-x-auto no-scrollbar">
+                                {photos.map((photo, idx) => (
+                                  <img key={idx} src={photo} alt="" className="w-16 h-16 rounded-xl object-cover flex-shrink-0" />
                                 ))}
                               </div>
                             )}
-
-                            {/* Answer button / input */}
-                            {answeringId !== q.id ? (
-                              <button
-                                onClick={() => { setAnsweringId(q.id); setAnswerDraft(''); }}
-                                className="text-[11px] text-emerald-600 font-medium hover:text-emerald-700 transition ml-5"
-                              >
-                                {t.answerBtn || 'Answer'}
+                            <div className="flex items-center gap-2">
+                              <button onClick={() => handleHelpfulVote(reviewId)} disabled={voted}
+                                className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full border transition-colors ${voted ? 'border-emerald-200 dark:border-emerald-500/30 text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 cursor-default' : 'border-slate-200 dark:border-white/10 text-slate-500 dark:text-slate-400 hover:border-emerald-300 hover:text-emerald-600'}`}>
+                                <ThumbsUp className="w-3 h-3" />
+                                {t.helpfulBtn || 'Helpful'}{voteCount > 0 ? ` · ${voteCount}` : ''}
                               </button>
-                            ) : (
-                              <div className="ml-5 flex gap-1.5 mt-1">
+                              {!reply && (
+                                <button onClick={() => { setReplyingTo(reviewId); setReplyDraft(''); }}
+                                  className="text-xs text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 transition-colors ml-auto">
+                                  {t.replyAsOwner || 'Reply as Owner'}
+                                </button>
+                              )}
+                            </div>
+                            {replyingTo === reviewId && (
+                              <div className="mt-3 flex gap-1.5">
                                 <input
-                                  className="flex-1 bg-slate-50 rounded-lg px-2.5 py-1.5 text-xs border border-slate-200 outline-none focus:ring-2 focus:ring-emerald-500"
-                                  placeholder={t.writeAnswerPlaceholder || 'Write your answer...'}
-                                  value={answerDraft}
-                                  onChange={e => setAnswerDraft(e.target.value)}
-                                  onKeyDown={e => e.key === 'Enter' && handleAddAnswer(q.id)}
+                                  className="flex-1 bg-slate-50 dark:bg-white/8 rounded-xl px-3 py-2 text-xs border border-slate-200 dark:border-white/10 outline-none focus:ring-2 focus:ring-emerald-500 dark:text-white"
+                                  placeholder={t.writeResponsePlaceholder || 'Write your response...'}
+                                  value={replyDraft}
+                                  onChange={e => setReplyDraft(e.target.value)}
+                                  onKeyDown={e => e.key === 'Enter' && handleOwnerReply(reviewId)}
                                   autoFocus
                                 />
-                                <button
-                                  onClick={() => handleAddAnswer(q.id)}
-                                  disabled={!answerDraft.trim()}
-                                  className="p-1.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition disabled:opacity-40"
-                                >
+                                <button onClick={() => handleOwnerReply(reviewId)} disabled={!replyDraft.trim()}
+                                  className="p-2 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 transition disabled:opacity-40">
                                   <Send className="w-3 h-3" />
                                 </button>
-                                <button
-                                  onClick={() => setAnsweringId(null)}
-                                  className="p-1.5 text-slate-400 hover:text-slate-600 transition"
-                                >
+                                <button onClick={() => setReplyingTo(null)} className="p-2 text-slate-400 hover:text-slate-600 transition">
                                   <X className="w-3 h-3" />
                                 </button>
                               </div>
                             )}
+                            {reply && (
+                              <div className="mt-3 ml-4 pl-3 border-l-2 border-emerald-300 dark:border-emerald-500/40 bg-emerald-50 dark:bg-emerald-500/10 rounded-r-xl p-2.5">
+                                <p className="text-[11px] font-bold text-emerald-700 dark:text-emerald-400 mb-0.5">{t.ownerResponse || 'Owner Response'}</p>
+                                <p className="text-xs text-slate-700 dark:text-slate-300">{reply.text}</p>
+                              </div>
+                            )}
                           </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            )}
+                        );
+                      })}
 
-            {/* ── Similar Places ── */}
-            {similarPlaces.length > 0 && (
-              <div className="mt-6">
-                <h3 className="font-bold text-sm text-slate-900 mb-3">{t.similarPlaces || 'Similar Places'}</h3>
-                <div className="flex gap-3 overflow-x-auto pb-1 -mx-1 px-1 scrollbar-hide">
-                  {similarPlaces.map(p => {
-                    const pid = p._id || p.id || '';
-                    return (
-                      <button
-                        key={pid}
-                        onClick={() => onSwitchPlace?.(p)}
-                        className="flex-shrink-0 w-24 text-left group"
-                      >
-                        <div className="w-24 h-16 rounded-xl overflow-hidden mb-1 bg-slate-100">
-                          <img
-                            src={p.photos?.[0] || p.image || 'https://images.unsplash.com/photo-1557683311-eac922347aa1?w=400&q=60'}
-                            className="w-full h-full object-cover group-hover:scale-105 transition duration-200"
-                            alt={p.name}
-                            onError={(e) => { (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1557683311-eac922347aa1?w=400&q=60'; }}
-                          />
+                      {/* Google Reviews */}
+                      {!googleLoading && googleData && googleData.reviews.length > 0 && (
+                        <div>
+                          <div className="flex items-center gap-2 mb-3 px-1">
+                            <img src="https://www.google.com/favicon.ico" alt="Google" className="w-4 h-4" />
+                            <span className="text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wide">Google Reviews</span>
+                            {googleData.userRatingCount !== undefined && <span className="text-[10px] text-slate-400">({googleData.userRatingCount.toLocaleString()})</span>}
+                            {googleData.rating !== undefined && (
+                              <span className="ml-auto flex items-center gap-0.5 text-xs font-bold text-amber-600 dark:text-amber-400">
+                                <Star className="w-3 h-3 fill-amber-400 text-amber-400" /> {googleData.rating.toFixed(1)}
+                              </span>
+                            )}
+                          </div>
+                          <div className="space-y-3">
+                            {googleData.reviews.map((r, i) => (
+                              <div key={i} className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-white/8 p-4 shadow-sm">
+                                <div className="flex items-start gap-3 mb-2">
+                                  <img
+                                    src={r.authorPhoto || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(r.author)}`}
+                                    className="w-9 h-9 rounded-full bg-slate-100 object-cover flex-shrink-0 shadow-sm"
+                                    alt={r.author}
+                                    onError={(e) => { (e.target as HTMLImageElement).src = `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(r.author)}`; }}
+                                  />
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-sm font-bold text-slate-900 dark:text-white truncate">{r.author}</p>
+                                    <p className="text-[10px] text-slate-400">{r.relativeTime}</p>
+                                  </div>
+                                  <div className="flex gap-0.5 flex-shrink-0">
+                                    {[1,2,3,4,5].map(s => <Star key={s} className={`w-3.5 h-3.5 ${s <= r.rating ? 'fill-amber-400 text-amber-400' : 'text-slate-200 dark:text-white/15'}`} />)}
+                                  </div>
+                                </div>
+                                {r.text && <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed line-clamp-4">{r.text}</p>}
+                              </div>
+                            ))}
+                          </div>
                         </div>
-                        <p className="text-[11px] font-semibold text-slate-800 leading-tight line-clamp-2">{p.name}</p>
-                        {p.ratingSummary?.avgRating != null && (
-                          <p className="text-[10px] text-slate-400 flex items-center gap-0.5 mt-0.5">
-                            <Star className="w-2.5 h-2.5 fill-orange-400 text-orange-400" />
-                            {p.ratingSummary.avgRating.toFixed(1)}
-                          </p>
-                        )}
+                      )}
+                    </>
+                  )}
+                </>
+              )}
+
+              {/* ── Q&A TAB ── */}
+              {activeSection === 'qa' && isPlace && (
+                <>
+                  <div className="bg-white dark:bg-slate-900 rounded-2xl p-4 border border-slate-100 dark:border-white/8 shadow-sm">
+                    <div className="flex gap-2">
+                      <input
+                        className="flex-1 bg-slate-50 dark:bg-white/8 rounded-xl px-3 py-2.5 text-sm border border-slate-200 dark:border-white/10 outline-none focus:ring-2 focus:ring-emerald-500 dark:text-white dark:placeholder-slate-500"
+                        placeholder={t.askQuestionPlaceholder || 'Ask a question about this place...'}
+                        value={qaQuestion}
+                        onChange={e => setQaQuestion(e.target.value)}
+                        onKeyDown={e => e.key === 'Enter' && handleAskQuestion()}
+                      />
+                      <button onClick={handleAskQuestion} disabled={!qaQuestion.trim()}
+                        className="p-2.5 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 transition disabled:opacity-50">
+                        <Send className="w-4 h-4" />
                       </button>
-                    );
-                  })}
+                    </div>
+                  </div>
+
+                  {qaItems.length === 0 ? (
+                    <div className="text-center py-10 bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-white/8">
+                      <MessageSquare className="w-10 h-10 mx-auto mb-2 text-slate-200 dark:text-white/15" />
+                      <p className="text-sm font-medium text-slate-400">{t.noQuestionsYet || 'No questions yet — ask the first one!'}</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {qaItems.map(q => (
+                        <div key={q.id} className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-white/8 p-4 shadow-sm">
+                          <div className="flex items-start gap-3 mb-3">
+                            <span className="w-7 h-7 rounded-full bg-emerald-100 dark:bg-emerald-500/20 flex items-center justify-center text-emerald-700 dark:text-emerald-400 font-black text-sm flex-shrink-0">Q</span>
+                            <div>
+                              <p className="text-sm font-semibold text-slate-800 dark:text-white">{q.question}</p>
+                              <p className="text-[10px] text-slate-400 mt-0.5">{q.askedBy} · {new Date(q.askedAt).toLocaleDateString()}</p>
+                            </div>
+                          </div>
+                          {q.answers.map(a => (
+                            <div key={a.id} className="flex items-start gap-3 ml-10 mb-2">
+                              <span className="w-6 h-6 rounded-full bg-blue-100 dark:bg-blue-500/20 flex items-center justify-center text-blue-700 dark:text-blue-400 font-black text-xs flex-shrink-0">A</span>
+                              <div className="flex-1 bg-slate-50 dark:bg-white/5 rounded-xl p-2.5">
+                                <p className="text-xs text-slate-700 dark:text-slate-300">{a.text}</p>
+                                <p className="text-[10px] text-slate-400 mt-0.5">{a.answeredBy} · {new Date(a.answeredAt).toLocaleDateString()}</p>
+                              </div>
+                            </div>
+                          ))}
+                          {answeringId !== q.id ? (
+                            <button onClick={() => { setAnsweringId(q.id); setAnswerDraft(''); }}
+                              className="text-xs text-emerald-600 dark:text-emerald-400 font-semibold hover:text-emerald-700 transition ml-10">
+                              {t.answerBtn || '+ Answer'}
+                            </button>
+                          ) : (
+                            <div className="ml-10 flex gap-1.5 mt-2">
+                              <input
+                                className="flex-1 bg-slate-50 dark:bg-white/8 rounded-xl px-3 py-2 text-xs border border-slate-200 dark:border-white/10 outline-none focus:ring-2 focus:ring-emerald-500 dark:text-white"
+                                placeholder={t.writeAnswerPlaceholder || 'Write your answer...'}
+                                value={answerDraft}
+                                onChange={e => setAnswerDraft(e.target.value)}
+                                onKeyDown={e => e.key === 'Enter' && handleAddAnswer(q.id)}
+                                autoFocus
+                              />
+                              <button onClick={() => handleAddAnswer(q.id)} disabled={!answerDraft.trim()}
+                                className="p-1.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition disabled:opacity-40">
+                                <Send className="w-3 h-3" />
+                              </button>
+                              <button onClick={() => setAnsweringId(null)} className="p-1.5 text-slate-400 hover:text-slate-600 transition">
+                                <X className="w-3 h-3" />
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </>
+              )}
+
+              {/* ── SIMILAR PLACES ── */}
+              {similarPlaces.length > 0 && (
+                <div className="pt-2">
+                  <h3 className="font-bold text-sm text-slate-900 dark:text-white mb-3">{t.similarPlaces || 'Similar Places'}</h3>
+                  <div className="flex gap-3 overflow-x-auto no-scrollbar -mx-1 px-1 pb-1">
+                    {similarPlaces.map(p => {
+                      const pid = p._id || p.id || '';
+                      return (
+                        <button key={pid} onClick={() => onSwitchPlace?.(p)}
+                          className="flex-shrink-0 w-40 text-left group bg-white dark:bg-slate-900 rounded-2xl overflow-hidden border border-slate-100 dark:border-white/8 shadow-sm active:scale-95 transition-transform">
+                          <div className="h-24 overflow-hidden bg-slate-100 dark:bg-slate-800 relative">
+                            <img
+                              src={p.photos?.[0] || p.image || 'https://images.unsplash.com/photo-1557683311-eac922347aa1?w=400&q=60'}
+                              className="w-full h-full object-cover group-hover:scale-105 transition duration-300"
+                              alt={p.name}
+                              onError={(e) => { (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1557683311-eac922347aa1?w=400&q=60'; }}
+                            />
+                            {p.ratingSummary?.avgRating != null && (
+                              <span className="absolute top-2 right-2 flex items-center gap-0.5 bg-black/50 backdrop-blur-sm text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">
+                                <Star className="w-2.5 h-2.5 fill-amber-400 text-amber-400" />
+                                {p.ratingSummary.avgRating.toFixed(1)}
+                              </span>
+                            )}
+                          </div>
+                          <div className="p-2.5">
+                            <p className="text-xs font-bold text-slate-800 dark:text-white leading-tight line-clamp-2">{p.name}</p>
+                            {p.city && <p className="text-[10px] text-slate-400 mt-0.5 flex items-center gap-0.5"><MapPin className="w-2.5 h-2.5" />{p.city}</p>}
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
+              )}
+
+              {/* ── CLAIM LISTING ── */}
+              <div className="pt-4 border-t border-slate-100 dark:border-white/8 text-center">
+                <button
+                  onClick={() => { setShowClaimModal(true); setClaimSubmitted(false); }}
+                  className="text-xs text-slate-400 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors inline-flex items-center gap-1"
+                >
+                  <Building2 className="w-3.5 h-3.5" />
+                  {t.claimListing || 'Are you the owner? Claim this listing →'}
+                </button>
               </div>
-            )}
 
-            {/* ── Feature 2: Claim listing link ── */}
-            <div className="mt-6 pt-4 border-t border-slate-100 text-center">
-              <button
-                onClick={() => { setShowClaimModal(true); setClaimSubmitted(false); }}
-                className="text-xs text-slate-400 hover:text-emerald-600 transition-colors inline-flex items-center gap-1"
-              >
-                <Building2 className="w-3.5 h-3.5" />
-                {t.claimListing || 'Are you the owner? Claim this listing →'}
-              </button>
             </div>
-
           </div>
         </div>
       </div>
 
-      {/* ── Feature 2: Claim Listing Modal ── */}
+      {/* ── CLAIM LISTING MODAL ── */}
       {showClaimModal && (
-        <div
-          className="fixed inset-0 z-[200] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
-          onClick={() => setShowClaimModal(false)}
-        >
-          <div
-            className="bg-white rounded-3xl w-full max-w-sm p-6 shadow-2xl"
-            onClick={e => e.stopPropagation()}
-          >
+        <div className="fixed inset-0 z-[200] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
+          onClick={() => setShowClaimModal(false)}>
+          <div className="bg-white dark:bg-slate-900 rounded-3xl w-full max-w-sm p-6 shadow-2xl" onClick={e => e.stopPropagation()}>
             {claimSubmitted ? (
               <div className="text-center py-4">
                 <CheckCircle className="w-12 h-12 text-emerald-500 mx-auto mb-3" />
-                <p className="font-bold text-slate-900 mb-1">Claim submitted!</p>
+                <p className="font-bold text-slate-900 dark:text-white mb-1">Claim submitted!</p>
                 <p className="text-sm text-slate-500">We'll verify within 48 hours.</p>
-                <button
-                  onClick={() => setShowClaimModal(false)}
-                  className="mt-5 px-6 py-2.5 bg-emerald-600 text-white rounded-xl text-sm font-semibold hover:bg-emerald-700 transition"
-                >
+                <button onClick={() => setShowClaimModal(false)}
+                  className="mt-5 px-6 py-2.5 bg-emerald-600 text-white rounded-xl text-sm font-semibold hover:bg-emerald-700 transition">
                   Done
                 </button>
               </div>
             ) : (
               <>
                 <div className="flex items-center justify-between mb-5">
-                  <h3 className="text-lg font-bold text-slate-900">Claim Listing</h3>
-                  <button onClick={() => setShowClaimModal(false)} className="p-1.5 rounded-full hover:bg-slate-100 transition">
+                  <h3 className="text-lg font-bold text-slate-900 dark:text-white">Claim Listing</h3>
+                  <button onClick={() => setShowClaimModal(false)} className="p-1.5 rounded-full hover:bg-slate-100 dark:hover:bg-white/10 transition">
                     <X className="w-4 h-4 text-slate-500" />
                   </button>
                 </div>
                 <div className="space-y-4">
-                  {/* Business name */}
                   <div>
-                    <label className="text-xs font-semibold text-slate-600 mb-1 block">Business Name</label>
-                    <input
-                      className="w-full bg-slate-50 rounded-xl px-3 py-2.5 text-sm border border-slate-200 outline-none focus:ring-2 focus:ring-emerald-500"
-                      value={claimBusinessName}
-                      onChange={e => setClaimBusinessName(e.target.value)}
-                      placeholder="Enter business name"
-                    />
+                    <label className="text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1 block">Business Name</label>
+                    <input className="w-full bg-slate-50 dark:bg-white/8 rounded-xl px-3 py-2.5 text-sm border border-slate-200 dark:border-white/10 outline-none focus:ring-2 focus:ring-emerald-500 dark:text-white"
+                      value={claimBusinessName} onChange={e => setClaimBusinessName(e.target.value)} placeholder="Enter business name" />
                   </div>
-                  {/* Role */}
                   <div>
-                    <label className="text-xs font-semibold text-slate-600 mb-1 block">Your Role</label>
+                    <label className="text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1 block">Your Role</label>
                     <div className="flex gap-2">
                       {(['Owner', 'Manager', 'Marketing'] as const).map(r => (
-                        <button
-                          key={r}
-                          onClick={() => setClaimRole(r)}
-                          className={`flex-1 py-2 rounded-xl text-xs font-semibold border transition-all ${claimRole === r ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-slate-50 text-slate-600 border-slate-200 hover:border-emerald-400'}`}
-                        >
+                        <button key={r} onClick={() => setClaimRole(r)}
+                          className={`flex-1 py-2 rounded-xl text-xs font-semibold border transition-all ${claimRole === r ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-slate-50 dark:bg-white/8 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-white/10 hover:border-emerald-400'}`}>
                           {r}
                         </button>
                       ))}
                     </div>
                   </div>
-                  {/* Email */}
                   <div>
-                    <label className="text-xs font-semibold text-slate-600 mb-1 block">Contact Email</label>
-                    <input
-                      type="email"
-                      className="w-full bg-slate-50 rounded-xl px-3 py-2.5 text-sm border border-slate-200 outline-none focus:ring-2 focus:ring-emerald-500"
-                      value={claimEmail}
-                      onChange={e => setClaimEmail(e.target.value)}
-                      placeholder="you@example.com"
-                    />
+                    <label className="text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1 block">Contact Email</label>
+                    <input type="email" className="w-full bg-slate-50 dark:bg-white/8 rounded-xl px-3 py-2.5 text-sm border border-slate-200 dark:border-white/10 outline-none focus:ring-2 focus:ring-emerald-500 dark:text-white"
+                      value={claimEmail} onChange={e => setClaimEmail(e.target.value)} placeholder="you@example.com" />
                   </div>
-                  <button
-                    onClick={handleSubmitClaim}
-                    disabled={!claimBusinessName.trim() || !claimEmail.trim()}
-                    className="w-full py-3 bg-emerald-600 text-white rounded-xl text-sm font-bold hover:bg-emerald-700 transition disabled:opacity-50"
-                  >
+                  <button onClick={handleSubmitClaim} disabled={!claimBusinessName.trim() || !claimEmail.trim()}
+                    className="w-full py-3 bg-emerald-600 text-white rounded-xl text-sm font-bold hover:bg-emerald-700 transition disabled:opacity-50">
                     Submit Claim
                   </button>
                 </div>

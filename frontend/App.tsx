@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Home, Search, Plus, User as UserIcon, Settings, ChevronLeft, LogOut, Globe, Users, Menu, X, Heart, Shield, Users2, Sparkles, Download, Trash2, WifiOff, ChevronDown, ChevronUp, MapPin, Calendar, Star, Store, Tent, Compass, Lock, LayoutGrid, Camera } from 'lucide-react';
+import { Home, Search, Plus, User as UserIcon, Settings, ChevronLeft, LogOut, Globe, Users, Menu, X, Heart, Shield, Users2, Sparkles, Download, Trash2, WifiOff, ChevronDown, ChevronUp, MapPin, Calendar, Star, Store, Tent, Compass, Lock, LayoutGrid, Camera, Sun, Moon } from 'lucide-react';
 import { User, Itinerary, GroupTrip, SmartProfile, PrivateTrip } from './src/types/index';
 import { TRANSLATIONS } from './translations';
 import { authAPI, itineraryAPI, groupTripAPI } from './src/services/api';
@@ -66,13 +66,13 @@ class AuthErrorBoundary extends (React.Component as any) {
 // Stable layout wrappers — must be defined OUTSIDE App so React doesn't
 // treat them as new component types on every render (which would unmount children).
 const AppWrapper = ({ children }: { children: React.ReactNode }) => (
-  <div className="h-screen w-full bg-slate-50 font-sans overflow-hidden">
+  <div className="h-screen w-full bg-slate-50 dark:bg-slate-950 font-sans overflow-hidden transition-colors duration-300">
     {children}
   </div>
 );
 
 const ModalWrapper = ({ children }: { children: React.ReactNode }) => (
-  <div className="h-screen w-full max-w-2xl mx-auto bg-white shadow-2xl relative overflow-hidden flex flex-col">
+  <div className="h-screen w-full max-w-2xl mx-auto bg-white dark:bg-slate-900 shadow-2xl relative overflow-hidden flex flex-col transition-colors duration-300">
     {children}
   </div>
 );
@@ -105,6 +105,7 @@ export const App = () => {
   const [user, setUser] = useState<User | null>(null);
   const [lang, setLang] = useState<'en' | 'ar'>('en');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [showMobileSearch, setShowMobileSearch] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [userReviewCount, setUserReviewCount] = useState<number>(
     parseInt(localStorage.getItem('tripo_review_count') || '0', 10)
@@ -132,6 +133,11 @@ export const App = () => {
   const [pendingCommunityId, setPendingCommunityId] = useState<string | undefined>(undefined);
   const [showEditProfile, setShowEditProfile] = useState(false);
   const [showMoreSheet, setShowMoreSheet] = useState(false);
+  const [isDark, setIsDark] = useState<boolean>(() => {
+    const stored = localStorage.getItem('tripo_theme');
+    if (stored) return stored === 'dark';
+    return window.matchMedia('(prefers-color-scheme: dark)').matches;
+  });
 
   // Navigation State
   const [selectedItinerary, setSelectedItinerary] = useState<Itinerary | null>(null);
@@ -146,6 +152,17 @@ export const App = () => {
     document.documentElement.dir = lang === 'ar' ? 'rtl' : 'ltr';
     document.documentElement.lang = lang;
   }, [lang]);
+
+  // Sync dark mode class on <html> + persist
+  useEffect(() => {
+    const root = document.documentElement;
+    if (isDark) {
+      root.classList.add('dark');
+    } else {
+      root.classList.remove('dark');
+    }
+    localStorage.setItem('tripo_theme', isDark ? 'dark' : 'light');
+  }, [isDark]);
 
   // Handle 401 unauthorized from API interceptor
   useEffect(() => {
@@ -487,7 +504,7 @@ export const App = () => {
         )}
 
         {/* Left Sidebar (Desktop fixed, Mobile sliding) */}
-        <div className={`fixed lg:static inset-y-0 left-0 z-50 w-64 bg-white border-r border-slate-200 transform transition-transform duration-300 ease-in-out ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}>
+        <div className={`fixed lg:static inset-y-0 left-0 z-50 w-64 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-white/8 transform transition-all duration-300 ease-in-out ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}>
           <div className="h-full flex flex-col pt-6 pb-4">
 
             {/* Logo / Header */}
@@ -563,20 +580,63 @@ export const App = () => {
         </div>
 
         {/* Main Content Area */}
-        <div className="flex-1 flex flex-col h-full bg-slate-50 overflow-hidden relative">
+        <div className="flex-1 flex flex-col h-full bg-slate-50 dark:bg-slate-950 overflow-hidden relative transition-colors duration-300">
 
-          {/* Mobile Header (Shows Hamburger + Notification Bell) */}
-          <div className="lg:hidden bg-white px-4 py-3 border-b border-slate-200 flex items-center justify-between sticky top-0 z-30">
-            <button onClick={() => setIsSidebarOpen(true)} className="p-2 -ml-2 text-slate-600 hover:bg-slate-100 rounded-full">
+          {/* Mobile Header (Shows Hamburger + Notification Bell + Theme Toggle) */}
+          <div className="lg:hidden bg-white dark:bg-slate-900 px-4 py-3 border-b border-slate-200 dark:border-white/8 flex items-center justify-between sticky top-0 z-30 transition-colors duration-300">
+            <button onClick={() => setIsSidebarOpen(true)} className="p-2 -ml-2 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/10 rounded-full transition-colors">
               <Menu className="w-6 h-6" />
             </button>
-            <span className="font-bold text-lg text-slate-800">Tripo</span>
-            {/* Notification bell in mobile header */}
-            <NotificationPanel />
+            <span className="font-black text-lg text-slate-800 dark:text-white tracking-tight">Tripo</span>
+            <div className="flex items-center gap-2">
+              {/* Mobile Search */}
+              <button
+                onClick={() => setShowMobileSearch(true)}
+                className="p-2 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/10 rounded-full transition-colors"
+                aria-label="Search"
+              >
+                <Search className="w-5 h-5" />
+              </button>
+              {/* Dark / Light toggle */}
+              <button
+                onClick={() => setIsDark(d => !d)}
+                className="relative w-14 h-7 rounded-full transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 dark:focus:ring-offset-slate-900"
+                style={{ backgroundColor: isDark ? '#10b981' : '#cbd5e1' }}
+                aria-label="Toggle theme"
+              >
+                <span
+                  className="absolute top-0.5 left-0.5 w-6 h-6 rounded-full bg-white shadow-md flex items-center justify-center transition-transform duration-300"
+                  style={{ transform: isDark ? 'translateX(28px)' : 'translateX(0px)' }}
+                >
+                  {isDark
+                    ? <Moon className="w-3.5 h-3.5 text-emerald-600" />
+                    : <Sun  className="w-3.5 h-3.5 text-amber-500" />
+                  }
+                </span>
+              </button>
+              <NotificationPanel />
+            </div>
           </div>
 
           {/* Desktop Notification Bar (top-right, visible on lg+) */}
-          <div className="hidden lg:flex bg-white px-6 py-2.5 border-b border-slate-200 items-center justify-end sticky top-0 z-30">
+          <div className="hidden lg:flex bg-white dark:bg-slate-900 px-6 py-2.5 border-b border-slate-200 dark:border-white/8 items-center justify-end gap-3 sticky top-0 z-30 transition-colors duration-300">
+            {/* Dark / Light toggle */}
+            <button
+              onClick={() => setIsDark(d => !d)}
+              className="relative w-14 h-7 rounded-full transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 dark:focus:ring-offset-slate-900"
+              style={{ backgroundColor: isDark ? '#10b981' : '#cbd5e1' }}
+              aria-label="Toggle theme"
+            >
+              <span
+                className="absolute top-0.5 left-0.5 w-6 h-6 rounded-full bg-white shadow-md flex items-center justify-center transition-transform duration-300"
+                style={{ transform: isDark ? 'translateX(28px)' : 'translateX(0px)' }}
+              >
+                {isDark
+                  ? <Moon className="w-3.5 h-3.5 text-emerald-600" />
+                  : <Sun  className="w-3.5 h-3.5 text-amber-500" />
+                }
+              </span>
+            </button>
             <NotificationPanel />
           </div>
 
@@ -613,7 +673,7 @@ export const App = () => {
                       </div>
                     </div>
                   )}
-                  <HomeScreen user={user} onOpenItinerary={openItinerary} t={t} onOpenAR={() => setActiveTab('ar')} onNavigate={(tab: string, id?: string) => { setActiveTab(tab); if (id && tab === 'events') setPendingEventId(id); if (id && tab === 'tours') setPendingTourId(id); if (id && tab === 'places') setPendingPlaceId(id); if (id && tab === 'rentals') setPendingRentalId(id); if (id && tab === 'communities') setPendingCommunityId(id); }} />
+                  <HomeScreen user={user} lang={lang} onOpenItinerary={openItinerary} t={t} onOpenAR={() => setActiveTab('ar')} onNavigate={(tab: string, id?: string) => { setActiveTab(tab); if (id && tab === 'events') setPendingEventId(id); if (id && tab === 'tours') setPendingTourId(id); if (id && tab === 'places') setPendingPlaceId(id); if (id && tab === 'rentals') setPendingRentalId(id); if (id && tab === 'communities') setPendingCommunityId(id); }} />
                 </>
               )}
 
@@ -905,64 +965,94 @@ export const App = () => {
         {/* Wish Lists Modal */}
         {showWishLists && <WishListModal onClose={() => setShowWishLists(false)} />}
 
-        {/* Mobile Bottom Nav — 5 core tabs + More */}
-        <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 px-2 py-2 flex justify-around items-center z-40 pb-safe">
+        {/* Mobile Bottom Nav — 5 tabs */}
+        <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-white/95 dark:bg-slate-950/95 backdrop-blur-xl border-t border-slate-200 dark:border-white/8 px-1 pt-2 pb-safe flex justify-around items-center z-40 shadow-2xl transition-colors duration-300" style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 8px)' }}>
           {[
-            { id: 'home', icon: Home, label: (t as any).navHome || 'Home' },
-            { id: 'explore', icon: Search, label: (t as any).navMap || 'Map' },
-            { id: 'communities', icon: Users, label: (t as any).navCommunity || 'Community' },
-            { id: 'rentals', icon: Tent, label: (t as any).navRentals || 'Rentals' },
+            { id: 'home',        icon: Home,   label: (t as any).navHome      || (lang === 'ar' ? 'الرئيسية' : 'Home') },
+            { id: 'explore',     icon: Search, label: (t as any).navMap       || (lang === 'ar' ? 'الخريطة'  : 'Map') },
+            { id: 'rentals',     icon: Tent,   label: (t as any).navRentals   || (lang === 'ar' ? 'الإيجارات': 'Rentals') },
+            { id: 'communities', icon: Users,  label: (t as any).navCommunity || (lang === 'ar' ? 'المجتمع'  : 'Community') },
           ].map(nav => (
-            <button key={nav.id} onClick={() => setActiveTab(nav.id)} className={`flex flex-col items-center gap-0.5 px-2 py-1 rounded-xl transition-colors min-w-0 ${activeTab === nav.id ? 'text-emerald-600' : 'text-slate-400'}`}>
-              <nav.icon className={`w-6 h-6 ${activeTab === nav.id ? 'fill-emerald-100' : ''}`} />
-              <span className="text-[10px] font-medium truncate">{nav.label}</span>
+            <button
+              key={nav.id}
+              onClick={() => setActiveTab(nav.id)}
+              className={`flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-2xl transition-all min-w-0 ${
+                activeTab === nav.id
+                  ? 'text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/12'
+                  : 'text-slate-400 dark:text-slate-500'
+              }`}
+            >
+              <nav.icon className={`w-5.5 h-5.5 transition-all ${activeTab === nav.id ? 'scale-110' : ''}`} style={{ width: 22, height: 22 }} />
+              <span className="text-[10px] font-bold tracking-wide">{nav.label}</span>
             </button>
           ))}
 
-          {/* Create FAB */}
-          <div className="relative -top-4">
-            <button onClick={() => setActiveTab('create')} className="w-14 h-14 bg-gradient-to-tr from-emerald-600 to-teal-500 rounded-full flex items-center justify-center text-white shadow-xl shadow-emerald-200 active:scale-95 transition-transform hover:scale-105">
-              <Plus className="w-7 h-7" />
-            </button>
-          </div>
-
           {/* More button */}
-          <button onClick={() => setShowMoreSheet(true)} className={`flex flex-col items-center gap-0.5 px-2 py-1 rounded-xl transition-colors min-w-0 ${['places','tours','my_trips','ar','your_mood','ai_planner','events','profile','admin','host'].includes(activeTab) ? 'text-emerald-600' : 'text-slate-400'}`}>
-            <Menu className="w-6 h-6" />
-            <span className="text-[10px] font-medium">{(t as any).navMore || 'More'}</span>
+          <button
+            onClick={() => setShowMoreSheet(true)}
+            className={`flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-2xl transition-all min-w-0 ${
+              ['places','tours','my_trips','ar','your_mood','ai_planner','events','profile','admin','host'].includes(activeTab)
+                ? 'text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/12'
+                : 'text-slate-400 dark:text-slate-500'
+            }`}
+          >
+            <Menu className="w-[22px] h-[22px]" />
+            <span className="text-[10px] font-bold tracking-wide">{(t as any).navMore || (lang === 'ar' ? 'المزيد' : 'More')}</span>
           </button>
         </div>
+
+        {/* Floating Action Button — above nav bar, for creating trips/itineraries */}
+        <button
+          onClick={() => setActiveTab('create')}
+          className="lg:hidden fixed z-50 bg-gradient-to-tr from-emerald-500 to-teal-400 text-white rounded-full shadow-2xl shadow-emerald-900/60 active:scale-90 transition-transform hover:scale-105 flex items-center justify-center"
+          style={{
+            width: 52,
+            height: 52,
+            bottom: 'calc(max(env(safe-area-inset-bottom), 8px) + 56px + 12px)',
+            right: lang === 'ar' ? 'auto' : 20,
+            left: lang === 'ar' ? 20 : 'auto',
+          }}
+          title={(t as any).newTrip || (lang === 'ar' ? 'رحلة جديدة' : 'New Trip')}
+        >
+          <Plus className="w-6 h-6" />
+        </button>
 
         {/* More Sheet */}
         {showMoreSheet && (
           <>
-            <div className="fixed inset-0 bg-slate-900/40 z-[60] lg:hidden" onClick={() => setShowMoreSheet(false)} />
-            <div className="fixed bottom-0 left-0 right-0 bg-white rounded-t-3xl z-[70] lg:hidden shadow-2xl pb-safe">
+            <div className="fixed inset-0 bg-slate-900/50 dark:bg-black/60 z-[60] lg:hidden" onClick={() => setShowMoreSheet(false)} />
+            <div className="fixed bottom-0 left-0 right-0 bg-white dark:bg-slate-900 rounded-t-3xl z-[70] lg:hidden shadow-2xl pb-safe border-t border-slate-100 dark:border-white/8 transition-colors duration-300">
               <div className="flex justify-between items-center px-6 pt-5 pb-3">
-                <h3 className="font-bold text-slate-900">{(t as any).moreTitle || 'More'}</h3>
-                <button onClick={() => setShowMoreSheet(false)} className="p-2 rounded-full hover:bg-slate-100 transition"><X className="w-5 h-5 text-slate-500" /></button>
+                <h3 className="font-bold text-slate-900 dark:text-white">{(t as any).moreTitle || 'More'}</h3>
+                <button onClick={() => setShowMoreSheet(false)} className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-white/10 transition">
+                  <X className="w-5 h-5 text-slate-500 dark:text-slate-400" />
+                </button>
               </div>
               <div className="grid grid-cols-3 gap-3 px-6 pb-8">
                 {[
-                  { id: 'places', icon: MapPin, label: (t as any).tabPlaces || 'Places', color: 'bg-slate-50 text-slate-600' },
-                  { id: 'tours', icon: Compass, label: (t as any).tabTours || 'Tours', color: 'bg-teal-50 text-teal-600' },
-                  { id: 'my_trips', icon: Lock, label: (t as any).moreMyTrips || 'My Trips', color: 'bg-emerald-50 text-emerald-600' },
-                  { id: 'ar', icon: Camera, label: (t as any).moreARGuide || 'AR Guide', color: 'bg-emerald-50 text-emerald-600' },
-                  { id: 'ai_planner', icon: Sparkles, label: (t as any).moreAIPlanner || 'AI Planner', color: 'bg-purple-50 text-purple-600' },
-                  { id: 'events', icon: Calendar, label: (t as any).tabEvents || 'Events', color: 'bg-blue-50 text-blue-600' },
-                  { id: 'profile', icon: UserIcon, label: t.tabProfile, color: 'bg-slate-50 text-slate-600' },
-                  ...(isAdmin ? [{ id: 'admin', icon: Shield, label: (t as any).tabAdmin || 'Admin', color: 'bg-red-50 text-red-600' }] : []),
-                  ...(hasClaimedPlaces ? [{ id: 'host', icon: Store, label: (t as any).moreHost || 'Host', color: 'bg-emerald-50 text-emerald-600' }] : []),
+                  { id: 'places',     icon: MapPin,    label: (t as any).tabPlaces    || 'Places',     lightColor: 'bg-slate-100 text-slate-600',   darkColor: 'bg-slate-800 text-slate-300' },
+                  { id: 'tours',      icon: Compass,   label: (t as any).tabTours     || 'Tours',      lightColor: 'bg-teal-50 text-teal-600',      darkColor: 'bg-teal-900/50 text-teal-400' },
+                  { id: 'my_trips',   icon: Lock,      label: (t as any).moreMyTrips  || 'My Trips',   lightColor: 'bg-emerald-50 text-emerald-600', darkColor: 'bg-emerald-900/50 text-emerald-400' },
+                  { id: 'ar',         icon: Camera,    label: (t as any).moreARGuide  || 'AR Guide',   lightColor: 'bg-orange-50 text-orange-600',   darkColor: 'bg-orange-900/50 text-orange-400' },
+                  { id: 'ai_planner', icon: Sparkles,  label: (t as any).moreAIPlanner|| 'AI Planner', lightColor: 'bg-purple-50 text-purple-600',   darkColor: 'bg-purple-900/50 text-purple-400' },
+                  { id: 'events',     icon: Calendar,  label: (t as any).tabEvents    || 'Events',     lightColor: 'bg-blue-50 text-blue-600',       darkColor: 'bg-blue-900/50 text-blue-400' },
+                  { id: 'profile',    icon: UserIcon,  label: t.tabProfile,                            lightColor: 'bg-slate-100 text-slate-600',    darkColor: 'bg-slate-800 text-slate-300' },
+                  ...(isAdmin       ? [{ id: 'admin', icon: Shield, label: (t as any).tabAdmin || 'Admin', lightColor: 'bg-red-50 text-red-600', darkColor: 'bg-red-900/50 text-red-400' }] : []),
+                  ...(hasClaimedPlaces ? [{ id: 'host', icon: Store, label: (t as any).moreHost || 'Host', lightColor: 'bg-emerald-50 text-emerald-600', darkColor: 'bg-emerald-900/50 text-emerald-400' }] : []),
                 ].map(item => (
                   <button
                     key={item.id}
                     onClick={() => { setActiveTab(item.id); setShowMoreSheet(false); }}
-                    className={`flex flex-col items-center gap-2 p-4 rounded-2xl border transition-all ${activeTab === item.id ? 'border-emerald-300 bg-emerald-50' : 'border-slate-100 hover:border-slate-200'}`}
+                    className={`flex flex-col items-center gap-2 p-4 rounded-2xl border transition-all ${
+                      activeTab === item.id
+                        ? 'border-emerald-400 bg-emerald-50 dark:bg-emerald-900/30 dark:border-emerald-600'
+                        : 'border-slate-100 dark:border-white/8 hover:border-slate-200 dark:hover:border-white/20'
+                    }`}
                   >
-                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${item.color}`}>
+                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${isDark ? item.darkColor : item.lightColor}`}>
                       <item.icon className="w-5 h-5" />
                     </div>
-                    <span className="text-xs font-bold text-slate-700">{item.label}</span>
+                    <span className="text-xs font-bold text-slate-700 dark:text-slate-200">{item.label}</span>
                   </button>
                 ))}
               </div>
@@ -971,6 +1061,30 @@ export const App = () => {
         )}
 
       </div>
+
+      {/* Mobile Search Overlay */}
+      {showMobileSearch && (
+        <div className="fixed inset-0 z-50 bg-black/50 flex flex-col lg:hidden" onClick={() => setShowMobileSearch(false)}>
+          <div className="bg-white dark:bg-slate-900 pt-safe-top px-4 pt-4 pb-4 shadow-xl" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center gap-2 mb-3">
+              <span className="font-bold text-slate-700 dark:text-slate-200 text-sm">Search</span>
+              <button onClick={() => setShowMobileSearch(false)} className="ml-auto p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <GlobalSearch onNavigate={(tab, id) => {
+              setActiveTab(tab);
+              setShowMobileSearch(false);
+              if (id) {
+                if (tab === 'places')  setPendingPlaceId(id);
+                if (tab === 'tours')   setPendingTourId(id);
+                if (tab === 'rentals') setPendingRentalId(id);
+                if (tab === 'events')  setPendingEventId(id);
+              }
+            }} />
+          </div>
+        </div>
+      )}
 
       {/* Toast notifications */}
       <ToastContainer />

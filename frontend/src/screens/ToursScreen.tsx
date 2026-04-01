@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Star, Clock, Users, ChevronRight, MapPin, Compass, TrendingUp, Award, Navigation, Wallet, Search, X } from 'lucide-react';
+import { Star, Clock, Users, ChevronRight, MapPin, Compass, TrendingUp, Award, Navigation, Wallet, Search, X, WifiOff } from 'lucide-react';
 import { Tour, Itinerary, GroupTrip } from '../types';
 import { tourAPI } from '../services/api';
 import { showToast } from '../components/Toast';
@@ -25,7 +25,12 @@ export const MOCK_TOURS: Tour[] = [
       'Learn about the geological history of Tuwaiq',
     ],
     heroImage: 'https://images.unsplash.com/photo-1509316785289-025f5b846b35?w=1200&q=80',
-    images: [],
+    images: [
+      'https://images.unsplash.com/photo-1509316785289-025f5b846b35?w=1200&q=80',
+      'https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?w=1200&q=80',
+      'https://images.unsplash.com/photo-1682687982501-1e58ab814714?w=1200&q=80',
+      'https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?w=1200&q=80',
+    ],
     pricePerPerson: 399,
     currency: 'SAR',
     maxGroupSize: 12,
@@ -65,7 +70,12 @@ export const MOCK_TOURS: Tour[] = [
       'Live calligraphy & pottery workshop',
     ],
     heroImage: 'https://images.unsplash.com/photo-1564769625392-651b89c75c0a?w=1200&q=80',
-    images: [],
+    images: [
+      'https://images.unsplash.com/photo-1564769625392-651b89c75c0a?w=1200&q=80',
+      'https://images.unsplash.com/photo-1539768942893-daf53e448371?w=1200&q=80',
+      'https://images.unsplash.com/photo-1548013146-72479768bada?w=1200&q=80',
+      'https://images.unsplash.com/photo-1590577976322-3d2d6e2130d5?w=1200&q=80',
+    ],
     pricePerPerson: 179,
     currency: 'SAR',
     maxGroupSize: 15,
@@ -104,7 +114,12 @@ export const MOCK_TOURS: Tour[] = [
       'Traditional Bedouin camp dinner under the stars',
     ],
     heroImage: 'https://images.unsplash.com/photo-1547234935-80c7145ec969?w=1200&q=80',
-    images: [],
+    images: [
+      'https://images.unsplash.com/photo-1547234935-80c7145ec969?w=1200&q=80',
+      'https://images.unsplash.com/photo-1504280390367-361c6d9f38f4?w=1200&q=80',
+      'https://images.unsplash.com/photo-1533745848184-3db07256e163?w=1200&q=80',
+      'https://images.unsplash.com/photo-1531366936337-7c912a4589a7?w=1200&q=80',
+    ],
     pricePerPerson: 299,
     currency: 'SAR',
     maxGroupSize: 16,
@@ -143,7 +158,12 @@ export const MOCK_TOURS: Tour[] = [
       'Finish with kunafa at a legendary sweet shop',
     ],
     heroImage: 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=1200&q=80',
-    images: [],
+    images: [
+      'https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=1200&q=80',
+      'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=1200&q=80',
+      'https://images.unsplash.com/photo-1414235077428-338989a2e8c0?w=1200&q=80',
+      'https://images.unsplash.com/photo-1567620905732-2d1ec7ab7445?w=1200&q=80',
+    ],
     pricePerPerson: 149,
     currency: 'SAR',
     maxGroupSize: 10,
@@ -215,6 +235,7 @@ interface ToursScreenProps {
 export const ToursScreen: React.FC<ToursScreenProps> = ({ t, onBookingComplete, initialTourId, onTourOpened }) => {
   const [tours, setTours] = useState<Tour[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [hasNetworkError, setHasNetworkError] = useState(false);
   const [category, setCategory] = useState('all');
   const [selectedTour, setSelectedTour] = useState<Tour | null>(null);
   const [bookingTour, setBookingTour] = useState<Tour | null>(null);
@@ -244,6 +265,7 @@ export const ToursScreen: React.FC<ToursScreenProps> = ({ t, onBookingComplete, 
       } catch {
         const userTours = getUserTours();
         setTours([...userTours, ...MOCK_TOURS]);
+        setHasNetworkError(true);
       } finally {
         setIsLoading(false);
       }
@@ -472,7 +494,8 @@ export const ToursScreen: React.FC<ToursScreenProps> = ({ t, onBookingComplete, 
 
       {/* Category pills + quick filters */}
       <div className="sticky top-0 z-20 bg-white border-b border-slate-100 shadow-sm">
-        <div className="flex gap-2 px-4 pt-3 pb-2 overflow-x-auto scrollbar-hide">
+        <div className="relative px-4 pt-3 pb-2">
+        <div className="flex gap-2 overflow-x-auto scrollbar-hide">
           {CATEGORIES.map((cat) => (
             <button
               key={cat.id}
@@ -487,7 +510,10 @@ export const ToursScreen: React.FC<ToursScreenProps> = ({ t, onBookingComplete, 
             </button>
           ))}
         </div>
-        <div className="flex gap-2 px-4 pb-3 overflow-x-auto scrollbar-hide">
+        <div className="pointer-events-none absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-white to-transparent" />
+        </div>
+        <div className="relative px-4 pb-3">
+        <div className="flex gap-2 overflow-x-auto scrollbar-hide">
           {QUICK_FILTERS.map(f => (
             <button
               key={f.id}
@@ -503,7 +529,18 @@ export const ToursScreen: React.FC<ToursScreenProps> = ({ t, onBookingComplete, 
             </button>
           ))}
         </div>
+        <div className="pointer-events-none absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-white to-transparent" />
+        </div>
       </div>
+
+      {/* Offline / network error banner */}
+      {hasNetworkError && !isLoading && (
+        <div className="mx-4 mt-3 flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">
+          <WifiOff className="w-4 h-4 text-amber-500 flex-shrink-0" />
+          <p className="text-xs font-medium text-amber-700">Showing cached results — check your connection</p>
+          <button onClick={() => { setHasNetworkError(false); setIsLoading(true); tourAPI.getTours().then(d => setTours(d.length > 0 ? d : MOCK_TOURS)).catch(() => {}).finally(() => setIsLoading(false)); }} className="ml-auto text-xs font-bold text-amber-700 underline">Retry</button>
+        </div>
+      )}
 
       {/* Tours list */}
       <div className="px-4 py-5 max-w-5xl mx-auto">
@@ -515,6 +552,13 @@ export const ToursScreen: React.FC<ToursScreenProps> = ({ t, onBookingComplete, 
           </div>
         ) : (
           <>
+            {/* Result count */}
+            {(search || quickFilter || category !== 'all') && !isLoading && (
+              <p className="text-xs text-slate-500 mb-3 font-medium">
+                {displayedTours.length === 0 ? 'No tours found' : `${displayedTours.length} tour${displayedTours.length !== 1 ? 's' : ''} found`}
+                {search && <span className="text-slate-400"> for "<span className="text-slate-600">{search}</span>"</span>}
+              </p>
+            )}
             {displayedTours.length === 0 ? (
               <div className="text-center py-16">
                 <Compass className="w-12 h-12 text-slate-200 mx-auto mb-3" />

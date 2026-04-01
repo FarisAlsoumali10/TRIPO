@@ -1,6 +1,23 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Users, ChevronRight, Trophy, Star, MessageSquare, Plus, Crown, Flame, CheckCircle2, Send, X, ShieldCheck, Heart, Calendar, Clock, MapPin, Wallet as WalletIcon, TrendingUp, Award, Search, Tag, ArrowLeft, Hash, MessageCircle, Handshake, UserPlus } from 'lucide-react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { Users, ChevronRight, Trophy, Star, MessageSquare, Plus, Crown, Flame, CheckCircle2, Send, X, ShieldCheck, Heart, Calendar, Clock, MapPin, Wallet as WalletIcon, TrendingUp, Award, Search, Tag, ArrowLeft, Hash, MessageCircle, Handshake, UserPlus, Bell, Globe, ExternalLink, Info, Image } from 'lucide-react';
 import { Community, Itinerary, FazaRequest, ChatMessage, CommunityEvent, User, Place, MajlisThread } from '../types/index';
+
+// ── Feature 10 helpers ──────────────────────────────────────────────────────
+function extractFirstUrl(text: string): string | null {
+  const m = text.match(/https?:\/\/[^\s]+/);
+  return m ? m[0] : null;
+}
+function urlDomain(url: string): string {
+  try { return new URL(url).hostname.replace('www.', ''); } catch { return url; }
+}
+
+// ── Feature 11: Community About/Rules data ────────────────────────────────
+const COMMUNITY_ABOUT: Record<string, { about: string; rules: string[] }> = {
+  default: {
+    about: 'مجتمع تريبو هو مكان للتواصل مع المسافرين وعشاق الاستكشاف في المملكة العربية السعودية.',
+    rules: ['احترام الجميع وتجنب الكلام الجارح', 'لا إعلانات تجارية بدون إذن المشرف', 'المحتوى باللغتين العربية والإنجليزية مقبول', 'شارك تجاربك الحقيقية فقط', 'أبلغ عن أي محتوى مسيء للمشرفين']
+  }
+};
 import { Button, Input, Badge } from '../components/ui';
 import { placeAPI, communityAPI } from '../services/api';
 
@@ -77,6 +94,8 @@ const SEED_POSTS: TravelPost[] = [
   },
 ];
 
+const COMMUNITY_CATEGORIES = ['الكل', 'Sports', 'Food', 'Nature', 'Cars'];
+
 const getTravelPosts = (): TravelPost[] => {
   try {
     const raw = localStorage.getItem(TRAVEL_POSTS_KEY);
@@ -124,7 +143,7 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
     if (!initialCommunityId) return null;
     return MOCK_COMMUNITIES.find(c => c.id === initialCommunityId) ?? null;
   });
-  const [activeTab, setActiveTab] = useState<'majlis' | 'requests' | 'events'>('majlis');
+  const [activeTab, setActiveTab] = useState<'majlis' | 'requests' | 'events' | 'about'>('majlis');
 
   // ── Traveling Together state ──────────────────────────────────────────────
   const [mainTab, setMainTab] = useState<'communities' | 'traveling'>('communities');
@@ -142,6 +161,7 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
   const [fazaAnswer, setFazaAnswer] = useState('');
   const [chatInput, setChatInput] = useState('');
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [communities, setCommunities] = useState<Community[]>(MOCK_COMMUNITIES);
   const [localEvents, setLocalEvents] = useState<CommunityEvent[]>(() => {
@@ -157,6 +177,30 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
   const [allPlaces, setAllPlaces] = useState<Place[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
+  // ── New feature state ─────────────────────────────────────────────────────
+  const [categoryFilter, setCategoryFilter] = useState('الكل');
+  const [threadReactions, setThreadReactions] = useState<Record<string, Record<string, string[]>>>(() => {
+    try { return JSON.parse(localStorage.getItem('tripo_thread_reactions') || '{}'); } catch { return {}; }
+  });
+  const [unreadCount, setUnreadCount] = useState(() => {
+    const lastVisit = parseInt(localStorage.getItem('tripo_communities_last_visit') || '0');
+    let count = 0;
+    try {
+      const savedThreads: Record<string, MajlisThread[]> = JSON.parse(localStorage.getItem('tripo_threads') || '{}');
+      Object.values(savedThreads).forEach(cThreads => {
+        (cThreads as MajlisThread[]).forEach((th: MajlisThread) => {
+          if (new Date(th.createdAt).getTime() > lastVisit) count++;
+        });
+      });
+      const savedPosts: TravelPost[] = JSON.parse(localStorage.getItem(TRAVEL_POSTS_KEY) || '[]');
+      savedPosts.forEach(p => { if (p.timestamp > lastVisit && p.userId !== 'current-user') count++; });
+    } catch {}
+    localStorage.setItem('tripo_communities_last_visit', Date.now().toString());
+    return count;
+  });
+  const [chatDmPost, setChatDmPost] = useState<string | null>(null);
+  const [dmInputs, setDmInputs] = useState<Record<string, string>>({});
+
   // Thread state
   const [threads, setThreads] = useState<Record<string, MajlisThread[]>>(() => {
     try { return JSON.parse(localStorage.getItem('tripo_threads') || '{}'); } catch { return {}; }
@@ -166,6 +210,35 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
   const [showCreateThread, setShowCreateThread] = useState(false);
   const [newThread, setNewThread] = useState({ title: '', body: '', tags: '' });
   const [replyText, setReplyText] = useState('');
+
+  // Feature 2: Thread sort + pin
+  const [threadSort, setThreadSort] = useState<'latest' | 'replies' | 'reactions' | 'trending'>('latest');
+
+  // Feature 3: Community notification subscriptions
+  const [subscribedCommunities, setSubscribedCommunities] = useState<string[]>(() => {
+    try { return JSON.parse(localStorage.getItem('tripo_subscribed_communities') || '[]'); } catch { return []; }
+  });
+
+  // Feature 4: Image attachments
+  const [newThreadImageUrl, setNewThreadImageUrl] = useState('');
+  const [replyImageUrl, setReplyImageUrl] = useState('');
+  const [showReplyImageInput, setShowReplyImageInput] = useState(false);
+
+  // Feature 6: Community search
+  const [communitySearch, setCommunitySearch] = useState('');
+
+  // Feature 7: My Communities (joined)
+  const [joinedCommunities, setJoinedCommunities] = useState<string[]>(() => {
+    try { return JSON.parse(localStorage.getItem('tripo_joined_communities') || '[]'); } catch { return []; }
+  });
+
+  // Feature 8: Faza history
+  const [completedFaza, setCompletedFaza] = useState<Array<{id: string; question: string; pointsEarned: number; answeredAt: string; helperName: string}>>(() => {
+    try { return JSON.parse(localStorage.getItem('tripo_completed_faza') || '[]'); } catch { return []; }
+  });
+
+  // Feature 13: Poll state for create thread
+  const [newPoll, setNewPoll] = useState({ enabled: false, question: '', options: ['', ''] });
 
   // Persist events, faza requests, joined events, and threads to localStorage on every change
   useEffect(() => {
@@ -187,6 +260,25 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
   useEffect(() => {
     localStorage.setItem('tripo_threads', JSON.stringify(threads));
   }, [threads]);
+
+  useEffect(() => {
+    localStorage.setItem('tripo_thread_reactions', JSON.stringify(threadReactions));
+  }, [threadReactions]);
+
+  // Feature 3 persist
+  useEffect(() => {
+    localStorage.setItem('tripo_subscribed_communities', JSON.stringify(subscribedCommunities));
+  }, [subscribedCommunities]);
+
+  // Feature 7 persist
+  useEffect(() => {
+    localStorage.setItem('tripo_joined_communities', JSON.stringify(joinedCommunities));
+  }, [joinedCommunities]);
+
+  // Feature 8 persist
+  useEffect(() => {
+    localStorage.setItem('tripo_completed_faza', JSON.stringify(completedFaza));
+  }, [completedFaza]);
 
   useEffect(() => {
     // Persist travel posts (filter out past dates on save)
@@ -267,7 +359,8 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
     }));
 
     setLocalFazaRequests(prev => prev.filter(r => r.id !== showFazaModal.id));
-    setSuccessMessage(`كفو! حصلت على ${rewardPoints} نقطة كرم و ${cashReward} ريال في محفظتك.`);
+    setCompletedFaza(prev => [{ id: showFazaModal.id, question: showFazaModal.question, pointsEarned: rewardPoints, answeredAt: new Date().toISOString(), helperName: userProfile.name }, ...prev]);
+    setSuccessMessage(lang === 'ar' ? `كفو! حصلت على ${rewardPoints} نقطة كرم و ${cashReward} ريال في محفظتك.` : `Well done! You earned ${rewardPoints} Karam points and ${cashReward} SAR.`);
 
     setTimeout(() => {
       setSuccessMessage(null);
@@ -277,7 +370,8 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
   };
 
   const handleCreateEvent = () => {
-    if (!newEvent.title || !newEvent.date || !selectedCommunity) return;
+    if (!newEvent.title || !newEvent.date || !selectedCommunity || isSubmitting) return;
+    setIsSubmitting(true);
 
     const event: CommunityEvent = {
       id: Date.now().toString(),
@@ -293,8 +387,9 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
 
     setLocalEvents([event, ...localEvents]);
     setShowCreateEventModal(false);
-    setSuccessMessage("تم نشر الفعالية بنجاح! ننتظر الجميع 🚀");
+    setSuccessMessage(lang === 'ar' ? "تم نشر الفعالية بنجاح! ننتظر الجميع 🚀" : "Event published! Everyone's invited 🚀");
     setNewEvent({ title: '', description: '', date: '', time: '', location: '' });
+    setIsSubmitting(false);
     setTimeout(() => setSuccessMessage(null), 3000);
   };
 
@@ -322,14 +417,15 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
     } else {
       setJoinedEvents([...joinedEvents, eventId]);
       setLocalEvents(prev => prev.map(e => e.id === eventId ? { ...e, attendeesCount: e.attendeesCount + 1 } : e));
-      setSuccessMessage("تم تسجيل اهتمامك بالفعالية! ننتظرك هناك 🤩");
+      setSuccessMessage(lang === 'ar' ? "تم تسجيل اهتمامك بالفعالية! ننتظرك هناك 🤩" : "You're registered! See you there 🤩");
       setTimeout(() => setSuccessMessage(null), 3000);
     }
   };
 
   // ── Travel Post handlers ──────────────────────────────────────────────────
   const handlePostTrip = () => {
-    if (!newTripPost.placeName || !newTripPost.date) return;
+    if (!newTripPost.placeName || !newTripPost.date || isSubmitting) return;
+    setIsSubmitting(true);
     const post: TravelPost = {
       id: Date.now().toString(),
       userId: userProfile.id,
@@ -346,6 +442,7 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
     setTravelPosts(prev => [post, ...prev]);
     setShowPostTripModal(false);
     setNewTripPost({ placeName: '', date: '', maxSize: 4, description: '', interests: [] });
+    setIsSubmitting(false);
     setSuccessMessage("Trip posted! Looking forward to meeting fellow travelers 🤝");
     setTimeout(() => setSuccessMessage(null), 3000);
   };
@@ -361,7 +458,8 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
   };
 
   const handleCreateThread = () => {
-    if (!newThread.title || !selectedCommunity) return;
+    if (!newThread.title || !selectedCommunity || isSubmitting) return;
+    setIsSubmitting(true);
     const thread: MajlisThread = {
       id: Date.now().toString(),
       communityId: selectedCommunity.id,
@@ -370,18 +468,25 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
       authorName: userProfile.name,
       createdAt: new Date().toISOString(),
       tags: newThread.tags.split(',').map(t => t.trim()).filter(Boolean),
-      replies: []
+      replies: [],
+      imageUrl: newThreadImageUrl.trim() || undefined,
+      poll: (newPoll.enabled && newPoll.question && newPoll.options.filter(Boolean).length >= 2)
+        ? { question: newPoll.question, options: newPoll.options.filter(Boolean), votes: {} }
+        : undefined,
     };
     setThreads(prev => ({ ...prev, [selectedCommunity.id]: [thread, ...(prev[selectedCommunity.id] || [])] }));
     setShowCreateThread(false);
     setNewThread({ title: '', body: '', tags: '' });
-    setSuccessMessage("تم نشر الموضوع بنجاح!");
+    setNewThreadImageUrl('');
+    setNewPoll({ enabled: false, question: '', options: ['', ''] });
+    setIsSubmitting(false);
+    setSuccessMessage(lang === 'ar' ? "تم نشر الموضوع بنجاح!" : "Thread published successfully!");
     setTimeout(() => setSuccessMessage(null), 3000);
   };
 
   const handleReplyToThread = () => {
     if (!replyText.trim() || !selectedThread || !selectedCommunity) return;
-    const reply = { id: Date.now().toString(), text: replyText, authorName: userProfile.name, createdAt: new Date().toISOString() };
+    const reply = { id: Date.now().toString(), text: replyText, authorName: userProfile.name, createdAt: new Date().toISOString(), imageUrl: replyImageUrl.trim() || undefined };
     const updated = { ...selectedThread, replies: [...selectedThread.replies, reply] };
     setSelectedThread(updated);
     setThreads(prev => ({
@@ -389,7 +494,64 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
       [selectedCommunity.id]: (prev[selectedCommunity.id] || []).map(t => t.id === updated.id ? updated : t)
     }));
     setReplyText('');
+    setReplyImageUrl('');
+    setShowReplyImageInput(false);
   };
+
+  // Feature 2: Toggle pin
+  const handleTogglePin = (threadId: string) => {
+    if (!selectedCommunity) return;
+    setThreads(prev => ({
+      ...prev,
+      [selectedCommunity.id]: (prev[selectedCommunity.id] || []).map(t =>
+        t.id === threadId ? { ...t, pinned: !t.pinned } : t
+      )
+    }));
+    // Also update selectedThread if it's the one being toggled
+    setSelectedThread(prev => prev && prev.id === threadId ? { ...prev, pinned: !prev.pinned } : prev);
+  };
+
+  // Feature 13: Vote poll
+  const handleVotePoll = (threadId: string, optionIdx: number) => {
+    if (!selectedCommunity) return;
+    setThreads(prev => ({
+      ...prev,
+      [selectedCommunity.id]: (prev[selectedCommunity.id] || []).map(t => {
+        if (t.id !== threadId || !t.poll) return t;
+        return { ...t, poll: { ...t.poll, votes: { ...t.poll.votes, [userProfile.id]: optionIdx } } };
+      })
+    }));
+    // Also update selectedThread
+    setSelectedThread(prev => {
+      if (!prev || prev.id !== threadId || !prev.poll) return prev;
+      return { ...prev, poll: { ...prev.poll, votes: { ...prev.poll.votes, [userProfile.id]: optionIdx } } };
+    });
+  };
+
+  const handleToggleReaction = (threadId: string, emoji: string) => {
+    setThreadReactions(prev => {
+      const current = prev[threadId] || {};
+      const users = current[emoji] || [];
+      const newUsers = users.includes(userProfile.id)
+        ? users.filter(u => u !== userProfile.id)
+        : [...users, userProfile.id];
+      return { ...prev, [threadId]: { ...current, [emoji]: newUsers } };
+    });
+  };
+
+  const top3Ids = useMemo(() =>
+    [...communities].sort((a, b) => b.memberCount - a.memberCount).slice(0, 3).map(c => c.id),
+    [communities]
+  );
+
+  const filteredCommunities = useMemo(() => {
+    let list = categoryFilter === 'الكل' ? communities : communities.filter(c => c.category === categoryFilter);
+    if (communitySearch.trim()) {
+      const q = communitySearch.toLowerCase();
+      list = list.filter(c => c.name.toLowerCase().includes(q) || c.description.toLowerCase().includes(q));
+    }
+    return list;
+  }, [communities, categoryFilter, communitySearch]);
 
   const formatRelativeTime = (iso: string) => {
     const diff = Date.now() - new Date(iso).getTime();
@@ -401,25 +563,79 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
     return `منذ ${Math.floor(hrs / 24)} يوم`;
   };
 
-  const renderCommunityCard = (comm: Community) => (
-    <div
-      key={comm.id}
-      onClick={() => { setSelectedCommunity(comm); setActiveTab('majlis'); setSelectedThread(null); setShowCreateThread(false); }}
-      className="bg-white rounded-3xl overflow-hidden shadow-sm border border-slate-100 mb-4 active:scale-[0.98] transition-transform cursor-pointer"
-    >
-      <div className="h-28 relative">
-        <img src={comm.image} className="w-full h-full object-cover" alt={comm.name} />
-        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent"></div>
-        <div className="absolute bottom-3 left-4 right-4 flex justify-between items-end text-white">
-          <div className="flex items-center gap-2">
-            <span className="text-xl bg-white/20 backdrop-blur-md w-10 h-10 rounded-xl flex items-center justify-center">{comm.icon}</span>
-            <h3 className="text-lg font-bold">{comm.name}</h3>
+  const renderCommunityCard = (comm: Community) => {
+    const isTrending = top3Ids.includes(comm.id);
+    const memberSeeds = [`${comm.id}-m1`, `${comm.id}-m2`, `${comm.id}-m3`];
+    const isSubscribed = subscribedCommunities.includes(comm.id);
+    const isJoined = joinedCommunities.includes(comm.id);
+    return (
+      <div
+        key={comm.id}
+        onClick={() => { setSelectedCommunity(comm); setActiveTab('majlis'); setSelectedThread(null); setShowCreateThread(false); }}
+        className="relative overflow-hidden rounded-3xl shadow-md active:scale-[0.98] transition-transform cursor-pointer mb-3"
+        style={{ height: 160 }}
+      >
+        {/* Full bleed photo */}
+        <img src={comm.image} className="absolute inset-0 w-full h-full object-cover" alt={comm.name} />
+        {/* Gradient overlay */}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-transparent" />
+
+        {/* Trending badge top-left */}
+        {isTrending && (
+          <div className="absolute top-3 left-3 flex items-center gap-1 bg-orange-500 text-white text-[10px] font-black px-2.5 py-1 rounded-full shadow-md z-10">
+            <Flame className="w-3 h-3" /> رائج
           </div>
-          <p className="text-[10px] font-bold opacity-90 px-2 py-1 bg-white/10 rounded-lg">{comm.memberCount} {t.commMembers || 'عضو'}</p>
+        )}
+
+        {/* Active now + bell indicator top-right (Feature 3) */}
+        <div className="absolute top-3 right-3 flex items-center gap-1.5 z-10">
+          <button
+            onClick={e => { e.stopPropagation(); setSubscribedCommunities(prev => isSubscribed ? prev.filter(id => id !== comm.id) : [...prev, comm.id]); }}
+            className="w-7 h-7 flex items-center justify-center bg-black/40 backdrop-blur-sm rounded-full"
+          >
+            <Bell className={`w-3.5 h-3.5 ${isSubscribed ? 'text-emerald-400 fill-emerald-400' : 'text-white/60'}`} />
+          </button>
+          <div className="flex items-center gap-1.5 bg-black/40 backdrop-blur-sm text-white text-[10px] font-bold px-2.5 py-1 rounded-full">
+            <span className="w-1.5 h-1.5 bg-green-400 rounded-full animate-pulse" />
+            نشط
+          </div>
+        </div>
+
+        {/* Bottom content */}
+        <div className="absolute bottom-0 left-0 right-0 p-4 z-10">
+          <div className="flex items-end justify-between">
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 mb-1">
+                <span className="text-lg bg-white/20 backdrop-blur-md w-8 h-8 rounded-xl flex items-center justify-center shrink-0">{comm.icon}</span>
+                <h3 className="text-base font-black text-white leading-tight truncate">{comm.name}</h3>
+              </div>
+              <p className="text-[10px] text-white/70 font-bold">{comm.memberCount.toLocaleString()} {t.commMembers || 'عضو'}</p>
+            </div>
+            {/* Stacked member avatars + join button (Feature 7) */}
+            <div className="flex flex-col items-end gap-1 shrink-0 ml-2">
+              <div className="flex items-center">
+                {memberSeeds.map((seed, i) => (
+                  <img
+                    key={seed}
+                    src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${seed}`}
+                    className="w-7 h-7 rounded-full border-2 border-white/60 bg-white object-cover"
+                    style={{ marginLeft: i > 0 ? -10 : 0 }}
+                    alt=""
+                  />
+                ))}
+              </div>
+              <button
+                onClick={e => { e.stopPropagation(); setJoinedCommunities(prev => isJoined ? prev.filter(id => id !== comm.id) : [...prev, comm.id]); }}
+                className={`text-[9px] font-black px-2.5 py-1 rounded-full transition-all ${isJoined ? 'bg-emerald-500 text-white' : 'bg-white/20 text-white backdrop-blur-sm'}`}
+              >
+                {isJoined ? '✓ منضم' : '+ انضم'}
+              </button>
+            </div>
+          </div>
         </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   if (selectedCommunity) {
     const communityFaza = localFazaRequests.filter(r => r.communityId === selectedCommunity.id);
@@ -432,11 +648,27 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
       timestamp: Date.now()
     }];
 
-    // Computed threads for current community with search filter
-    const communityThreads = (threads[selectedCommunity?.id || ''] || []).filter(t =>
+    // Computed threads for current community with search filter + sort + pin (Feature 2)
+    let communityThreadsList = (threads[selectedCommunity?.id || ''] || []).filter(t =>
       !threadSearch || t.title.toLowerCase().includes(threadSearch.toLowerCase()) ||
       t.tags.some(tag => tag.toLowerCase().includes(threadSearch.toLowerCase()))
     );
+    if (threadSort === 'replies') communityThreadsList = [...communityThreadsList].sort((a, b) => b.replies.length - a.replies.length);
+    else if (threadSort === 'reactions') communityThreadsList = [...communityThreadsList].sort((a, b) => {
+      const rA = Object.values(threadReactions[a.id] || {}).reduce((s, u) => s + u.length, 0);
+      const rB = Object.values(threadReactions[b.id] || {}).reduce((s, u) => s + u.length, 0);
+      return rB - rA;
+    });
+    else if (threadSort === 'trending') communityThreadsList = [...communityThreadsList].sort((a, b) => {
+      const ageA = Math.max(1, (Date.now() - new Date(a.createdAt).getTime()) / 3600000);
+      const ageB = Math.max(1, (Date.now() - new Date(b.createdAt).getTime()) / 3600000);
+      const scoreA = (a.replies.length + Object.values(threadReactions[a.id] || {}).reduce((s, u) => s + u.length, 0)) / ageA;
+      const scoreB = (b.replies.length + Object.values(threadReactions[b.id] || {}).reduce((s, u) => s + u.length, 0)) / ageB;
+      return scoreB - scoreA;
+    });
+    else communityThreadsList = [...communityThreadsList].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    // Pinned always first
+    const communityThreads = [...communityThreadsList.filter(t => t.pinned), ...communityThreadsList.filter(t => !t.pinned)];
 
     // اقتراح أماكن للمجلس بناءً على تصنيف المجتمع والأماكن الحقيقية
     const suggestions = allPlaces.filter(p => {
@@ -469,9 +701,10 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
           {[
             { id: 'majlis', label: t.commMajlis || 'المجلس', icon: MessageSquare },
             { id: 'events', label: 'الفعاليات', icon: Calendar },
-            { id: 'requests', label: t.commFazaRequests || 'الفزعات', icon: ShieldCheck }
+            { id: 'requests', label: t.commFazaRequests || 'الفزعات', icon: ShieldCheck },
+            { id: 'about', label: 'عن المجتمع', icon: Info }
           ].map(tab => (
-            <button key={tab.id} onClick={() => setActiveTab(tab.id as any)} className={`flex-1 py-4 text-xs font-black transition-all flex flex-col items-center gap-1 border-b-2 ${activeTab === tab.id ? 'border-emerald-600 text-emerald-600' : 'border-transparent text-slate-400'}`}>
+            <button key={tab.id} onClick={() => setActiveTab(tab.id as any)} className={`flex-1 py-3 text-[10px] font-black transition-all flex flex-col items-center gap-1 border-b-2 ${activeTab === tab.id ? 'border-emerald-600 text-emerald-600' : 'border-transparent text-slate-400'}`}>
               <tab.icon className="w-4 h-4" /> {tab.label}
             </button>
           ))}
@@ -495,9 +728,19 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
                       <ArrowLeft className="w-4 h-4" />
                     </button>
                     <div className="flex-1 min-w-0">
-                      <p className="font-black text-slate-900 text-sm truncate">{selectedThread.title}</p>
+                      <p className="font-black text-slate-900 text-sm truncate">{selectedThread.pinned ? '📌 ' : ''}{selectedThread.title}</p>
                       <p className="text-[10px] text-slate-400">{selectedThread.replies.length} رد · {selectedThread.authorName}</p>
                     </div>
+                    {/* Pin/unpin button — only for author (Feature 2) */}
+                    {selectedThread.authorName === userProfile.name && (
+                      <button
+                        onClick={() => handleTogglePin(selectedThread.id)}
+                        className={`w-9 h-9 rounded-full flex items-center justify-center transition-transform active:scale-90 ${selectedThread.pinned ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-50 text-slate-400'}`}
+                        title={selectedThread.pinned ? 'إلغاء التثبيت' : 'تثبيت الموضوع'}
+                      >
+                        <span className="text-base">{selectedThread.pinned ? '📌' : '📍'}</span>
+                      </button>
+                    )}
                   </div>
 
                   {/* Thread body + replies scroll area */}
@@ -505,9 +748,53 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
                     {/* Original post */}
                     <div className="bg-white rounded-3xl p-5 border border-slate-100 shadow-sm">
                       <h3 className="font-black text-slate-900 text-base mb-3 leading-snug">{selectedThread.title}</h3>
+                      {/* Feature 4: Thread image */}
+                      {selectedThread.imageUrl && (
+                        <img src={selectedThread.imageUrl} className="w-full rounded-2xl object-cover max-h-64 mb-3" alt="" />
+                      )}
                       {selectedThread.body ? (
                         <p className="text-sm text-slate-700 leading-relaxed mb-4">{selectedThread.body}</p>
                       ) : null}
+                      {/* Feature 10: Link preview in detail */}
+                      {!selectedThread.imageUrl && (() => { const url = extractFirstUrl(selectedThread.body); return url ? (
+                        <a href={url} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} className="flex items-center gap-2 bg-slate-50 border border-slate-100 rounded-xl px-3 py-2 mt-1 mb-2 text-xs text-slate-600 hover:bg-slate-100 transition">
+                          <Globe className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
+                          <span className="truncate font-medium">{urlDomain(url)}</span>
+                          <ExternalLink className="w-3 h-3 text-slate-300 flex-shrink-0 ml-auto" />
+                        </a>
+                      ) : null; })()}
+                      {/* Feature 13: Poll in detail */}
+                      {selectedThread.poll && (() => {
+                        const poll = selectedThread.poll!;
+                        const totalVotes = Object.keys(poll.votes).length;
+                        const userVote = poll.votes[userProfile.id];
+                        return (
+                          <div className="mb-4 bg-slate-50 rounded-2xl p-4">
+                            <p className="font-black text-slate-800 text-sm mb-3">{poll.question}</p>
+                            <div className="space-y-2">
+                              {poll.options.map((opt, idx) => {
+                                const voteCount = Object.values(poll.votes).filter(v => v === idx).length;
+                                const pct = totalVotes > 0 ? Math.round((voteCount / totalVotes) * 100) : 0;
+                                const isLeading = totalVotes > 0 && voteCount === Math.max(...poll.options.map((_, i) => Object.values(poll.votes).filter(v => v === i).length));
+                                const isUserChoice = userVote === idx;
+                                return (
+                                  <button key={idx} onClick={() => handleVotePoll(selectedThread.id, idx)}
+                                    className={`w-full relative overflow-hidden rounded-xl px-4 py-2.5 text-left transition-all ${isUserChoice ? 'ring-2 ring-emerald-500' : 'hover:bg-slate-100'}`}
+                                    style={{ background: 'white' }}
+                                  >
+                                    <div className="absolute inset-0 rounded-xl transition-all duration-500" style={{ width: `${pct}%`, background: isLeading ? 'rgba(16,185,129,0.15)' : 'rgba(148,163,184,0.12)' }} />
+                                    <div className="relative flex items-center justify-between">
+                                      <span className="text-sm font-bold text-slate-800">{opt}</span>
+                                      <span className="text-xs font-black text-slate-500">{pct}%</span>
+                                    </div>
+                                  </button>
+                                );
+                              })}
+                            </div>
+                            <p className="text-[10px] text-slate-400 mt-2 font-bold">{totalVotes} صوت</p>
+                          </div>
+                        );
+                      })()}
                       {selectedThread.tags.length > 0 && (
                         <div className="flex flex-wrap gap-1.5 mb-4">
                           {selectedThread.tags.map(tag => (
@@ -522,6 +809,23 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
                           {selectedThread.authorName.charAt(0)}
                         </div>
                         <p className="text-[10px] text-slate-400 font-bold">{selectedThread.authorName} · {formatRelativeTime(selectedThread.createdAt)}</p>
+                      </div>
+                      {/* Emoji reactions on OP */}
+                      <div className="flex items-center gap-2 mt-3 pt-3 border-t border-slate-50">
+                        <span className="text-[10px] text-slate-400 font-bold ml-1">التفاعل:</span>
+                        {['👍', '❤️', '😂', '😮'].map(emoji => {
+                          const count = (threadReactions[selectedThread.id]?.[emoji] || []).length;
+                          const reacted = (threadReactions[selectedThread.id]?.[emoji] || []).includes(userProfile.id);
+                          return (
+                            <button
+                              key={emoji}
+                              onClick={() => handleToggleReaction(selectedThread.id, emoji)}
+                              className={`flex items-center gap-1 px-3 py-1 rounded-full text-sm font-bold border transition-all active:scale-90 ${reacted ? 'bg-emerald-50 border-emerald-300 text-emerald-700 shadow-sm' : 'bg-slate-50 border-slate-100 text-slate-500 hover:border-slate-200'}`}
+                            >
+                              {emoji}{count > 0 && <span className="text-[11px] ml-0.5">{count}</span>}
+                            </button>
+                          );
+                        })}
                       </div>
                     </div>
 
@@ -538,6 +842,10 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
                         <div className={`max-w-[80%] p-3 rounded-2xl shadow-sm ${reply.authorName === userProfile.name ? 'bg-emerald-600 text-white rounded-tr-none' : 'bg-white border border-slate-100 rounded-tl-none'}`}>
                           {reply.authorName !== userProfile.name && (
                             <p className="text-[9px] font-bold opacity-60 mb-1">{reply.authorName}</p>
+                          )}
+                          {/* Feature 4: Reply image */}
+                          {reply.imageUrl && (
+                            <img src={reply.imageUrl} className="w-full rounded-xl object-cover max-h-40 mb-2" alt="" />
                           )}
                           <p className="text-sm">{reply.text}</p>
                           <p className={`text-[9px] mt-1 ${reply.authorName === userProfile.name ? 'opacity-60 text-right' : 'text-slate-400'}`}>
@@ -557,21 +865,39 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
                     <div ref={threadEndRef} />
                   </div>
 
-                  {/* Reply input */}
-                  <div className="p-4 bg-white border-t border-slate-100 flex gap-2 shrink-0">
-                    <input
-                      className="flex-1 bg-slate-50 rounded-full px-4 py-2.5 text-sm outline-none"
-                      placeholder="اكتب ردك هنا..."
-                      value={replyText}
-                      onChange={(e) => setReplyText(e.target.value)}
-                      onKeyDown={(e) => e.key === 'Enter' && handleReplyToThread()}
-                    />
-                    <button
-                      onClick={handleReplyToThread}
-                      className="w-10 h-10 bg-emerald-600 rounded-full flex items-center justify-center text-white shadow-md active:scale-90 transition-transform rtl:rotate-180"
-                    >
-                      <Send className="w-4 h-4" />
-                    </button>
+                  {/* Reply input (Feature 4: image toggle) */}
+                  <div className="bg-white border-t border-slate-100 shrink-0">
+                    {showReplyImageInput && (
+                      <div className="px-4 pt-3">
+                        <input
+                          className="w-full bg-slate-50 border border-slate-100 rounded-xl px-3 py-2 text-xs outline-none focus:ring-2 focus:ring-emerald-400"
+                          placeholder="رابط الصورة https://..."
+                          value={replyImageUrl}
+                          onChange={e => setReplyImageUrl(e.target.value)}
+                        />
+                      </div>
+                    )}
+                    <div className="p-4 flex gap-2">
+                      <button
+                        onClick={() => setShowReplyImageInput(v => !v)}
+                        className={`w-10 h-10 rounded-full flex items-center justify-center transition-transform active:scale-90 ${showReplyImageInput ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-50 text-slate-400'}`}
+                      >
+                        <Image className="w-4 h-4" />
+                      </button>
+                      <input
+                        className="flex-1 bg-slate-50 rounded-full px-4 py-2.5 text-sm outline-none"
+                        placeholder="اكتب ردك هنا..."
+                        value={replyText}
+                        onChange={(e) => setReplyText(e.target.value)}
+                        onKeyDown={(e) => e.key === 'Enter' && handleReplyToThread()}
+                      />
+                      <button
+                        onClick={handleReplyToThread}
+                        className="w-10 h-10 bg-emerald-600 rounded-full flex items-center justify-center text-white shadow-md active:scale-90 transition-transform rtl:rotate-180"
+                      >
+                        <Send className="w-4 h-4" />
+                      </button>
+                    </div>
                   </div>
                 </div>
               ) : showCreateThread ? (
@@ -628,12 +954,62 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
                       )}
                     </div>
 
+                    {/* Feature 4: Image URL input */}
+                    <div>
+                      <label className="text-xs font-black text-slate-600 mb-1.5 block">رابط صورة (اختياري)</label>
+                      <input
+                        className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                        placeholder="https://..."
+                        value={newThreadImageUrl}
+                        onChange={(e) => setNewThreadImageUrl(e.target.value)}
+                      />
+                    </div>
+
+                    {/* Feature 13: Poll section */}
+                    <div>
+                      <button
+                        type="button"
+                        onClick={() => setNewPoll(p => ({ ...p, enabled: !p.enabled }))}
+                        className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black border transition-all ${newPoll.enabled ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white text-slate-600 border-slate-200'}`}
+                      >
+                        📊 {newPoll.enabled ? 'إلغاء الاستفتاء' : 'إضافة استفتاء'}
+                      </button>
+                      {newPoll.enabled && (
+                        <div className="mt-3 space-y-3 bg-slate-50 rounded-2xl p-4">
+                          <input
+                            className="w-full bg-white border border-slate-100 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-emerald-500"
+                            placeholder="سؤال الاستفتاء..."
+                            value={newPoll.question}
+                            onChange={e => setNewPoll(p => ({ ...p, question: e.target.value }))}
+                          />
+                          {newPoll.options.map((opt, idx) => (
+                            <div key={idx} className="flex items-center gap-2">
+                              <input
+                                className="flex-1 bg-white border border-slate-100 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-emerald-500"
+                                placeholder={`الخيار ${idx + 1}`}
+                                value={opt}
+                                onChange={e => setNewPoll(p => { const options = [...p.options]; options[idx] = e.target.value; return { ...p, options }; })}
+                              />
+                              {idx >= 2 && (
+                                <button onClick={() => setNewPoll(p => ({ ...p, options: p.options.filter((_, i) => i !== idx) }))} className="w-8 h-8 bg-red-50 text-red-500 rounded-full flex items-center justify-center text-sm font-bold">×</button>
+                              )}
+                            </div>
+                          ))}
+                          {newPoll.options.length < 4 && (
+                            <button onClick={() => setNewPoll(p => ({ ...p, options: [...p.options, ''] }))} className="text-xs font-black text-emerald-600 flex items-center gap-1">
+                              <Plus className="w-3.5 h-3.5" /> إضافة خيار
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
                     <Button
                       onClick={handleCreateThread}
                       className="w-full py-4 font-black"
-                      disabled={!newThread.title.trim()}
+                      disabled={!newThread.title.trim() || isSubmitting}
                     >
-                      نشر الموضوع
+                      {isSubmitting ? '...' : 'نشر الموضوع'}
                     </Button>
                   </div>
                 </div>
@@ -662,6 +1038,23 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
                     >
                       <Plus className="w-3.5 h-3.5" /> موضوع +
                     </button>
+                  </div>
+                  {/* Feature 2: Sort bar */}
+                  <div className="bg-white border-b border-slate-100 px-4 pb-2.5 flex gap-2 shrink-0">
+                    {([
+                      { key: 'latest', label: 'الأحدث' },
+                      { key: 'replies', label: 'الأكثر ردوداً' },
+                      { key: 'reactions', label: 'الأكثر تفاعلاً' },
+                      { key: 'trending', label: 'رائج' },
+                    ] as const).map(opt => (
+                      <button
+                        key={opt.key}
+                        onClick={() => setThreadSort(opt.key)}
+                        className={`shrink-0 px-3 py-1 rounded-full text-[10px] font-black border transition-all ${threadSort === opt.key ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white text-slate-500 border-slate-200'}`}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
                   </div>
 
                   {/* Thread list */}
@@ -709,14 +1102,40 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
                         <div
                           key={thread.id}
                           onClick={() => setSelectedThread(thread)}
-                          className="bg-white rounded-3xl p-5 border border-slate-100 shadow-sm active:scale-[0.98] transition-transform cursor-pointer"
+                          className={`bg-white rounded-3xl p-5 border shadow-sm active:scale-[0.98] transition-transform cursor-pointer ${thread.pinned ? 'border-emerald-200 bg-emerald-50/30' : 'border-slate-100'}`}
                         >
+                          {/* Feature 2: Pin badge */}
+                          {thread.pinned && (
+                            <div className="flex items-center gap-1 mb-2">
+                              <span className="text-[10px] font-black text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">📌 مثبت</span>
+                            </div>
+                          )}
+                          {/* Feature 4: Thread thumbnail image */}
+                          {thread.imageUrl && (
+                            <img src={thread.imageUrl} className="w-full h-28 rounded-xl object-cover mb-2" alt="" />
+                          )}
                           {/* Title */}
                           <h4 className="font-black text-slate-900 text-sm leading-snug mb-2">{thread.title}</h4>
                           {/* Body preview */}
                           {thread.body ? (
                             <p className="text-xs text-slate-500 leading-relaxed mb-3 line-clamp-2">{thread.body}</p>
                           ) : null}
+                          {/* Feature 10: Link preview in list card */}
+                          {!thread.imageUrl && (() => { const url = extractFirstUrl(thread.body); return url ? (
+                            <a href={url} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} className="flex items-center gap-2 bg-slate-50 border border-slate-100 rounded-xl px-3 py-2 mt-1 mb-2 text-xs text-slate-600 hover:bg-slate-100 transition">
+                              <Globe className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
+                              <span className="truncate font-medium">{urlDomain(url)}</span>
+                              <ExternalLink className="w-3 h-3 text-slate-300 flex-shrink-0 ml-auto" />
+                            </a>
+                          ) : null; })()}
+                          {/* Feature 13: Poll compact preview */}
+                          {thread.poll && (
+                            <div className="flex items-center gap-2 mb-2 bg-slate-50 rounded-xl px-3 py-2">
+                              <span className="text-[10px]">📊</span>
+                              <span className="text-[10px] font-bold text-slate-600 truncate">{thread.poll.question}</span>
+                              <span className="text-[9px] text-slate-400 shrink-0">{thread.poll.options.length} خيارات</span>
+                            </div>
+                          )}
                           {/* Tags */}
                           {thread.tags.length > 0 && (
                             <div className="flex flex-wrap gap-1.5 mb-3">
@@ -739,6 +1158,22 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
                               <MessageCircle className="w-3 h-3" />
                               <span>{thread.replies.length}</span>
                             </div>
+                          </div>
+                          {/* Emoji reactions */}
+                          <div className="flex items-center gap-1.5 mt-2.5">
+                            {['👍', '❤️', '😂', '😮'].map(emoji => {
+                              const count = (threadReactions[thread.id]?.[emoji] || []).length;
+                              const reacted = (threadReactions[thread.id]?.[emoji] || []).includes(userProfile.id);
+                              return (
+                                <button
+                                  key={emoji}
+                                  onClick={(e) => { e.stopPropagation(); handleToggleReaction(thread.id, emoji); }}
+                                  className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold border transition-all active:scale-90 ${reacted ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-slate-50 border-slate-100 text-slate-500'}`}
+                                >
+                                  {emoji}{count > 0 && <span className="ml-0.5">{count}</span>}
+                                </button>
+                              );
+                            })}
                           </div>
                         </div>
                       ))
@@ -821,8 +1256,69 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
                   </div>
                 ))}
               </section>
+              {/* Feature 8: Completed Faza history */}
+              {completedFaza.length > 0 && (
+                <section>
+                  <h3 className="text-xs font-black text-slate-400 mb-3 uppercase tracking-widest flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-500" /> الفزعات المنجزة
+                  </h3>
+                  <div className="space-y-2">
+                    {completedFaza.map(fz => (
+                      <div key={fz.id} className="bg-emerald-50 border border-emerald-100 rounded-2xl px-4 py-3 flex items-center gap-3">
+                        <CheckCircle2 className="w-5 h-5 text-emerald-500 shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-bold text-slate-800 line-clamp-1">{fz.question}</p>
+                          <p className="text-[10px] text-slate-400">{formatRelativeTime(fz.answeredAt)}</p>
+                        </div>
+                        <span className="shrink-0 bg-emerald-600 text-white text-[10px] font-black px-2 py-0.5 rounded-full">+{fz.pointsEarned}</span>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              )}
             </div>
           )}
+
+          {/* Feature 11: About tab */}
+          {activeTab === 'about' && (() => {
+            const aboutData = COMMUNITY_ABOUT[selectedCommunity.id] || COMMUNITY_ABOUT['default'];
+            return (
+              <div className="h-full overflow-y-auto p-4 space-y-4 pb-20">
+                {/* Header */}
+                <div className="flex items-center gap-3 bg-white rounded-3xl p-5 border border-slate-100 shadow-sm">
+                  <span className="text-3xl">{selectedCommunity.icon}</span>
+                  <div>
+                    <h3 className="font-black text-slate-900 text-base">{selectedCommunity.name}</h3>
+                    <p className="text-[10px] text-slate-400">{selectedCommunity.memberCount.toLocaleString()} عضو</p>
+                  </div>
+                </div>
+                {/* About text */}
+                <div className="bg-white rounded-3xl p-5 border border-slate-100 shadow-sm">
+                  <h4 className="font-black text-slate-700 text-sm mb-2 flex items-center gap-2"><Info className="w-4 h-4 text-emerald-600" /> عن المجتمع</h4>
+                  <p className="text-sm text-slate-600 leading-relaxed">{aboutData.about}</p>
+                </div>
+                {/* Rules list */}
+                <div className="bg-white rounded-3xl p-5 border border-slate-100 shadow-sm">
+                  <h4 className="font-black text-slate-700 text-sm mb-3 flex items-center gap-2"><ShieldCheck className="w-4 h-4 text-emerald-600" /> قواعد المجتمع</h4>
+                  <ol className="space-y-3">
+                    {aboutData.rules.map((rule, idx) => (
+                      <li key={idx} className="flex items-start gap-3">
+                        <span className="w-6 h-6 rounded-full bg-emerald-600 text-white text-[11px] font-black flex items-center justify-center shrink-0 mt-0.5">{idx + 1}</span>
+                        <p className="text-sm text-slate-700 leading-snug">{rule}</p>
+                      </li>
+                    ))}
+                  </ol>
+                </div>
+                {/* Contact admin button */}
+                <button
+                  onClick={() => { setSuccessMessage('تم إرسال رسالتك للمشرف 📩'); setTimeout(() => setSuccessMessage(null), 3000); }}
+                  className="w-full py-3.5 bg-slate-900 text-white font-black rounded-2xl text-sm active:scale-95 transition-transform"
+                >
+                  تواصل مع المشرف
+                </button>
+              </div>
+            );
+          })()}
         </div>
 
         {/* Create Event Modal */}
@@ -839,7 +1335,9 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
                 </div>
                 <Input label="الموقع" placeholder="مثال: ملاعب فور بادل" value={newEvent.location} onChange={(e: any) => setNewEvent({ ...newEvent, location: e.target.value })} />
                 <textarea className="w-full h-24 p-4 bg-slate-50 rounded-2xl border border-slate-100 text-sm outline-none focus:ring-2 focus:ring-emerald-500" placeholder="وصف الفعالية..." value={newEvent.description} onChange={(e) => setNewEvent({ ...newEvent, description: e.target.value })} />
-                <Button onClick={handleCreateEvent} className="w-full py-4 font-black">نشر الفعالية</Button>
+                <Button onClick={handleCreateEvent} disabled={isSubmitting || !newEvent.title || !newEvent.date} className="w-full py-4 font-black">
+                  {isSubmitting ? '...' : 'نشر الفعالية'}
+                </Button>
               </div>
             </div>
           </div>
@@ -876,11 +1374,25 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
           <div>
             <h1 className="text-3xl font-black text-slate-900 tracking-tighter leading-none">{t.tabCommunities || 'المجتمعات'}</h1>
           </div>
-          <div className="bg-white px-3 py-1.5 rounded-2xl shadow-sm border border-slate-100 flex items-center gap-2">
-            <div className="w-7 h-7 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600">
-              <WalletIcon className="w-3.5 h-3.5" />
+          <div className="flex items-center gap-2">
+            {/* Notification bell */}
+            <button
+              className="relative w-9 h-9 bg-white rounded-full shadow-sm border border-slate-100 flex items-center justify-center active:scale-90 transition-transform"
+              onClick={() => setUnreadCount(0)}
+            >
+              <Bell className="w-4 h-4 text-slate-600" />
+              {unreadCount > 0 && (
+                <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-[8px] font-black rounded-full flex items-center justify-center">
+                  {unreadCount > 9 ? '9+' : unreadCount}
+                </span>
+              )}
+            </button>
+            <div className="bg-white px-3 py-1.5 rounded-2xl shadow-sm border border-slate-100 flex items-center gap-2">
+              <div className="w-7 h-7 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600">
+                <WalletIcon className="w-3.5 h-3.5" />
+              </div>
+              <p className="text-xs font-black text-slate-900">{(userProfile.walletBalance || 0).toFixed(2)} ر.س</p>
             </div>
-            <p className="text-xs font-black text-slate-900">{(userProfile.walletBalance || 0).toFixed(2)} ر.س</p>
           </div>
         </div>
         <div className="flex gap-2">
@@ -905,6 +1417,34 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
       {/* ── COMMUNITIES TAB ─────────────────────────────────────────────── */}
       {mainTab === 'communities' && (
         <div className="p-6 space-y-8">
+          {/* Feature 12: Weekly Recap Digest */}
+          {(() => {
+            const weekStart = Date.now() - 7 * 24 * 60 * 60 * 1000;
+            const recapThreads = Object.values(threads).flat().filter((th: MajlisThread) => new Date(th.createdAt).getTime() > weekStart).length;
+            const recapEvents = localEvents.filter(e => new Date(e.date).getTime() > weekStart - 7*24*3600*1000).length;
+            const recapTrips = travelPosts.filter(p => p.timestamp > weekStart && p.userId !== userProfile.id).length;
+            if (recapThreads + recapEvents + recapTrips === 0) return null;
+            return (
+              <div className="bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-3xl p-5">
+                <h3 className="font-black text-amber-800 text-sm mb-3">هذا الأسبوع في مجتمعاتك 📊</h3>
+                <div className="flex items-center gap-4">
+                  <div className="flex-1 text-center bg-white/60 rounded-2xl py-2.5">
+                    <p className="text-2xl font-black text-amber-700">{recapThreads}</p>
+                    <p className="text-[9px] font-bold text-amber-600">موضوع جديد</p>
+                  </div>
+                  <div className="flex-1 text-center bg-white/60 rounded-2xl py-2.5">
+                    <p className="text-2xl font-black text-amber-700">{recapEvents}</p>
+                    <p className="text-[9px] font-bold text-amber-600">فعالية</p>
+                  </div>
+                  <div className="flex-1 text-center bg-white/60 rounded-2xl py-2.5">
+                    <p className="text-2xl font-black text-amber-700">{recapTrips}</p>
+                    <p className="text-[9px] font-bold text-amber-600">رحلة جديدة</p>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
+
           <div className="bg-slate-900 rounded-[35px] p-6 text-white shadow-2xl relative overflow-hidden">
             <div className="relative z-10">
               <div className="flex items-center gap-3 mb-4">
@@ -939,12 +1479,67 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
           </div>
 
           <div>
-            <h2 className="text-xs font-black text-slate-400 mb-4 uppercase tracking-[0.2em] flex items-center gap-2">
+            <h2 className="text-xs font-black text-slate-400 mb-3 uppercase tracking-[0.2em] flex items-center gap-2">
               <Users className="w-4 h-4 text-emerald-600" /> استكشف المجالس والمجتمعات
             </h2>
+
+            {/* Feature 7: My Communities shelf */}
+            {joinedCommunities.length > 0 && (
+              <div className="mb-4">
+                <p className="text-[10px] font-black text-slate-500 mb-2 uppercase tracking-widest">مجتمعاتي</p>
+                <div className="flex gap-3 overflow-x-auto no-scrollbar pb-1">
+                  {joinedCommunities.map(cid => {
+                    const comm = communities.find(c => c.id === cid);
+                    if (!comm) return null;
+                    return (
+                      <button
+                        key={cid}
+                        onClick={() => { setSelectedCommunity(comm); setActiveTab('majlis'); setSelectedThread(null); setShowCreateThread(false); }}
+                        className="flex flex-col items-center gap-1 shrink-0 active:scale-95 transition-transform"
+                      >
+                        <div className="w-14 h-14 rounded-2xl overflow-hidden border-2 border-emerald-400 shadow-sm">
+                          <img src={comm.image} className="w-full h-full object-cover" alt={comm.name} />
+                        </div>
+                        <span className="text-[9px] font-bold text-slate-700 text-center line-clamp-1 max-w-[60px]">{comm.name.replace(/[^\u0600-\u06FFA-Za-z0-9 ]/g, '').trim() || comm.name}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Feature 6: Community search bar */}
+            <div className="flex items-center gap-2 bg-slate-100 rounded-xl px-3 py-2.5 mb-3">
+              <Search className="w-4 h-4 text-slate-400 shrink-0" />
+              <input
+                className="flex-1 bg-transparent text-sm outline-none placeholder:text-slate-400"
+                placeholder="ابحث في المجتمعات..."
+                value={communitySearch}
+                onChange={e => setCommunitySearch(e.target.value)}
+              />
+              {communitySearch && (
+                <button onClick={() => setCommunitySearch('')} className="text-slate-400">
+                  <X className="w-4 h-4" />
+                </button>
+              )}
+            </div>
+
+            {/* Category filter chips */}
+            <div className="flex gap-2 overflow-x-auto no-scrollbar pb-3 mb-1">
+              {COMMUNITY_CATEGORIES.map(cat => (
+                <button
+                  key={cat}
+                  onClick={() => setCategoryFilter(cat)}
+                  className={`shrink-0 px-4 py-1.5 rounded-full text-xs font-black border transition-all ${categoryFilter === cat ? 'bg-emerald-600 text-white border-emerald-600 shadow-md' : 'bg-white text-slate-600 border-slate-200 hover:border-emerald-400'}`}
+                >
+                  {cat}
+                </button>
+              ))}
+            </div>
+
             <div className="grid gap-2">
-              {communities.length > 0 ? (
-                communities.map(renderCommunityCard)
+              {filteredCommunities.length > 0 ? (
+                filteredCommunities.map(renderCommunityCard)
               ) : (
                 <div className="text-center py-12 bg-white rounded-3xl border border-dashed border-slate-200">
                   <Users className="w-10 h-10 mx-auto text-slate-300 mb-3" />
@@ -972,6 +1567,47 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
               <Plus className="w-4 h-4" /> {(t as any).ttPostTrip || 'Post a Trip'}
             </button>
           </div>
+
+          {/* Smart match recommendation */}
+          {travelPosts.length > 0 && (() => {
+            const userInterests = userProfile.smartProfile?.interests || [];
+            const recommended = travelPosts.find(p =>
+              p.userId !== userProfile.id && !p.joinedByMe && p.interests.some(i => userInterests.includes(i))
+            ) || travelPosts.find(p => p.userId !== userProfile.id && !p.joinedByMe);
+            if (!recommended) return null;
+            const spotsLeft = recommended.maxSize - recommended.groupSize;
+            const isFull = spotsLeft <= 0;
+            return (
+              <div className="bg-gradient-to-br from-emerald-50 to-teal-50 border-2 border-emerald-200 rounded-3xl p-5 shadow-sm">
+                <div className="flex items-center gap-2 mb-3">
+                  <Star className="w-4 h-4 text-emerald-600 fill-emerald-600" />
+                  <span className="text-xs font-black text-emerald-700">موصى به لك</span>
+                </div>
+                <div className="flex items-center gap-3 mb-2">
+                  <img src={recommended.userAvatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${recommended.userId}`} className="w-9 h-9 rounded-full border-2 border-emerald-200" alt="" />
+                  <div className="flex-1 min-w-0">
+                    <p className="font-black text-slate-900 text-sm">{recommended.userName}</p>
+                    <p className="text-xs text-emerald-700 font-bold truncate">📍 {recommended.placeName}</p>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <p className={`text-[10px] font-black px-2 py-0.5 rounded-full ${spotsLeft <= 2 && !isFull ? 'bg-red-100 text-red-600' : 'bg-emerald-100 text-emerald-700'}`}>
+                      {isFull ? 'مكتمل' : `${spotsLeft} متبقي`}
+                    </p>
+                  </div>
+                </div>
+                {recommended.description && <p className="text-xs text-slate-600 mb-3 line-clamp-2">{recommended.description}</p>}
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => handleJoinTrip(recommended.id)}
+                    disabled={isFull || recommended.joinedByMe}
+                    className={`flex-1 py-2 text-xs font-black rounded-xl transition-all ${recommended.joinedByMe ? 'bg-emerald-100 text-emerald-700' : isFull ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : 'bg-emerald-600 text-white active:scale-95'}`}
+                  >
+                    {recommended.joinedByMe ? '✅ انضممت' : isFull ? 'مكتمل' : '🤝 انضم الآن'}
+                  </button>
+                </div>
+              </div>
+            );
+          })()}
 
           {/* Travel Posts Feed */}
           {travelPosts.length === 0 ? (
@@ -1016,55 +1652,113 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
                   <p className="text-sm text-slate-600 leading-relaxed mb-3">{post.description}</p>
                 )}
 
-                {/* Interests */}
-                {post.interests.length > 0 && (
-                  <div className="flex flex-wrap gap-1.5 mb-3">
-                    {post.interests.map(i => {
-                      const opt = INTEREST_KEYS.find(k => k.val === i);
-                      return (
-                      <span key={i} className="px-2 py-0.5 bg-emerald-50 text-emerald-700 text-[10px] font-bold rounded-full">
-                        {opt ? ((t as any)[opt.tKey] || i) : i}
-                      </span>
-                      );
-                    })}
-                  </div>
-                )}
+                {/* Interests + Feature 9: match score badge */}
+                {post.interests.length > 0 && (() => {
+                  const userInterests = userProfile.smartProfile?.interests || [];
+                  const score = post.interests.length === 0 ? 0 : Math.round((post.interests.filter(i => userInterests.includes(i)).length / post.interests.length) * 100);
+                  return (
+                    <div className="mb-3">
+                      <div className="flex flex-wrap gap-1.5 relative">
+                        {post.interests.map(i => {
+                          const opt = INTEREST_KEYS.find(k => k.val === i);
+                          return (
+                            <span key={i} className="px-2 py-0.5 bg-emerald-50 text-emerald-700 text-[10px] font-bold rounded-full">
+                              {opt ? ((t as any)[opt.tKey] || i) : i}
+                            </span>
+                          );
+                        })}
+                        {score > 0 && (
+                          <span className={`ml-auto shrink-0 px-2 py-0.5 rounded-full text-[10px] font-black ${score === 100 ? 'bg-yellow-50 text-yellow-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                            {score === 100 ? '⭐ ' : ''}{score}% match
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })()}
 
                 {/* Footer: group size + join */}
                 <div className="flex items-center justify-between pt-3 border-t border-slate-50">
                   <div className="flex items-center gap-2">
                     <div className="flex items-center gap-1">
-                      {Array.from({ length: post.maxSize }).map((_, idx) => (
+                      {Array.from({ length: Math.min(post.maxSize, 6) }).map((_, idx) => (
                         <div
                           key={idx}
                           className={`w-5 h-5 rounded-full border-2 ${idx < post.groupSize ? 'bg-emerald-500 border-emerald-500' : 'bg-slate-100 border-slate-200'}`}
                         />
                       ))}
                     </div>
-                    <span className="text-xs text-slate-500 font-bold">
-                      {post.groupSize}/{post.maxSize} {(t as any).ttSpots || 'spots'}
-                      {!isFull && <span className="text-emerald-600"> · {spotsLeft} {(t as any).ttLeft || 'left'}</span>}
-                    </span>
+                    {/* Spots left pill — red when ≤2 */}
+                    {!isFull ? (
+                      <span className={`text-[10px] font-black px-2.5 py-0.5 rounded-full ${spotsLeft <= 2 ? 'bg-red-50 text-red-600 border border-red-100' : 'bg-emerald-50 text-emerald-700'}`}>
+                        {spotsLeft} {(t as any).ttLeft || 'left'}
+                      </span>
+                    ) : (
+                      <span className="text-[10px] font-black px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-500">مكتمل</span>
+                    )}
                   </div>
-                  {!isMyPost && (
-                    <button
-                      onClick={() => handleJoinTrip(post.id)}
-                      disabled={isFull || post.joinedByMe}
-                      className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-black transition-all
-                        ${post.joinedByMe
-                          ? 'bg-emerald-50 text-emerald-700 cursor-default'
-                          : isFull
-                          ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
-                          : 'bg-emerald-600 text-white hover:bg-emerald-700 active:scale-95'
-                        }`}
-                    >
-                      {post.joinedByMe ? <><CheckCircle2 className="w-3.5 h-3.5" /> {(t as any).ttJoined || 'Joined'}</> : isFull ? ((t as any).ttFull || 'Full') : <><UserPlus className="w-3.5 h-3.5" /> {(t as any).ttJoin || 'Join'}</>}
-                    </button>
-                  )}
-                  {isMyPost && (
-                    <span className="text-[10px] font-bold text-slate-400 bg-slate-50 px-3 py-1.5 rounded-xl">{(t as any).ttYourPost || 'Your post'}</span>
-                  )}
+                  <div className="flex items-center gap-2">
+                    {!isMyPost && !isFull && !post.joinedByMe && (
+                      <button
+                        onClick={() => setChatDmPost(chatDmPost === post.id ? null : post.id)}
+                        className="flex items-center gap-1 px-3 py-1.5 bg-slate-100 rounded-xl text-xs font-bold text-slate-600 active:scale-95 transition-transform"
+                      >
+                        <MessageCircle className="w-3.5 h-3.5" /> رسالة
+                      </button>
+                    )}
+                    {!isMyPost && (
+                      <button
+                        onClick={() => handleJoinTrip(post.id)}
+                        disabled={isFull || post.joinedByMe}
+                        className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-black transition-all
+                          ${post.joinedByMe
+                            ? 'bg-emerald-50 text-emerald-700 cursor-default'
+                            : isFull
+                            ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
+                            : 'bg-emerald-600 text-white hover:bg-emerald-700 active:scale-95'
+                          }`}
+                      >
+                        {post.joinedByMe ? <><CheckCircle2 className="w-3.5 h-3.5" /> {(t as any).ttJoined || 'Joined'}</> : isFull ? ((t as any).ttFull || 'Full') : <><UserPlus className="w-3.5 h-3.5" /> {(t as any).ttJoin || 'Join'}</>}
+                      </button>
+                    )}
+                    {isMyPost && (
+                      <span className="text-[10px] font-bold text-slate-400 bg-slate-50 px-3 py-1.5 rounded-xl">{(t as any).ttYourPost || 'Your post'}</span>
+                    )}
+                  </div>
                 </div>
+                {/* Inline DM input */}
+                {chatDmPost === post.id && (
+                  <div className="mt-3 pt-3 border-t border-slate-100 flex gap-2 animate-in slide-in-from-top duration-200">
+                    <input
+                      className="flex-1 bg-slate-50 rounded-full px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-emerald-400"
+                      placeholder="أرسل رسالة للمنظم..."
+                      value={dmInputs[post.id] || ''}
+                      onChange={e => setDmInputs(prev => ({ ...prev, [post.id]: e.target.value }))}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter' && dmInputs[post.id]?.trim()) {
+                          setSuccessMessage(lang === 'ar' ? 'تم إرسال رسالتك للمنظم! 📩' : 'Message sent to the organiser! 📩');
+                          setDmInputs(prev => ({ ...prev, [post.id]: '' }));
+                          setChatDmPost(null);
+                          setTimeout(() => setSuccessMessage(null), 3000);
+                        }
+                      }}
+                      autoFocus
+                    />
+                    <button
+                      onClick={() => {
+                        if (dmInputs[post.id]?.trim()) {
+                          setSuccessMessage(lang === 'ar' ? 'تم إرسال رسالتك للمنظم! 📩' : 'Message sent to the organiser! 📩');
+                          setDmInputs(prev => ({ ...prev, [post.id]: '' }));
+                          setChatDmPost(null);
+                          setTimeout(() => setSuccessMessage(null), 3000);
+                        }
+                      }}
+                      className="w-9 h-9 bg-emerald-600 rounded-full flex items-center justify-center text-white shrink-0 active:scale-90 transition-transform"
+                    >
+                      <Send className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                )}
               </div>
             );
           })}
@@ -1167,10 +1861,10 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
 
               <button
                 onClick={handlePostTrip}
-                disabled={!newTripPost.placeName.trim() || !newTripPost.date}
+                disabled={!newTripPost.placeName.trim() || !newTripPost.date || isSubmitting}
                 className="w-full py-3.5 bg-emerald-600 text-white font-black rounded-2xl hover:bg-emerald-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {(t as any).ttPostBtn || 'Post Trip 🤝'}
+                {isSubmitting ? '...' : ((t as any).ttPostBtn || 'Post Trip 🤝')}
               </button>
             </div>
           </div>

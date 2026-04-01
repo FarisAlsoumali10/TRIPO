@@ -309,7 +309,7 @@ const CATEGORIES = ['All', 'Business & Tech', 'Culture', 'Sports', 'National'];
 
 // ── Date helpers ─────────────────────────────────────────────────────────────
 
-const TODAY = new Date('2026-03-27');
+const TODAY = new Date();
 
 const diffDays = (a: Date, b: Date) =>
   Math.ceil((b.getTime() - a.getTime()) / 86400000);

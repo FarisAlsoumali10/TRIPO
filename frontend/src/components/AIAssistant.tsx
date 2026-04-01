@@ -44,7 +44,7 @@ export const AIAssistant = ({ user, t, lang }: AIAssistantProps) => {
 
   const initializeGemini = async () => {
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY });
 
       const systemInstruction = `
         You are 'Tripo AI', a friendly local city guide for Riyadh, Saudi Arabia.

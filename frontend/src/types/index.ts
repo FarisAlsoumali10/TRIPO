@@ -264,7 +264,10 @@ export interface MajlisThread {
   authorName: string;
   createdAt: string;
   tags: string[];
-  replies: { id: string; text: string; authorName: string; createdAt: string }[];
+  replies: { id: string; text: string; authorName: string; createdAt: string; imageUrl?: string }[];
+  pinned?: boolean;
+  imageUrl?: string;
+  poll?: { question: string; options: string[]; votes: Record<string, number> };
 }
 
 export interface QAItem {

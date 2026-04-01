@@ -144,7 +144,7 @@ export const ARGuideScreen: React.FC<ARGuideScreenProps> = ({ onBack, user, t, l
   };
 
   const analyzeImage = async (base64Image: string) => {
-    const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+    const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY });
 
     // Mock location for context (Riyadh) if real geolocation isn't available/mocked
     const mockLat = 24.7136;
@@ -222,7 +222,7 @@ export const ARGuideScreen: React.FC<ARGuideScreenProps> = ({ onBack, user, t, l
     setInputMessage('');
 
     // Call Gemini for Q&A
-    const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+    const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY });
     const prompt = `
       You are an AR Guide discussing "${arData.name}".
       User asked: "${inputMessage}"

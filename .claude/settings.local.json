@@ -57,7 +57,10 @@
       "Bash(sed -n '300,360p' \"C:/Users/cd-88/TRIPO_NEW/frontend/types.ts\")",
       "Bash(grep:*)",
       "Bash(/tmp/report.md:*)",
-      "Read(//tmp/**)"
+      "Read(//tmp/**)",
+      "Bash(sed -i 's/process\\\\.env\\\\.GEMINI_API_KEY/import.meta.env.VITE_GEMINI_API_KEY/g' /c/Users/cd-88/TRIPO_NEW/frontend/src/screens/ARGuideScreen.tsx)",
+      "Bash(sed -i 's/process\\\\.env\\\\.API_KEY/import.meta.env.VITE_GEMINI_API_KEY/g' /c/Users/cd-88/TRIPO_NEW/frontend/src/screens/ARGuideScreen.tsx)",
+      "Bash(cat /c/Users/cd-88/TRIPO_NEW/frontend/tailwind.config*)"
     ],
     "deny": [],
     "ask": []

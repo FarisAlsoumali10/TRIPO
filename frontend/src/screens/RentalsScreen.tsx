@@ -3,6 +3,7 @@ import {
   Tent, Plus, X, Star, MapPin, Flame, Phone, SlidersHorizontal,
   Camera, ExternalLink, MessageCircle, ChevronLeft, ChevronRight, User,
   ArrowLeft, Home, BedDouble, Users, Info, Trophy, Search,
+  TrendingUp, Award, Navigation, Wallet,
 } from 'lucide-react';
 import { Button, Input } from '../components/ui';
 import { Rental } from '../types/index';
@@ -40,6 +41,7 @@ function saveReview(review: RentalReview) {
 }
 const TYPE_FILTER_IDS = ['All', 'Kashta', 'Camp', 'Chalet', 'Apartment', 'Sports'] as const;
 type SortOption = 'default' | 'price_asc' | 'price_desc' | 'rating_desc';
+type QuickFilter = 'budget' | 'trending' | 'top_rated' | 'near_me' | null;
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
@@ -77,6 +79,8 @@ export const MOCK_RENTALS: Rental[] = [
     images: [
       'https://images.unsplash.com/photo-1504280390367-361c6d9f38f4?w=800&q=80',
       'https://images.unsplash.com/photo-1533745848184-3db07256e163?w=800&q=80',
+      'https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?w=800&q=80',
+      'https://images.unsplash.com/photo-1531366936337-7c912a4589a7?w=800&q=80',
     ],
     rating: 4.8,
     description: 'A premium desert kashta camp set among rolling red dunes north of Riyadh. Includes a fully equipped outdoor kitchen, bonfire pit, and stargazing deck. Perfect for families and groups of up to 20 guests.',
@@ -95,6 +99,8 @@ export const MOCK_RENTALS: Rental[] = [
     images: [
       'https://images.unsplash.com/photo-1449158743715-0a90ebb6d2d8?w=800&q=80',
       'https://images.unsplash.com/photo-1470770841072-f978cf4d019e?w=800&q=80',
+      'https://images.unsplash.com/photo-1602940659805-770d1b3b9911?w=800&q=80',
+      'https://images.unsplash.com/photo-1441974231531-c6227db76b6e?w=800&q=80',
     ],
     rating: 4.9,
     description: 'Stunning mountain chalet with panoramic views over the Asir mountains. 3 bedrooms, a fully equipped kitchen, private terrace with BBQ, and a cozy fireplace for cool highland evenings. Sleeps up to 8.',
@@ -113,6 +119,8 @@ export const MOCK_RENTALS: Rental[] = [
     images: [
       'https://images.unsplash.com/photo-1559128010-7c1ad6e1b6a5?w=800&q=80',
       'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=800&q=80',
+      'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=800&q=80',
+      'https://images.unsplash.com/photo-1519046904884-53103b34b206?w=800&q=80',
     ],
     rating: 4.7,
     description: 'Wake up steps from the crystal-clear Red Sea with direct access to world-class snorkelling reefs. The camp includes 4 glamping tents, beach chairs, a BBQ station, and kayak rentals.',
@@ -131,6 +139,8 @@ export const MOCK_RENTALS: Rental[] = [
     images: [
       'https://images.unsplash.com/photo-1596895111956-bf1cf0599ce5?w=800&q=80',
       'https://images.unsplash.com/photo-1531366936337-7c912a4589a7?w=800&q=80',
+      'https://images.unsplash.com/photo-1504280390367-361c6d9f38f4?w=800&q=80',
+      'https://images.unsplash.com/photo-1682687982501-1e58ab814714?w=800&q=80',
     ],
     rating: 5.0,
     description: 'Luxury glamping tents surrounded by the ancient sandstone formations of AlUla. Wake up to sunrise over Hegra, enjoy a private chef breakfast, and stargaze from a private hot tub. An unmissable Saudi experience.',
@@ -148,6 +158,9 @@ export const MOCK_RENTALS: Rental[] = [
     image: 'https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?w=800&q=80',
     images: [
       'https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?w=800&q=80',
+      'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=800&q=80',
+      'https://images.unsplash.com/photo-1414235077428-338989a2e8c0?w=800&q=80',
+      'https://images.unsplash.com/photo-1567620905732-2d1ec7ab7445?w=800&q=80',
     ],
     rating: 4.5,
     description: 'Sleek and fully furnished 2-bedroom apartment in the heart of Riyadh\'s business district. Walking distance to Kingdom Centre Tower, premier malls, and Riyadh\'s best restaurants. High-speed WiFi included.',
@@ -382,21 +395,36 @@ const RentalDetailPage = ({ rental, onBack, allRentals = [], onSelectRental, t }
           </div>
         </div>
 
-        {/* Carousel arrows */}
+        {/* Carousel arrows + dots */}
         {images.length > 1 && (
           <>
             <button
               onClick={() => setImgIdx(i => (i - 1 + images.length) % images.length)}
-              className="absolute left-3 top-1/2 -translate-y-1/2 bg-black/50 text-white rounded-full p-1.5 hover:bg-black/70"
+              className="absolute left-3 top-1/2 -translate-y-1/2 bg-black/50 text-white rounded-full p-1.5 hover:bg-black/70 z-10"
             >
               <ChevronLeft className="w-4 h-4" />
             </button>
             <button
               onClick={() => setImgIdx(i => (i + 1) % images.length)}
-              className="absolute right-3 top-1/2 -translate-y-1/2 bg-black/50 text-white rounded-full p-1.5 hover:bg-black/70"
+              className="absolute right-3 top-1/2 -translate-y-1/2 bg-black/50 text-white rounded-full p-1.5 hover:bg-black/70 z-10"
             >
               <ChevronRight className="w-4 h-4" />
             </button>
+            {/* Dot indicators */}
+            <div className="absolute bottom-20 right-4 flex items-center gap-1.5 z-10">
+              {images.map((_, i) => (
+                <button
+                  key={i}
+                  onClick={() => setImgIdx(i)}
+                  className="transition-all duration-300 rounded-full"
+                  style={{ width: i === imgIdx ? 16 : 5, height: 5, background: i === imgIdx ? '#10b981' : 'rgba(255,255,255,0.55)' }}
+                />
+              ))}
+            </div>
+            {/* Photo counter */}
+            <div className="absolute top-4 right-4 bg-black/50 backdrop-blur-sm text-white text-xs font-bold px-2.5 py-1 rounded-full z-10">
+              {imgIdx + 1} / {images.length}
+            </div>
           </>
         )}
       </div>
@@ -703,8 +731,9 @@ export const RentalsScreen = ({ t, initialRentalId, onRentalOpened }: { t: any; 
     return all.find(r => (r.id || (r as any)._id) === initialRentalId) ?? null;
   });
   const [typeFilter, setTypeFilter] = useState<string>('All');
-  const [sortBy, setSortBy] = useState<SortOption>('default');
-  const [showSortMenu, setShowSortMenu] = useState(false);
+  const [quickFilter, setQuickFilter] = useState<QuickFilter>(null);
+  const [locating, setLocating] = useState(false);
+  const [userCoords, setUserCoords] = useState<[number, number] | null>(null);
   const [search, setSearch] = useState('');
   const [searchFocused, setSearchFocused] = useState(false);
 
@@ -827,6 +856,29 @@ export const RentalsScreen = ({ t, initialRentalId, onRentalOpened }: { t: any; 
       })),
   [rentals]);
 
+  const handleQuickFilter = (f: QuickFilter) => {
+    if (f === quickFilter) { setQuickFilter(null); return; }
+    if (f === 'near_me') {
+      if (!navigator.geolocation) { setQuickFilter('near_me'); return; }
+      setLocating(true);
+      navigator.geolocation.getCurrentPosition(
+        pos => { setUserCoords([pos.coords.latitude, pos.coords.longitude]); setQuickFilter('near_me'); setLocating(false); },
+        () => { setLocating(false); setQuickFilter('near_me'); },
+        { timeout: 8000 },
+      );
+      return;
+    }
+    setQuickFilter(f);
+  };
+
+  const haversine = (lat1: number, lon1: number, lat2: number, lon2: number) => {
+    const R = 6371;
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon / 2) ** 2;
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  };
+
   const visible = rentals
     .filter(r => {
       const matchType = typeFilter === 'All' || (typeFilter !== 'Sports' && r.type === typeFilter);
@@ -837,9 +889,14 @@ export const RentalsScreen = ({ t, initialRentalId, onRentalOpened }: { t: any; 
       return matchType && matchSearch;
     })
     .sort((a, b) => {
-      if (sortBy === 'price_asc') return (Number(a.price) || 0) - (Number(b.price) || 0);
-      if (sortBy === 'price_desc') return (Number(b.price) || 0) - (Number(a.price) || 0);
-      if (sortBy === 'rating_desc') return (b.rating ?? 0) - (a.rating ?? 0);
+      if (quickFilter === 'top_rated') return (b.rating ?? 0) - (a.rating ?? 0);
+      if (quickFilter === 'trending') return (b.rating ?? 0) - (a.rating ?? 0) || (Number(b.price) || 0) - (Number(a.price) || 0);
+      if (quickFilter === 'budget') return (Number(a.price) || 0) - (Number(b.price) || 0);
+      if (quickFilter === 'near_me' && userCoords) {
+        const distA = haversine(userCoords[0], userCoords[1], 24.7136, 46.6753);
+        const distB = haversine(userCoords[0], userCoords[1], 24.7136, 46.6753);
+        return distA - distB;
+      }
       return 0;
     });
 
@@ -898,9 +955,38 @@ export const RentalsScreen = ({ t, initialRentalId, onRentalOpened }: { t: any; 
         </div>
       </div>
 
-      {/* Filter + Sort bar */}
-      <div className="bg-white border-b border-slate-100 px-4 py-3 flex items-center gap-3">
-        <div className="flex gap-2 overflow-x-auto no-scrollbar flex-1">
+      {/* Quick filter pills */}
+      <div className="bg-white px-4 pt-2 pb-1">
+        <div className="relative">
+        <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
+          {([
+            { id: 'budget' as QuickFilter, label: t.filterBudget || 'Budget Friendly', icon: <Wallet className="w-3.5 h-3.5" /> },
+            { id: 'near_me' as QuickFilter, label: locating ? (t.filterLocating || 'Locating…') : (t.filterNearMe || 'Near Me'), icon: <Navigation className="w-3.5 h-3.5" /> },
+            { id: 'trending' as QuickFilter, label: t.filterTrending || 'Trending', icon: <TrendingUp className="w-3.5 h-3.5" /> },
+            { id: 'top_rated' as QuickFilter, label: t.filterTopRated || 'Top Rated', icon: <Award className="w-3.5 h-3.5" /> },
+          ]).map(f => (
+            <button
+              key={f.id}
+              onClick={() => handleQuickFilter(f.id)}
+              className={`flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold border transition-all ${
+                quickFilter === f.id
+                  ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
+                  : 'bg-white text-slate-600 border-slate-200 hover:border-emerald-300 hover:text-emerald-700'
+              }`}
+            >
+              {f.icon}
+              {f.label}
+            </button>
+          ))}
+        </div>
+        <div className="pointer-events-none absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-white to-transparent" />
+        </div>
+      </div>
+
+      {/* Type filter chips */}
+      <div className="bg-white border-b border-slate-100 px-4 py-3">
+        <div className="relative">
+        <div className="flex gap-2 overflow-x-auto no-scrollbar">
           {TYPE_FILTER_IDS.map(f => {
             const filterLabels: Record<string, string> = {
               All: t.filterTypeAll || 'All', Kashta: t.filterKashta || 'Kashta',
@@ -918,38 +1004,9 @@ export const RentalsScreen = ({ t, initialRentalId, onRentalOpened }: { t: any; 
             );
           })}
         </div>
-        <div className="relative flex-shrink-0">
-          <button
-            onClick={() => setShowSortMenu(v => !v)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold border border-slate-200 bg-white text-slate-600 hover:border-emerald-400 transition-all"
-          >
-            <SlidersHorizontal className="w-3 h-3" /> {t.rentalsSort || 'Sort'}
-          </button>
-          {showSortMenu && (
-            <div className="absolute right-0 top-full mt-1 bg-white rounded-xl shadow-xl border border-slate-100 z-20 min-w-[180px] overflow-hidden">
-              {(['default', 'price_asc', 'price_desc', 'rating_desc'] as SortOption[]).map(opt => {
-                const sortLabels: Record<SortOption, string> = {
-                  default: t.sortDefault || 'Default',
-                  price_asc: t.sortPriceLow || 'Price: Low → High',
-                  price_desc: t.sortPriceHigh || 'Price: High → Low',
-                  rating_desc: t.sortTopRated || 'Highest Rated',
-                };
-                return (
-                  <button
-                    key={opt}
-                    onClick={() => { setSortBy(opt); setShowSortMenu(false); }}
-                    className={`w-full text-left px-4 py-2.5 text-xs font-medium hover:bg-slate-50 transition-colors ${sortBy === opt ? 'text-emerald-600 font-bold bg-emerald-50' : 'text-slate-700'}`}
-                  >
-                    {sortLabels[opt]}
-                  </button>
-                );
-              })}
-            </div>
-          )}
+        <div className="pointer-events-none absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-white to-transparent" />
         </div>
       </div>
-
-      {showSortMenu && <div className="fixed inset-0 z-10" onClick={() => setShowSortMenu(false)} />}
 
       <div className="p-4">
         {!hasContent ? (
