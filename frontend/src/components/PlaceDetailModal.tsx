@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { X, Star, MapPin, Sparkles, Send, MessageSquare, Clock, ChevronDown, ChevronUp, ThumbsUp, Award, Camera, Building2, CheckCircle, ArrowLeft } from 'lucide-react';
+import { X, Star, MapPin, Sparkles, Send, MessageSquare, Clock, ChevronDown, ChevronUp, ThumbsUp, Award, Camera, Building2, CheckCircle, ArrowLeft, ChevronLeft, ChevronRight } from 'lucide-react';
 import { GoogleGenAI } from "@google/genai";
 import { Place, Rental, QAItem } from '../types/index';
-import { reviewAPI } from '../services/api';
+import { PhotoLightbox } from './PhotoLightbox';
+import { reviewAPI, googlePlacesAPI, GooglePlaceDetails } from '../services/api';
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
@@ -122,9 +123,39 @@ export const PlaceDetailModal = ({ place, onClose, t, allPlaces, onSwitchPlace, 
   // Active promo from localStorage
   const [activePromo, setActivePromo] = useState<string | null>(null);
 
+  // ── Photo slideshow ─────────────────────────────────────────────────────
+  const placePhotos: string[] = (() => {
+    const p = place as any;
+    const arr: string[] = [];
+    if (p.photos?.length) arr.push(...p.photos);
+    else if (p.image) arr.push(p.image);
+    return arr;
+  })();
+  const [photoIdx, setPhotoIdx] = useState(0);
+  const [lightboxIdx, setLightboxIdx] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (placePhotos.length <= 1) return;
+    const id = setInterval(() => setPhotoIdx(i => (i + 1) % placePhotos.length), 3500);
+    return () => clearInterval(id);
+  }, [placePhotos.length]);
+
+  // ── Google Places data ──────────────────────────────────────────────────
+  const [googleData, setGoogleData] = useState<GooglePlaceDetails | null>(null);
+  const [googleLoading, setGoogleLoading] = useState(true);
+
   // ── derived ─────────────────────────────────────────────────────────────
   const placeName = 'title' in place ? place.title : place.name;
-  const placeCat = 'type' in place ? place.type : (Array.isArray(place.categoryTags) ? place.categoryTags[0] : place.categoryTags);
+  const placeCatRaw = 'type' in place ? place.type : (Array.isArray(place.categoryTags) ? place.categoryTags[0] : place.categoryTags);
+  const CAT_T: Record<string, string> = {
+    nature: t.catNature || 'Nature', heritage: t.catHeritage || 'Heritage',
+    adventure: t.catAdventure || 'Adventure', food: t.catFood || 'Food',
+    urban: t.catUrban || 'Urban', beach: t.catBeach || 'Beach',
+    desert: t.catDesert || 'Desert', cultural: t.catCultural || 'Cultural',
+    culture: t.catCultural || 'Cultural', sports: t.interestSports || 'Sports',
+    shopping: (t as any).mapCatShopping || 'Shopping',
+  };
+  const placeCat = placeCatRaw ? (CAT_T[placeCatRaw.toLowerCase()] || placeCatRaw) : null;
   const placePrice = 'price' in place ? place.price : place.avgCost;
   const placeLocation = 'locationName' in place ? place.locationName : 'Riyadh';
   const placeId = (place as Place)._id || (place as Place).id || '';
@@ -205,6 +236,17 @@ export const PlaceDetailModal = ({ place, onClose, t, allPlaces, onSwitchPlace, 
     };
     fetchSummary();
   }, [place, placeName, t.aiSummaryTitle, t.aiSummaryError]);
+
+  // ── Fetch Google Places data ─────────────────────────────────────────────
+  useEffect(() => {
+    if (!isPlace) { setGoogleLoading(false); return; }
+    setGoogleLoading(true);
+    const city = (place as Place).city || placeLocation;
+    googlePlacesAPI.getDetails(placeName, city)
+      .then(data => setGoogleData(data))
+      .catch(() => setGoogleData(null))
+      .finally(() => setGoogleLoading(false));
+  }, [placeId, placeName]);
 
   // ── handlers ─────────────────────────────────────────────────────────────
   const handleSubmitReview = async () => {
@@ -332,6 +374,13 @@ export const PlaceDetailModal = ({ place, onClose, t, allPlaces, onSwitchPlace, 
   // ── render ───────────────────────────────────────────────────────────────
   return (
     <>
+      {lightboxIdx !== null && (
+        <PhotoLightbox
+          photos={placePhotos}
+          initialIndex={lightboxIdx}
+          onClose={() => setLightboxIdx(null)}
+        />
+      )}
       <div className={mode === 'page'
         ? "fixed inset-0 z-[100] bg-white overflow-y-auto"
         : "fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-4 animate-in fade-in duration-200"
@@ -345,7 +394,7 @@ export const PlaceDetailModal = ({ place, onClose, t, allPlaces, onSwitchPlace, 
           {mode === 'page' ? (
             <button onClick={onClose} className="absolute top-4 left-4 z-10 flex items-center gap-1.5 bg-white/90 backdrop-blur-sm text-slate-800 px-3 py-2 rounded-xl font-semibold text-sm shadow hover:bg-white transition-colors">
               <ArrowLeft className="w-4 h-4" />
-              Back
+              {t.backBtn || 'Back'}
             </button>
           ) : (
             <button onClick={onClose} className="absolute top-4 right-4 z-10 w-8 h-8 bg-black/30 backdrop-blur-md rounded-full flex items-center justify-center text-white hover:bg-black/50 transition-colors">
@@ -353,12 +402,13 @@ export const PlaceDetailModal = ({ place, onClose, t, allPlaces, onSwitchPlace, 
             </button>
           )}
 
-          {/* Hero image */}
-          <div className={`${mode === 'page' ? 'h-72' : 'h-48'} w-full relative bg-slate-200 shrink-0`}>
+          {/* Hero image slideshow */}
+          <div className={`${mode === 'page' ? 'h-72' : 'h-48'} w-full relative bg-slate-200 shrink-0 overflow-hidden`}>
             <img
-              src={place.image || 'https://images.unsplash.com/photo-1557683311-eac922347aa1?w=800&q=80'}
-              className="w-full h-full object-cover"
+              src={placePhotos[photoIdx] || (googleData?.photos?.[0] ? googlePlacesAPI.photoSrc(googleData.photos[0].url) : null) || 'https://images.unsplash.com/photo-1557683311-eac922347aa1?w=800&q=80'}
+              className="w-full h-full object-cover transition-opacity duration-300 cursor-zoom-in"
               alt={placeName}
+              onClick={() => placePhotos.length > 0 && setLightboxIdx(photoIdx)}
               onError={(e) => { (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1557683311-eac922347aa1?w=800&q=80'; }}
             />
             <div className="absolute bottom-0 left-0 w-full h-20 bg-gradient-to-t from-black/80 to-transparent" />
@@ -366,7 +416,53 @@ export const PlaceDetailModal = ({ place, onClose, t, allPlaces, onSwitchPlace, 
               <h2 className="text-xl font-bold">{placeName}</h2>
               <p className="text-sm opacity-90 flex items-center gap-1"><MapPin className="w-3.5 h-3.5" /> {placeLocation}</p>
             </div>
+
+            {/* Arrows */}
+            {placePhotos.length > 1 && (
+              <>
+                <button
+                  onClick={() => setPhotoIdx(i => (i - 1 + placePhotos.length) % placePhotos.length)}
+                  className="absolute left-2 top-1/2 -translate-y-1/2 w-8 h-8 bg-black/40 backdrop-blur-sm rounded-full flex items-center justify-center text-white hover:bg-black/60 transition z-10"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => setPhotoIdx(i => (i + 1) % placePhotos.length)}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 bg-black/40 backdrop-blur-sm rounded-full flex items-center justify-center text-white hover:bg-black/60 transition z-10"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+                {/* Dots */}
+                <div className="absolute bottom-4 right-4 flex items-center gap-1.5">
+                  {placePhotos.map((_, i) => (
+                    <button
+                      key={i}
+                      onClick={() => setPhotoIdx(i)}
+                      className="transition-all duration-300 rounded-full"
+                      style={{ width: i === photoIdx ? 16 : 5, height: 5, background: i === photoIdx ? '#10b981' : 'rgba(255,255,255,0.55)' }}
+                    />
+                  ))}
+                </div>
+              </>
+            )}
           </div>
+
+          {/* Thumbnail strip (when multiple photos) */}
+          {placePhotos.length > 1 && (
+            <div className="shrink-0 bg-white border-b border-slate-100">
+              <div className="flex gap-1.5 overflow-x-auto no-scrollbar px-3 py-2">
+                {placePhotos.map((src, i) => (
+                  <button
+                    key={i}
+                    onClick={() => { setPhotoIdx(i); setLightboxIdx(i); }}
+                    className={`flex-shrink-0 w-16 h-12 rounded-xl overflow-hidden border-2 transition-all ${i === photoIdx ? 'border-emerald-500 shadow-md' : 'border-transparent opacity-60 hover:opacity-100'}`}
+                  >
+                    <img src={src} className="w-full h-full object-cover" alt="" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Scrollable body */}
           <div className={mode === 'page' ? "p-5 flex-1 max-w-2xl mx-auto w-full" : "p-5 overflow-y-auto flex-1"}>
@@ -386,12 +482,12 @@ export const PlaceDetailModal = ({ place, onClose, t, allPlaces, onSwitchPlace, 
                 <div className="flex items-center gap-1.5 bg-orange-50 px-2 py-1 rounded-lg border border-orange-100 self-start">
                   <Star className="w-4 h-4 text-orange-500 fill-orange-500" />
                   <span className="font-bold text-slate-900">{avgRating > 0 ? avgRating.toFixed(1) : 'N/A'}</span>
-                  <span className="text-xs text-slate-500">rating</span>
+                  <span className="text-xs text-slate-500">{t.ratingLabel || 'rating'}</span>
                 </div>
                 {isTravellersChoice && (
                   <div className="flex items-center gap-1 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-lg self-start">
                     <Award className="w-3.5 h-3.5 text-amber-500" />
-                    <span className="text-xs font-semibold text-amber-700">Travellers' Choice</span>
+                    <span className="text-xs font-semibold text-amber-700">{t.travellersChoice || "Travellers' Choice"}</span>
                   </div>
                 )}
               </div>
@@ -401,7 +497,7 @@ export const PlaceDetailModal = ({ place, onClose, t, allPlaces, onSwitchPlace, 
                 {priceLevel ? (
                   <p className="font-bold text-lg">{renderPriceDollars(priceLevel)}</p>
                 ) : (
-                  <p className="font-bold text-emerald-600 text-lg">{placePrice} <span className="text-xs text-slate-500">SAR</span></p>
+                  <p className="font-bold text-emerald-600 text-lg">{placePrice} <span className="text-xs text-slate-500">{t.sarLabel || 'SAR'}</span></p>
                 )}
                 <p className="text-xs text-slate-400">{placeCat}</p>
               </div>
@@ -412,17 +508,17 @@ export const PlaceDetailModal = ({ place, onClose, t, allPlaces, onSwitchPlace, 
               <div className="flex flex-wrap gap-2 mb-4">
                 {accessibility.wheelchair && (
                   <span className="text-xs bg-blue-50 border border-blue-100 text-blue-700 px-2 py-0.5 rounded-full">
-                    ♿ Wheelchair
+                    ♿ {t.accessWheelchair || 'Wheelchair'}
                   </span>
                 )}
                 {accessibility.parking && (
                   <span className="text-xs bg-slate-50 border border-slate-200 text-slate-700 px-2 py-0.5 rounded-full">
-                    🅿 Parking
+                    🅿 {t.accessParking || 'Parking'}
                   </span>
                 )}
                 {accessibility.family && (
                   <span className="text-xs bg-green-50 border border-green-100 text-green-700 px-2 py-0.5 rounded-full">
-                    👨‍👩‍👧 Family-Friendly
+                    👨‍👩‍👧 {t.accessFamily || 'Family-Friendly'}
                   </span>
                 )}
               </div>
@@ -436,20 +532,20 @@ export const PlaceDetailModal = ({ place, onClose, t, allPlaces, onSwitchPlace, 
                   <div className="flex items-center gap-2">
                     <Clock className="w-4 h-4 text-slate-500" />
                     {openNow === true && (
-                      <span className="text-xs font-semibold text-white bg-emerald-500 px-2 py-0.5 rounded-full">Open Now</span>
+                      <span className="text-xs font-semibold text-white bg-emerald-500 px-2 py-0.5 rounded-full">{t.openNow || 'Open Now'}</span>
                     )}
                     {openNow === false && (
-                      <span className="text-xs font-semibold text-white bg-red-400 px-2 py-0.5 rounded-full">Closed</span>
+                      <span className="text-xs font-semibold text-white bg-red-400 px-2 py-0.5 rounded-full">{t.closedStatus || 'Closed'}</span>
                     )}
                     {todayHours && (
-                      <span className="text-xs text-slate-600">{todayHours}</span>
+                      <span className="text-xs text-slate-600">{todayHours === 'Closed today' ? (t.closedToday || 'Closed today') : todayHours}</span>
                     )}
                   </div>
                   <button
                     onClick={() => setHoursExpanded(v => !v)}
                     className="flex items-center gap-0.5 text-xs text-emerald-600 font-medium"
                   >
-                    {hoursExpanded ? 'Hide' : 'See all hours'}
+                    {hoursExpanded ? (t.hideHours || 'Hide') : (t.seeAllHours || 'See all hours')}
                     {hoursExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
                   </button>
                 </div>
@@ -462,8 +558,8 @@ export const PlaceDetailModal = ({ place, onClose, t, allPlaces, onSwitchPlace, 
                       const isToday = i === new Date().getDay();
                       return (
                         <div key={key} className={`flex justify-between text-xs py-0.5 ${isToday ? 'font-semibold text-slate-900' : 'text-slate-500'}`}>
-                          <span>{DAY_LABELS[i]}{isToday ? ' (today)' : ''}</span>
-                          <span>{h ? (h.closed ? 'Closed' : `${h.open} – ${h.close}`) : '—'}</span>
+                          <span>{DAY_LABELS[i]}{isToday ? ` ${t.todayLabel || '(today)'}` : ''}</span>
+                          <span>{h ? (h.closed ? (t.closedStatus || 'Closed') : `${h.open} – ${h.close}`) : '—'}</span>
                         </div>
                       );
                     })}
@@ -519,7 +615,7 @@ export const PlaceDetailModal = ({ place, onClose, t, allPlaces, onSwitchPlace, 
 
                 {/* ── Reviews tab ── */}
                 {activeSection === 'reviews' && (
-                  <div>
+                  <>
                     {/* Write review */}
                     <div className="bg-slate-50 rounded-2xl p-3 border border-slate-100 mb-3">
                       <div className="flex gap-1 mb-2">
@@ -569,7 +665,7 @@ export const PlaceDetailModal = ({ place, onClose, t, allPlaces, onSwitchPlace, 
                             className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-emerald-600 transition-colors px-2 py-1.5 border border-dashed border-slate-300 rounded-lg hover:border-emerald-400"
                           >
                             <Camera className="w-3.5 h-3.5" />
-                            Add Photos{reviewPhotos.length > 0 ? ` (${reviewPhotos.length}/3)` : ''}
+                            {t.addPhotos || 'Add Photos'}{reviewPhotos.length > 0 ? ` (${reviewPhotos.length}/3)` : ''}
                           </button>
                         )}
                         <input
@@ -636,7 +732,7 @@ export const PlaceDetailModal = ({ place, onClose, t, allPlaces, onSwitchPlace, 
                                   className={`flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full border transition-colors ${voted ? 'border-emerald-300 text-emerald-600 bg-emerald-50 cursor-default' : 'border-slate-200 text-slate-500 hover:border-emerald-400 hover:text-emerald-600'}`}
                                 >
                                   <ThumbsUp className="w-3 h-3" />
-                                  Helpful{voteCount > 0 ? ` (${voteCount})` : ''}
+                                  {t.helpfulBtn || 'Helpful'}{voteCount > 0 ? ` (${voteCount})` : ''}
                                 </button>
 
                                 {/* Reply as owner */}
@@ -645,7 +741,7 @@ export const PlaceDetailModal = ({ place, onClose, t, allPlaces, onSwitchPlace, 
                                     onClick={() => { setReplyingTo(reviewId); setReplyDraft(''); }}
                                     className="text-[11px] text-slate-400 hover:text-slate-600 transition-colors ml-auto"
                                   >
-                                    Reply as Owner
+                                    {t.replyAsOwner || 'Reply as Owner'}
                                   </button>
                                 )}
                               </div>
@@ -655,7 +751,7 @@ export const PlaceDetailModal = ({ place, onClose, t, allPlaces, onSwitchPlace, 
                                 <div className="mt-2 flex gap-1.5">
                                   <input
                                     className="flex-1 bg-slate-50 rounded-lg px-2.5 py-1.5 text-xs border border-slate-200 outline-none focus:ring-2 focus:ring-emerald-500"
-                                    placeholder="Write your response..."
+                                    placeholder={t.writeResponsePlaceholder || 'Write your response...'}
                                     value={replyDraft}
                                     onChange={e => setReplyDraft(e.target.value)}
                                     onKeyDown={e => e.key === 'Enter' && handleOwnerReply(reviewId)}
@@ -680,7 +776,7 @@ export const PlaceDetailModal = ({ place, onClose, t, allPlaces, onSwitchPlace, 
                               {/* Existing owner reply */}
                               {reply && (
                                 <div className="mt-2 ml-3 pl-3 border-l-2 border-emerald-300 bg-emerald-50 rounded-r-lg p-2">
-                                  <p className="text-[10px] font-semibold text-emerald-700 mb-0.5">Owner Response</p>
+                                  <p className="text-[10px] font-semibold text-emerald-700 mb-0.5">{t.ownerResponse || 'Owner Response'}</p>
                                   <p className="text-xs text-slate-700">{reply.text}</p>
                                 </div>
                               )}
@@ -689,7 +785,51 @@ export const PlaceDetailModal = ({ place, onClose, t, allPlaces, onSwitchPlace, 
                         })}
                       </div>
                     )}
-                  </div>
+                  {/* ── Google Reviews ── */}
+                  {!googleLoading && googleData && googleData.reviews.length > 0 && (
+                    <div className="mt-4">
+                      <div className="flex items-center gap-2 mb-3">
+                        <img src="https://www.google.com/favicon.ico" alt="Google" className="w-3.5 h-3.5" />
+                        <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wide">
+                          Google Reviews
+                        </h4>
+                        {googleData.userRatingCount !== undefined && (
+                          <span className="text-[10px] text-slate-400">({googleData.userRatingCount.toLocaleString()} total)</span>
+                        )}
+                        {googleData.rating !== undefined && (
+                          <span className="ml-auto flex items-center gap-0.5 text-xs font-bold text-amber-600">
+                            <Star className="w-3 h-3 fill-amber-400 text-amber-400" />
+                            {googleData.rating.toFixed(1)}
+                          </span>
+                        )}
+                      </div>
+                      <div className="space-y-2">
+                        {googleData.reviews.map((r, i) => (
+                          <div key={i} className="bg-white rounded-xl border border-slate-100 p-3">
+                            <div className="flex items-center gap-2 mb-1.5">
+                              <img
+                                src={r.authorPhoto || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(r.author)}`}
+                                className="w-6 h-6 rounded-full bg-slate-100 object-cover flex-shrink-0"
+                                alt={r.author}
+                                onError={(e) => { (e.target as HTMLImageElement).src = `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(r.author)}`; }}
+                              />
+                              <div className="flex-1 min-w-0">
+                                <p className="text-xs font-bold text-slate-900 truncate">{r.author}</p>
+                                <p className="text-[10px] text-slate-400">{r.relativeTime}</p>
+                              </div>
+                              <div className="flex gap-0.5 flex-shrink-0">
+                                {[1, 2, 3, 4, 5].map(s => (
+                                  <Star key={s} className={`w-3 h-3 ${s <= r.rating ? 'fill-amber-400 text-amber-400' : 'text-slate-200'}`} />
+                                ))}
+                              </div>
+                            </div>
+                            {r.text && <p className="text-xs text-slate-600 leading-relaxed line-clamp-4">{r.text}</p>}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  </>
                 )}
 
                 {/* ── Q&A tab ── */}
@@ -700,7 +840,7 @@ export const PlaceDetailModal = ({ place, onClose, t, allPlaces, onSwitchPlace, 
                       <div className="flex gap-2">
                         <input
                           className="flex-1 bg-white rounded-xl px-3 py-2 text-sm border border-slate-200 outline-none focus:ring-2 focus:ring-emerald-500"
-                          placeholder="Ask a question about this place..."
+                          placeholder={t.askQuestionPlaceholder || 'Ask a question about this place...'}
                           value={qaQuestion}
                           onChange={e => setQaQuestion(e.target.value)}
                           onKeyDown={e => e.key === 'Enter' && handleAskQuestion()}
@@ -718,7 +858,7 @@ export const PlaceDetailModal = ({ place, onClose, t, allPlaces, onSwitchPlace, 
                     {qaItems.length === 0 ? (
                       <div className="text-center py-6 text-slate-300">
                         <MessageSquare className="w-8 h-8 mx-auto mb-1 opacity-50" />
-                        <p className="text-xs font-medium">No questions yet — ask the first one!</p>
+                        <p className="text-xs font-medium">{t.noQuestionsYet || 'No questions yet — ask the first one!'}</p>
                       </div>
                     ) : (
                       <div className="space-y-3">
@@ -754,13 +894,13 @@ export const PlaceDetailModal = ({ place, onClose, t, allPlaces, onSwitchPlace, 
                                 onClick={() => { setAnsweringId(q.id); setAnswerDraft(''); }}
                                 className="text-[11px] text-emerald-600 font-medium hover:text-emerald-700 transition ml-5"
                               >
-                                Answer
+                                {t.answerBtn || 'Answer'}
                               </button>
                             ) : (
                               <div className="ml-5 flex gap-1.5 mt-1">
                                 <input
                                   className="flex-1 bg-slate-50 rounded-lg px-2.5 py-1.5 text-xs border border-slate-200 outline-none focus:ring-2 focus:ring-emerald-500"
-                                  placeholder="Write your answer..."
+                                  placeholder={t.writeAnswerPlaceholder || 'Write your answer...'}
                                   value={answerDraft}
                                   onChange={e => setAnswerDraft(e.target.value)}
                                   onKeyDown={e => e.key === 'Enter' && handleAddAnswer(q.id)}
@@ -793,7 +933,7 @@ export const PlaceDetailModal = ({ place, onClose, t, allPlaces, onSwitchPlace, 
             {/* ── Similar Places ── */}
             {similarPlaces.length > 0 && (
               <div className="mt-6">
-                <h3 className="font-bold text-sm text-slate-900 mb-3">Similar Places</h3>
+                <h3 className="font-bold text-sm text-slate-900 mb-3">{t.similarPlaces || 'Similar Places'}</h3>
                 <div className="flex gap-3 overflow-x-auto pb-1 -mx-1 px-1 scrollbar-hide">
                   {similarPlaces.map(p => {
                     const pid = p._id || p.id || '';
@@ -832,7 +972,7 @@ export const PlaceDetailModal = ({ place, onClose, t, allPlaces, onSwitchPlace, 
                 className="text-xs text-slate-400 hover:text-emerald-600 transition-colors inline-flex items-center gap-1"
               >
                 <Building2 className="w-3.5 h-3.5" />
-                Are you the owner? Claim this listing →
+                {t.claimListing || 'Are you the owner? Claim this listing →'}
               </button>
             </div>
 

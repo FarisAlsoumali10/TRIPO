@@ -8,13 +8,13 @@ import { placeAPI } from '../services/api';
 import { showToast } from '../components/Toast';
 import { MOCK_PLACES } from './HomeScreen';
 
-const CATEGORY_FILTERS = [
-  { id: '', label: 'All' },
-  { id: 'Food', label: '🍔 Food' },
-  { id: 'Nature', label: '🌿 Nature' },
-  { id: 'Sports', label: '⚽ Sports' },
-  { id: 'Culture', label: '🏛️ Culture' },
-  { id: 'Shopping', label: '🛍️ Shopping' },
+const CATEGORY_FILTER_KEYS = [
+  { id: '', tKey: 'mapCatAll' },
+  { id: 'Food', tKey: 'mapCatFood' },
+  { id: 'Nature', tKey: 'mapCatNature' },
+  { id: 'Sports', tKey: 'mapCatSports' },
+  { id: 'Culture', tKey: 'mapCatCulture' },
+  { id: 'Shopping', tKey: 'mapCatShopping' },
 ];
 
 export const ExploreScreen = ({ t, onOpenPlace }: { t: any, onOpenPlace: (p: Place) => void }) => {
@@ -128,13 +128,13 @@ export const ExploreScreen = ({ t, onOpenPlace }: { t: any, onOpenPlace: (p: Pla
         {/* Category filter pills */}
         <div className="absolute top-4 left-0 w-full z-10 px-4 pointer-events-none">
           <div className="flex gap-2 overflow-x-auto no-scrollbar pointer-events-auto pb-1">
-            {CATEGORY_FILTERS.map(f => (
+            {CATEGORY_FILTER_KEYS.map(f => (
               <button
                 key={f.id}
                 onClick={() => setMapCategory(f.id)}
                 className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-bold border transition-all shadow-sm ${mapCategory === f.id ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white/90 text-slate-700 border-slate-200 hover:border-emerald-400'}`}
               >
-                {f.label}
+                {(t as any)[f.tKey] || f.tKey}
               </button>
             ))}
           </div>
@@ -152,7 +152,7 @@ export const ExploreScreen = ({ t, onOpenPlace }: { t: any, onOpenPlace: (p: Pla
             ) : (
               <Navigation className="w-3.5 h-3.5 text-emerald-600" />
             )}
-            {isLocating ? 'Locating...' : 'Near Me'}
+            {isLocating ? ((t as any).mapLocating || 'Locating...') : ((t as any).mapNearMe || 'Near Me')}
           </button>
         </div>
 

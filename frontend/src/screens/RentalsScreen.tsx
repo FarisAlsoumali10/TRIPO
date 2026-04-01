@@ -1,13 +1,16 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   Tent, Plus, X, Star, MapPin, Flame, Phone, SlidersHorizontal,
   Camera, ExternalLink, MessageCircle, ChevronLeft, ChevronRight, User,
-  ArrowLeft, Home, BedDouble, Users, Info,
+  ArrowLeft, Home, BedDouble, Users, Info, Trophy, Search,
 } from 'lucide-react';
 import { Button, Input } from '../components/ui';
 import { Rental } from '../types/index';
 import { rentalAPI } from '../services/api';
 import { showToast } from '../components/Toast';
+import { TrendingCards, TrendingItem } from '../components/TrendingSlideshow';
+import { FeaturedSlideshow, SlideItem } from '../components/FeaturedSlideshow';
+import { PhotoLightbox } from '../components/PhotoLightbox';
 
 const STORAGE_KEY = 'tripo_rentals_local';
 const REVIEWS_KEY = 'tripo_rental_reviews';
@@ -35,14 +38,8 @@ function saveReview(review: RentalReview) {
     localStorage.setItem(REVIEWS_KEY, JSON.stringify(all));
   } catch {}
 }
-const TYPE_FILTERS = ['All', 'Kashta', 'Camp', 'Chalet', 'Apartment'] as const;
+const TYPE_FILTER_IDS = ['All', 'Kashta', 'Camp', 'Chalet', 'Apartment', 'Sports'] as const;
 type SortOption = 'default' | 'price_asc' | 'price_desc' | 'rating_desc';
-const SORT_LABELS: Record<SortOption, string> = {
-  default: 'Default',
-  price_asc: 'Price: Low → High',
-  price_desc: 'Price: High → Low',
-  rating_desc: 'Highest Rated',
-};
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
@@ -160,6 +157,80 @@ export const MOCK_RENTALS: Rental[] = [
   },
 ];
 
+// ── Mock sports venues ────────────────────────────────────────────────────────
+
+export const MOCK_SPORT_VENUES: Rental[] = [
+  {
+    id: 'mock-sp1',
+    title: 'Premium Padel Club — Al Malqa',
+    type: 'Padel',
+    price: 200,
+    locationName: 'Al Malqa, Riyadh',
+    image: 'https://images.unsplash.com/photo-1554068865-24cecd4e34b8?w=800&q=80',
+    images: [
+      'https://images.unsplash.com/photo-1554068865-24cecd4e34b8?w=800&q=80',
+      'https://images.unsplash.com/photo-1595435742729-0e6e2a46e620?w=800&q=80',
+    ],
+    rating: 4.8,
+    description: '4 professional padel courts with glass walls, night lighting, and air-conditioned changing rooms. Equipment rental available. Suitable for all levels.',
+    mapQuery: 'Al Malqa District, Riyadh, Saudi Arabia',
+    contactName: 'Turki Al-Otaibi',
+    contactPhone: '+966551234567',
+    contactWhatsapp: '+966551234567',
+  },
+  {
+    id: 'mock-sp2',
+    title: 'Full-Size Football Pitch — Jeddah',
+    type: 'Football',
+    price: 400,
+    locationName: 'Al Rawdah, Jeddah',
+    image: 'https://images.unsplash.com/photo-1459865264687-595d652de67e?w=800&q=80',
+    images: [
+      'https://images.unsplash.com/photo-1459865264687-595d652de67e?w=800&q=80',
+    ],
+    rating: 4.6,
+    description: 'FIFA-standard artificial grass pitch with floodlights for evening games. Capacity for 22 players. Includes a referee room, seating stands, and a snack bar.',
+    mapQuery: 'Al Rawdah, Jeddah, Saudi Arabia',
+    contactName: 'Hassan Al-Ghamdi',
+    contactPhone: '+966562345678',
+    contactWhatsapp: '+966562345678',
+  },
+  {
+    id: 'mock-sp3',
+    title: 'Indoor Basketball Arena — Dammam',
+    type: 'Basketball',
+    price: 150,
+    locationName: 'Al Faisaliah, Dammam',
+    image: 'https://images.unsplash.com/photo-1546519638-68e109498ffc?w=800&q=80',
+    images: [
+      'https://images.unsplash.com/photo-1546519638-68e109498ffc?w=800&q=80',
+    ],
+    rating: 4.5,
+    description: 'Full-size indoor basketball court with hardwood flooring, electronic scoreboard, and bleacher seating. Available for half-court or full-court bookings.',
+    mapQuery: 'Al Faisaliah, Dammam, Saudi Arabia',
+    contactName: 'Nasser Al-Qahtani',
+    contactPhone: '+966573456789',
+    contactWhatsapp: '+966573456789',
+  },
+  {
+    id: 'mock-sp4',
+    title: 'Mini Football — 5-a-side Riyadh',
+    type: 'Football',
+    price: 250,
+    locationName: 'Al Yasmin, Riyadh',
+    image: 'https://images.unsplash.com/photo-1574629810360-7efbbe195018?w=800&q=80',
+    images: [
+      'https://images.unsplash.com/photo-1574629810360-7efbbe195018?w=800&q=80',
+    ],
+    rating: 4.7,
+    description: 'Compact 5-a-side turf pitch perfect for quick matches with friends. Night-lit, fully enclosed, and available in 1-hour or 2-hour slots.',
+    mapQuery: 'Al Yasmin, Riyadh, Saudi Arabia',
+    contactName: 'Omar Al-Shammari',
+    contactPhone: '+966584567890',
+    contactWhatsapp: '+966584567890',
+  },
+];
+
 // ── Image carousel ───────────────────────────────────────────────────────────
 
 const ImageCarousel = ({ images, title }: { images: string[]; title: string }) => {
@@ -212,13 +283,25 @@ const StarPicker = ({ value, onChange }: { value: number; onChange: (v: number) 
 
 // ── Rental detail page ────────────────────────────────────────────────────────
 
-const RentalDetailPage = ({ rental, onBack }: { rental: Rental; onBack: () => void }) => {
+const RentalDetailPage = ({ rental, onBack, allRentals = [], onSelectRental, t }: { rental: Rental; onBack: () => void; allRentals?: Rental[]; onSelectRental?: (r: Rental) => void; t: any }) => {
   const images = rental.images?.length ? rental.images : rental.image ? [rental.image] : [];
   const [imgIdx, setImgIdx] = useState(0);
+  const [lightboxIdx, setLightboxIdx] = useState<number | null>(null);
   const phoneNum = rental.contactWhatsapp || rental.contactPhone;
+
+  useEffect(() => {
+    if (images.length <= 1) return;
+    const id = setInterval(() => setImgIdx(i => (i + 1) % images.length), 3500);
+    return () => clearInterval(id);
+  }, [images.length]);
 
   // Reviews state
   const rentalId = rental.id || (rental as any)._id || '';
+
+  const similarRentals = allRentals
+    .filter(r => (r.id || (r as any)._id) !== rentalId && r.type === rental.type)
+    .sort((a, b) => (b.rating ?? 0) - (a.rating ?? 0))
+    .slice(0, 5);
   const [reviews, setReviews] = useState<RentalReview[]>(() => loadReviews(rentalId));
   const [showReviewForm, setShowReviewForm] = useState(false);
   const [reviewAuthor, setReviewAuthor] = useState('');
@@ -250,6 +333,14 @@ const RentalDetailPage = ({ rental, onBack }: { rental: Rental; onBack: () => vo
   };
 
   return (
+    <>
+    {lightboxIdx !== null && (
+      <PhotoLightbox
+        photos={images}
+        initialIndex={lightboxIdx}
+        onClose={() => setLightboxIdx(null)}
+      />
+    )}
     <div className="fixed inset-0 z-50 bg-white overflow-y-auto flex flex-col">
 
       {/* ── Hero image with back button ── */}
@@ -258,7 +349,8 @@ const RentalDetailPage = ({ rental, onBack }: { rental: Rental; onBack: () => vo
           <img
             src={images[imgIdx]}
             alt={rental.title}
-            className="w-full h-full object-cover"
+            className="w-full h-full object-cover cursor-zoom-in"
+            onClick={() => setLightboxIdx(imgIdx)}
             onError={(e) => { (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?w=800&q=80'; }}
           />
         ) : (
@@ -273,7 +365,7 @@ const RentalDetailPage = ({ rental, onBack }: { rental: Rental; onBack: () => vo
           onClick={onBack}
           className="absolute top-4 left-4 flex items-center gap-1.5 bg-white/90 backdrop-blur-sm text-slate-800 px-3 py-2 rounded-xl font-semibold text-sm shadow hover:bg-white transition-colors"
         >
-          <ArrowLeft className="w-4 h-4" /> Back
+          <ArrowLeft className="w-4 h-4" /> {t.backBtn || 'Back'}
         </button>
 
         {/* Type badge */}
@@ -315,7 +407,7 @@ const RentalDetailPage = ({ rental, onBack }: { rental: Rental; onBack: () => vo
           {images.map((src, i) => (
             <button
               key={i}
-              onClick={() => setImgIdx(i)}
+              onClick={() => { setImgIdx(i); setLightboxIdx(i); }}
               className={`flex-shrink-0 w-16 h-12 rounded-lg overflow-hidden border-2 transition-all ${i === imgIdx ? 'border-emerald-500 shadow-md' : 'border-transparent opacity-60 hover:opacity-100'}`}
             >
               <img src={src} className="w-full h-full object-cover" alt="" />
@@ -357,7 +449,7 @@ const RentalDetailPage = ({ rental, onBack }: { rental: Rental; onBack: () => vo
           <div>
             <div className="flex items-center gap-2 mb-2">
               <Info className="w-4 h-4 text-slate-400" />
-              <span className="text-sm font-bold text-slate-700">About this place</span>
+              <span className="text-sm font-bold text-slate-700">{t.aboutThisPlace || 'About this place'}</span>
             </div>
             <p className="text-sm text-slate-600 leading-relaxed">{rental.description}</p>
           </div>
@@ -375,7 +467,7 @@ const RentalDetailPage = ({ rental, onBack }: { rental: Rental; onBack: () => vo
               <MapPin className="w-4 h-4 text-emerald-600" />
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-bold text-slate-800">View on Google Maps</p>
+              <p className="text-sm font-bold text-slate-800">{t.viewOnMaps || 'View on Google Maps'}</p>
               <p className="text-xs text-slate-500 truncate">{rental.mapQuery}</p>
             </div>
             <ExternalLink className="w-4 h-4 text-slate-400 flex-shrink-0" />
@@ -386,7 +478,7 @@ const RentalDetailPage = ({ rental, onBack }: { rental: Rental; onBack: () => vo
         <div>
           <div className="flex items-center justify-between mb-3">
             <div>
-              <h2 className="text-base font-bold text-slate-900">Reviews</h2>
+              <h2 className="text-base font-bold text-slate-900">{t.reviewsHeader || 'Reviews'}</h2>
               {avgRating && (
                 <div className="flex items-center gap-1 mt-0.5">
                   <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
@@ -400,7 +492,7 @@ const RentalDetailPage = ({ rental, onBack }: { rental: Rental; onBack: () => vo
               className="flex items-center gap-1.5 bg-emerald-600 text-white text-xs font-bold px-3 py-2 rounded-xl hover:bg-emerald-700 transition"
             >
               <Star className="w-3.5 h-3.5" />
-              {showReviewForm ? 'Cancel' : 'Write a Review'}
+              {showReviewForm ? (t.cancelBtn || 'Cancel') : (t.writeReview || 'Write a Review')}
             </button>
           </div>
 
@@ -408,25 +500,25 @@ const RentalDetailPage = ({ rental, onBack }: { rental: Rental; onBack: () => vo
           {showReviewForm && (
             <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 mb-4 space-y-3">
               <div>
-                <label className="text-xs font-bold text-slate-600 mb-1 block">Your Name</label>
+                <label className="text-xs font-bold text-slate-600 mb-1 block">{t.rentalYourName || 'Your Name'}</label>
                 <input
                   type="text"
                   value={reviewAuthor}
                   onChange={e => setReviewAuthor(e.target.value)}
-                  placeholder="Enter your name"
+                  placeholder={t.enterYourName || 'Enter your name'}
                   className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white"
                 />
               </div>
               <div>
-                <label className="text-xs font-bold text-slate-600 mb-1 block">Rating</label>
+                <label className="text-xs font-bold text-slate-600 mb-1 block">{t.rentalRatingLabel || 'Rating'}</label>
                 <StarPicker value={reviewRating} onChange={setReviewRating} />
               </div>
               <div>
-                <label className="text-xs font-bold text-slate-600 mb-1 block">Review</label>
+                <label className="text-xs font-bold text-slate-600 mb-1 block">{t.rentalReviewLabel || 'Review'}</label>
                 <textarea
                   value={reviewText}
                   onChange={e => setReviewText(e.target.value)}
-                  placeholder="Share your experience..."
+                  placeholder={t.shareExperience || 'Share your experience...'}
                   rows={3}
                   className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white resize-none"
                 />
@@ -435,7 +527,7 @@ const RentalDetailPage = ({ rental, onBack }: { rental: Rental; onBack: () => vo
                 onClick={handleSubmitReview}
                 className="w-full bg-emerald-600 text-white py-2.5 rounded-xl text-sm font-bold hover:bg-emerald-700 transition"
               >
-                Submit Review
+                {t.submitReview || 'Submit Review'}
               </button>
             </div>
           )}
@@ -444,8 +536,8 @@ const RentalDetailPage = ({ rental, onBack }: { rental: Rental; onBack: () => vo
           {reviews.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-8 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
               <Star className="w-8 h-8 text-slate-200 mb-2" />
-              <p className="text-sm text-slate-400 font-medium">No reviews yet</p>
-              <p className="text-xs text-slate-400">Be the first to review this place</p>
+              <p className="text-sm text-slate-400 font-medium">{t.noRentalReviews || 'No reviews yet'}</p>
+              <p className="text-xs text-slate-400">{t.beFirstToReview || 'Be the first to review this place'}</p>
             </div>
           ) : (
             <div className="space-y-3">
@@ -477,14 +569,14 @@ const RentalDetailPage = ({ rental, onBack }: { rental: Rental; onBack: () => vo
         {/* Host info card */}
         {(rental.contactName || rental.contactPhone || rental.contactWhatsapp) && (
           <div className="bg-slate-50 rounded-2xl p-4 border border-slate-100">
-            <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">Hosted by</p>
+            <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">{t.hostedBy || 'Hosted by'}</p>
             <div className="flex items-center gap-3 mb-4">
               <div className="w-12 h-12 rounded-full bg-emerald-100 flex items-center justify-center flex-shrink-0">
                 <User className="w-6 h-6 text-emerald-600" />
               </div>
               <div>
                 <p className="font-bold text-slate-900">{rental.contactName || 'Host'}</p>
-                <p className="text-xs text-slate-500">Private host</p>
+                <p className="text-xs text-slate-500">{t.privateHost || 'Private host'}</p>
               </div>
             </div>
             <div className="flex gap-3">
@@ -493,7 +585,7 @@ const RentalDetailPage = ({ rental, onBack }: { rental: Rental; onBack: () => vo
                   href={`tel:${rental.contactPhone}`}
                   className="flex-1 flex items-center justify-center gap-2 bg-emerald-600 text-white py-3 rounded-xl text-sm font-bold hover:bg-emerald-700 transition shadow-sm"
                 >
-                  <Phone className="w-4 h-4" /> Call Host
+                  <Phone className="w-4 h-4" /> {t.callBtn || 'Call'} Host
                 </a>
               )}
               {phoneNum && (
@@ -509,13 +601,55 @@ const RentalDetailPage = ({ rental, onBack }: { rental: Rental; onBack: () => vo
             </div>
           </div>
         )}
+
+        {/* Similar rentals */}
+        {similarRentals.length > 0 && (
+          <div>
+            <h3 className="font-bold text-slate-900 mb-3">
+              {t.similarRentalsLabel || 'Similar'} {rental.type}s
+            </h3>
+            <div className="flex gap-3 overflow-x-auto pb-2 -mx-5 px-5 no-scrollbar">
+              {similarRentals.map(r => {
+                const img = r.images?.[0] || r.image;
+                const rid = r.id || (r as any)._id;
+                return (
+                  <button
+                    key={rid}
+                    onClick={() => onSelectRental?.(r)}
+                    className="flex-shrink-0 w-44 bg-white rounded-2xl overflow-hidden border border-slate-100 shadow-sm text-left active:scale-95 transition-transform"
+                  >
+                    <div className="relative h-24">
+                      <img
+                        src={img}
+                        alt={r.title}
+                        className="w-full h-full object-cover"
+                        onError={(e) => { (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?w=800&q=80'; }}
+                      />
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
+                      <span className="absolute bottom-1.5 left-2 text-[10px] font-bold text-white">{r.type}</span>
+                    </div>
+                    <div className="p-2.5">
+                      <p className="font-bold text-slate-900 text-xs line-clamp-2 leading-snug mb-1">{r.title}</p>
+                      <div className="flex items-center justify-between">
+                        <span className="text-emerald-700 font-bold text-xs">{r.price} {t.sarLabel || 'SAR'}</span>
+                        {r.rating !== undefined && (
+                          <span className="text-[10px] text-amber-500 font-bold">★ {r.rating.toFixed(1)}</span>
+                        )}
+                      </div>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* ── Sticky bottom CTA ── */}
       <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-100 px-5 py-4 flex items-center justify-between gap-4 shadow-lg z-10">
         <div>
-          <p className="text-xl font-extrabold text-emerald-700">{rental.price} SAR</p>
-          <p className="text-xs text-slate-400">per night</p>
+          <p className="text-xl font-extrabold text-emerald-700">{rental.price} {t.sarLabel || 'SAR'}</p>
+          <p className="text-xs text-slate-400">{t.perNight || 'per night'}</p>
         </div>
         {phoneNum ? (
           <div className="flex gap-2 flex-1 max-w-xs ml-auto">
@@ -524,7 +658,7 @@ const RentalDetailPage = ({ rental, onBack }: { rental: Rental; onBack: () => vo
                 href={`tel:${rental.contactPhone}`}
                 className="flex-1 flex items-center justify-center gap-2 bg-emerald-600 text-white py-3 rounded-xl text-sm font-bold hover:bg-emerald-700 transition"
               >
-                <Phone className="w-4 h-4" /> Call
+                <Phone className="w-4 h-4" /> {t.callBtn || 'Call'}
               </a>
             )}
             <a
@@ -541,11 +675,12 @@ const RentalDetailPage = ({ rental, onBack }: { rental: Rental; onBack: () => vo
             onClick={onBack}
             className="flex-1 max-w-xs ml-auto flex items-center justify-center gap-2 bg-emerald-600 text-white py-3 rounded-xl text-sm font-bold hover:bg-emerald-700 transition"
           >
-            Contact Host
+            {t.contactHost || 'Contact Host'}
           </button>
         )}
       </div>
     </div>
+    </>
   );
 };
 
@@ -563,12 +698,15 @@ export const RentalsScreen = ({ t, initialRentalId, onRentalOpened }: { t: any; 
   const [selectedItem, setSelectedItem] = useState<Rental | null>(() => {
     if (!initialRentalId) return null;
     const local = loadLocalRentals();
-    const all = local.length > 0 ? local : MOCK_RENTALS;
+    const base = local.length > 0 ? local : MOCK_RENTALS;
+    const all = [...base, ...MOCK_SPORT_VENUES];
     return all.find(r => (r.id || (r as any)._id) === initialRentalId) ?? null;
   });
   const [typeFilter, setTypeFilter] = useState<string>('All');
   const [sortBy, setSortBy] = useState<SortOption>('default');
   const [showSortMenu, setShowSortMenu] = useState(false);
+  const [search, setSearch] = useState('');
+  const [searchFocused, setSearchFocused] = useState(false);
 
   // form state
   const [form, setForm] = useState({
@@ -603,7 +741,7 @@ export const RentalsScreen = ({ t, initialRentalId, onRentalOpened }: { t: any; 
 
   useEffect(() => {
     if (initialRentalId && rentals.length > 0 && !selectedItem) {
-      const rental = rentals.find(r => (r.id || (r as any)._id) === initialRentalId) ?? null;
+      const rental = [...rentals, ...MOCK_SPORT_VENUES].find(r => (r.id || (r as any)._id) === initialRentalId) ?? null;
       if (rental) { setSelectedItem(rental); onRentalOpened?.(); }
     }
   }, [initialRentalId, rentals]);
@@ -654,8 +792,50 @@ export const RentalsScreen = ({ t, initialRentalId, onRentalOpened }: { t: any; 
     setShowHostModal(false);
   };
 
+  const showSportsSection = typeFilter === 'All' || typeFilter === 'Sports';
+
+  const trendingItems: TrendingItem[] = useMemo(() =>
+    [...rentals, ...MOCK_SPORT_VENUES]
+      .sort((a, b) => (b.rating ?? 0) - (a.rating ?? 0))
+      .slice(0, 8)
+      .filter(r => (r.images && r.images[0]) || r.image)
+      .map(r => ({
+        id: r.id || (r as any)._id || '',
+        image: (r.images && r.images[0]) || r.image || '',
+        name: r.title,
+        subtitle: r.locationName || r.type || 'Saudi Arabia',
+        badge: r.type || 'Rental',
+        badgeColor: '#d97706',
+        rating: r.rating ? Number(r.rating) : undefined,
+      })),
+  [rentals]);
+
+  const slideshowItems: SlideItem[] = useMemo(() =>
+    [...rentals, ...MOCK_SPORT_VENUES]
+      .sort((a, b) => (b.rating ?? 0) - (a.rating ?? 0))
+      .slice(0, 8)
+      .filter(r => (r.images && r.images[0]) || r.image)
+      .map(r => ({
+        id: r.id || (r as any)._id || '',
+        type: 'rental' as const,
+        name: r.title,
+        image: (r.images && r.images[0]) || r.image || '',
+        subtitle: r.locationName || r.type || 'Saudi Arabia',
+        rating: r.rating ? Number(r.rating) : undefined,
+        badge: r.type || 'Rental',
+        badgeColor: '#d97706',
+      })),
+  [rentals]);
+
   const visible = rentals
-    .filter(r => typeFilter === 'All' || r.type === typeFilter)
+    .filter(r => {
+      const matchType = typeFilter === 'All' || (typeFilter !== 'Sports' && r.type === typeFilter);
+      const matchSearch = !search ||
+        r.title?.toLowerCase().includes(search.toLowerCase()) ||
+        r.locationName?.toLowerCase().includes(search.toLowerCase()) ||
+        r.type?.toLowerCase().includes(search.toLowerCase());
+      return matchType && matchSearch;
+    })
     .sort((a, b) => {
       if (sortBy === 'price_asc') return (Number(a.price) || 0) - (Number(b.price) || 0);
       if (sortBy === 'price_desc') return (Number(b.price) || 0) - (Number(a.price) || 0);
@@ -665,6 +845,7 @@ export const RentalsScreen = ({ t, initialRentalId, onRentalOpened }: { t: any; 
 
   const kashtas = visible.filter(r => r.type === 'Kashta');
   const otherRentals = visible.filter(r => r.type !== 'Kashta');
+  const hasContent = visible.length > 0 || (showSportsSection && MOCK_SPORT_VENUES.length > 0);
 
   return (
     <div className="min-h-full bg-slate-50 relative">
@@ -684,37 +865,85 @@ export const RentalsScreen = ({ t, initialRentalId, onRentalOpened }: { t: any; 
         </div>
       </div>
 
+      {/* Featured slideshow */}
+      {slideshowItems.length > 0 && (
+        <FeaturedSlideshow
+          items={slideshowItems}
+          height="h-56"
+          onPress={item => {
+            const rental = [...rentals, ...MOCK_SPORT_VENUES].find(r => (r.id || (r as any)._id) === item.id) ?? null;
+            if (rental) setSelectedItem(rental);
+          }}
+        />
+      )}
+
+      {/* Search bar */}
+      <div className="bg-white px-4 pt-3 pb-2">
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+          <input
+            type="text"
+            placeholder={t.rentalsSearch || 'Search rentals by name, location, type…'}
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            onFocus={() => setSearchFocused(true)}
+            onBlur={() => setTimeout(() => setSearchFocused(false), 150)}
+            className="w-full pl-9 pr-9 py-2.5 bg-slate-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+          />
+          {search && (
+            <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+              <X className="w-4 h-4" />
+            </button>
+          )}
+        </div>
+      </div>
+
       {/* Filter + Sort bar */}
       <div className="bg-white border-b border-slate-100 px-4 py-3 flex items-center gap-3">
         <div className="flex gap-2 overflow-x-auto no-scrollbar flex-1">
-          {TYPE_FILTERS.map(f => (
-            <button
-              key={f}
-              onClick={() => setTypeFilter(f)}
-              className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-bold border transition-all ${typeFilter === f ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white text-slate-600 border-slate-200 hover:border-emerald-400'}`}
-            >
-              {f}
-            </button>
-          ))}
+          {TYPE_FILTER_IDS.map(f => {
+            const filterLabels: Record<string, string> = {
+              All: t.filterTypeAll || 'All', Kashta: t.filterKashta || 'Kashta',
+              Camp: t.filterCamp || 'Camp', Chalet: t.filterChalet || 'Chalet',
+              Apartment: t.filterApartment || 'Apartment', Sports: t.filterSports || 'Sports',
+            };
+            return (
+              <button
+                key={f}
+                onClick={() => setTypeFilter(f)}
+                className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-bold border transition-all ${typeFilter === f ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white text-slate-600 border-slate-200 hover:border-emerald-400'}`}
+              >
+                {filterLabels[f]}
+              </button>
+            );
+          })}
         </div>
         <div className="relative flex-shrink-0">
           <button
             onClick={() => setShowSortMenu(v => !v)}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold border border-slate-200 bg-white text-slate-600 hover:border-emerald-400 transition-all"
           >
-            <SlidersHorizontal className="w-3 h-3" /> Sort
+            <SlidersHorizontal className="w-3 h-3" /> {t.rentalsSort || 'Sort'}
           </button>
           {showSortMenu && (
             <div className="absolute right-0 top-full mt-1 bg-white rounded-xl shadow-xl border border-slate-100 z-20 min-w-[180px] overflow-hidden">
-              {(Object.keys(SORT_LABELS) as SortOption[]).map(opt => (
-                <button
-                  key={opt}
-                  onClick={() => { setSortBy(opt); setShowSortMenu(false); }}
-                  className={`w-full text-left px-4 py-2.5 text-xs font-medium hover:bg-slate-50 transition-colors ${sortBy === opt ? 'text-emerald-600 font-bold bg-emerald-50' : 'text-slate-700'}`}
-                >
-                  {SORT_LABELS[opt]}
-                </button>
-              ))}
+              {(['default', 'price_asc', 'price_desc', 'rating_desc'] as SortOption[]).map(opt => {
+                const sortLabels: Record<SortOption, string> = {
+                  default: t.sortDefault || 'Default',
+                  price_asc: t.sortPriceLow || 'Price: Low → High',
+                  price_desc: t.sortPriceHigh || 'Price: High → Low',
+                  rating_desc: t.sortTopRated || 'Highest Rated',
+                };
+                return (
+                  <button
+                    key={opt}
+                    onClick={() => { setSortBy(opt); setShowSortMenu(false); }}
+                    className={`w-full text-left px-4 py-2.5 text-xs font-medium hover:bg-slate-50 transition-colors ${sortBy === opt ? 'text-emerald-600 font-bold bg-emerald-50' : 'text-slate-700'}`}
+                  >
+                    {sortLabels[opt]}
+                  </button>
+                );
+              })}
             </div>
           )}
         </div>
@@ -723,18 +952,18 @@ export const RentalsScreen = ({ t, initialRentalId, onRentalOpened }: { t: any; 
       {showSortMenu && <div className="fixed inset-0 z-10" onClick={() => setShowSortMenu(false)} />}
 
       <div className="p-4">
-        {visible.length === 0 ? (
+        {!hasContent ? (
           <div className="text-center py-16 bg-white rounded-2xl border border-dashed border-slate-300">
             <Tent className="w-12 h-12 mx-auto text-slate-300 mb-3" />
             <h3 className="text-slate-500 font-bold text-lg mb-1">
-              {typeFilter !== 'All' ? `No ${typeFilter} listings yet` : (t.noRentals || 'No rentals available yet')}
+              {typeFilter !== 'All' ? (t.rentalsNoListings || `No ${typeFilter} listings yet`) : (t.noRentals || 'No rentals available yet')}
             </h3>
             <p className="text-sm text-slate-400 mb-4">
-              {typeFilter !== 'All' ? 'Try a different filter or be the first to list one!' : (t.beFirstHost || 'Be the first to host a place!')}
+              {typeFilter !== 'All' ? (t.rentalsListFirst || 'Try a different filter or be the first to list one!') : (t.beFirstHost || 'Be the first to host a place!')}
             </p>
             {typeFilter === 'All' && (
               <button onClick={() => setShowHostModal(true)} className="px-6 py-2 bg-emerald-600 text-white rounded-full text-sm font-bold hover:bg-emerald-700 transition">
-                + List Your Place
+                {t.listYourPlace || '+ List Your Place'}
               </button>
             )}
           </div>
@@ -790,7 +1019,7 @@ export const RentalsScreen = ({ t, initialRentalId, onRentalOpened }: { t: any; 
                           <div className="absolute top-2 left-2 bg-slate-900/70 text-white px-2 py-0.5 rounded text-[10px] font-bold">{item.type}</div>
                           {item.images && item.images.length > 1 && (
                             <div className="absolute bottom-2 right-2 bg-black/60 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
-                              +{item.images.length - 1} photos
+                              +{item.images.length - 1} {t.photosCount || 'photos'}
                             </div>
                           )}
                         </div>
@@ -803,7 +1032,7 @@ export const RentalsScreen = ({ t, initialRentalId, onRentalOpened }: { t: any; 
                             </div>
                           )}
                           <div className="flex items-center justify-between border-t border-slate-50 pt-3">
-                            <p className="font-bold text-lg text-emerald-700">{item.price} <span className="text-xs font-normal text-slate-500">SAR / night</span></p>
+                            <p className="font-bold text-lg text-emerald-700">{item.price} <span className="text-xs font-normal text-slate-500">{t.sarNight || 'SAR / night'}</span></p>
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
@@ -822,7 +1051,95 @@ export const RentalsScreen = ({ t, initialRentalId, onRentalOpened }: { t: any; 
                 </div>
               </>
             )}
+
+            {/* ── Sports Rentals Section ──────────────────────────────────── */}
+            {showSportsSection && MOCK_SPORT_VENUES.length > 0 && (
+              <div className="mt-8">
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="p-1.5 bg-blue-100 rounded-lg text-blue-600"><Trophy className="w-4 h-4" /></div>
+                  <div>
+                    <h3 className="font-bold text-slate-900 leading-none">Sports Venues</h3>
+                    <p className="text-[10px] text-slate-500">Book a court or pitch near you</p>
+                  </div>
+                </div>
+                <div className="space-y-4">
+                  {MOCK_SPORT_VENUES.map(item => {
+                    const img = item.images?.[0] || item.image;
+                    const sportColor: Record<string, string> = {
+                      Padel: 'bg-blue-500',
+                      Football: 'bg-green-600',
+                      Basketball: 'bg-orange-500',
+                      Tennis: 'bg-yellow-500',
+                    };
+                    const badgeColor = sportColor[item.type] || 'bg-slate-600';
+                    return (
+                      <div
+                        key={item.id}
+                        onClick={() => setSelectedItem(item)}
+                        className="bg-white rounded-2xl p-3 border border-slate-100 shadow-sm flex flex-col cursor-pointer active:scale-[0.99] transition-transform"
+                      >
+                        <div className="relative h-40 rounded-xl overflow-hidden mb-3">
+                          <img
+                            src={img}
+                            className="w-full h-full object-cover"
+                            onError={(e) => { (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?w=800&q=80'; }}
+                            alt={item.title}
+                          />
+                          {item.rating && (
+                            <div className="absolute top-2 right-2 bg-white/90 backdrop-blur-sm px-2 py-1 rounded-lg text-xs font-bold flex items-center gap-1">
+                              <Star className="w-3 h-3 text-orange-400 fill-orange-400" /> {item.rating}
+                            </div>
+                          )}
+                          <div className={`absolute top-2 left-2 ${badgeColor} text-white px-2 py-0.5 rounded text-[10px] font-bold`}>{item.type}</div>
+                          {item.images && item.images.length > 1 && (
+                            <div className="absolute bottom-2 right-2 bg-black/60 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
+                              +{item.images.length - 1} {t.photosCount || 'photos'}
+                            </div>
+                          )}
+                        </div>
+                        <div>
+                          <h3 className="font-bold text-slate-900">{item.title}</h3>
+                          <div className="flex items-center gap-1 text-xs text-slate-500 mb-1">
+                            <MapPin className="w-3 h-3" /> {item.locationName}
+                          </div>
+                          {item.contactName && (
+                            <div className="flex items-center gap-1 text-xs text-slate-400 mb-2">
+                              <User className="w-3 h-3" /> {item.contactName}
+                            </div>
+                          )}
+                          <div className="flex items-center justify-between border-t border-slate-50 pt-3">
+                            <p className="font-bold text-lg text-blue-700">
+                              {item.price} <span className="text-xs font-normal text-slate-500">SAR / hr</span>
+                            </p>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (item.contactPhone) window.open(`tel:${item.contactPhone}`, '_self');
+                                else setSelectedItem(item);
+                              }}
+                              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-xl text-xs font-bold hover:bg-blue-700 transition"
+                            >
+                              <Phone className="w-3 h-3" /> Book
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </>
+        )}
+        {searchFocused && trendingItems.length > 0 && (
+          <TrendingCards
+            items={trendingItems}
+            label="🔥 Trending Rentals"
+            onSelect={item => {
+              const rental = [...rentals, ...MOCK_SPORT_VENUES].find(r => (r.id || (r as any)._id) === item.id) ?? null;
+              if (rental) setSelectedItem(rental);
+            }}
+          />
         )}
       </div>
 
@@ -944,7 +1261,13 @@ export const RentalsScreen = ({ t, initialRentalId, onRentalOpened }: { t: any; 
       )}
 
       {selectedItem && (
-        <RentalDetailPage rental={selectedItem} onBack={() => setSelectedItem(null)} />
+        <RentalDetailPage
+          rental={selectedItem}
+          onBack={() => setSelectedItem(null)}
+          allRentals={[...rentals, ...MOCK_SPORT_VENUES]}
+          onSelectRental={setSelectedItem}
+          t={t}
+        />
       )}
     </div>
   );

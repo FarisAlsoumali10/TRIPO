@@ -8,8 +8,9 @@ import { User, Itinerary, Place, Tour, Rental } from '../types/index';
 import { placeAPI, tourAPI, rentalAPI } from '../services/api';
 import { SkeletonCard, SkeletonList } from '../components/ui';
 import { showToast } from '../components/Toast';
+import { FeaturedSlideshow, SlideItem } from '../components/FeaturedSlideshow';
 
-const CATEGORIES = ['All', 'Nature', 'Heritage', 'Adventure', 'Food', 'Urban', 'Beach', 'Desert'];
+const CATEGORY_KEYS = ['All', 'Nature', 'Heritage', 'Adventure', 'Food', 'Urban', 'Beach', 'Desert'];
 
 export const MOCK_PLACES: Place[] = [
   {
@@ -130,6 +131,61 @@ export const HomeScreen = ({
   const [isLoadingTours, setIsLoadingTours] = useState(true);
   const [isLoadingPlaces, setIsLoadingPlaces] = useState(true);
 
+  // Build slideshow items from top-rated places, tours, rentals (interleaved)
+  const slideshowItems: SlideItem[] = (() => {
+    const topPlaces = [...places]
+      .sort((a, b) => (b.ratingSummary?.avgRating ?? b.rating ?? 0) - (a.ratingSummary?.avgRating ?? a.rating ?? 0))
+      .slice(0, 3)
+      .map(p => ({
+        id: p._id || p.id || '',
+        type: 'place' as const,
+        name: p.name,
+        image: p.photos?.[0] || p.image || '',
+        subtitle: p.city || p.categoryTags?.[0] || 'Saudi Arabia',
+        rating: p.ratingSummary?.avgRating || p.rating,
+        badge: 'Place',
+        badgeColor: '#0d9488',
+      }));
+
+    const topTours = [...tours]
+      .sort((a, b) => (Number(b.rating) || 0) - (Number(a.rating) || 0))
+      .slice(0, 3)
+      .map(t => ({
+        id: t.id || (t as any)._id || '',
+        type: 'tour' as const,
+        name: t.title,
+        image: t.heroImage || '',
+        subtitle: t.departureLocation || t.category || 'Saudi Arabia',
+        rating: Number(t.rating) || undefined,
+        badge: 'Tour',
+        badgeColor: '#7c3aed',
+      }));
+
+    const topRentals = [...featuredRentals]
+      .sort((a, b) => (Number(b.rating) || 0) - (Number(a.rating) || 0))
+      .slice(0, 2)
+      .map(r => ({
+        id: r.id || (r as any)._id || '',
+        type: 'rental' as const,
+        name: r.title,
+        image: (r.images && r.images[0]) || r.image || '',
+        subtitle: r.locationName || r.type || 'Saudi Arabia',
+        rating: Number(r.rating) || undefined,
+        badge: r.type || 'Rental',
+        badgeColor: '#d97706',
+      }));
+
+    // Interleave: place, tour, rental, place, tour, rental...
+    const result: SlideItem[] = [];
+    const maxLen = Math.max(topPlaces.length, topTours.length, topRentals.length);
+    for (let i = 0; i < maxLen; i++) {
+      if (topPlaces[i]) result.push(topPlaces[i]);
+      if (topTours[i]) result.push(topTours[i]);
+      if (topRentals[i]) result.push(topRentals[i]);
+    }
+    return result.filter(s => s.image); // only items with photos
+  })();
+
   const cityHero = getCityHero(user.smartProfile?.city);
 
   useEffect(() => {
@@ -164,9 +220,15 @@ export const HomeScreen = ({
 
   const greeting = () => {
     const h = new Date().getHours();
-    if (h < 12) return 'Good morning';
-    if (h < 17) return 'Good afternoon';
-    return 'Good evening';
+    if (h < 12) return t.goodMorning || 'Good morning';
+    if (h < 17) return t.goodAfternoon || 'Good afternoon';
+    return t.goodEvening || 'Good evening';
+  };
+
+  const handleSlidePress = (item: SlideItem) => {
+    if (item.type === 'place') onNavigate?.('places', item.id);
+    else if (item.type === 'tour') onNavigate?.('tours', item.id);
+    else if (item.type === 'rental') onNavigate?.('rentals', item.id);
   };
 
   return (
@@ -202,21 +264,40 @@ export const HomeScreen = ({
       {/* Category Filter Pills */}
       <div className="sticky top-0 z-20 bg-slate-50/90 backdrop-blur-sm pt-3 pb-2 border-b border-slate-200">
         <div className="flex gap-2 overflow-x-auto no-scrollbar px-4">
-          {CATEGORIES.map(cat => (
-            <button
-              key={cat}
-              onClick={() => setActiveCategory(cat)}
-              className={`flex-shrink-0 px-4 py-1.5 rounded-full text-sm font-semibold transition-all ${
-                activeCategory === cat
-                  ? 'bg-emerald-600 text-white shadow-sm shadow-emerald-200'
-                  : 'bg-white text-slate-600 border border-slate-200 hover:border-emerald-300'
-              }`}
-            >
-              {cat}
-            </button>
-          ))}
+          {CATEGORY_KEYS.map(cat => {
+            const catLabel: Record<string, string> = {
+              All: t.catAll || 'All', Nature: t.catNature || 'Nature',
+              Heritage: t.catHeritage || 'Heritage', Adventure: t.catAdventure || 'Adventure',
+              Food: t.catFood || 'Food', Urban: t.catUrban || 'Urban',
+              Beach: t.catBeach || 'Beach', Desert: t.catDesert || 'Desert',
+            };
+            return (
+              <button
+                key={cat}
+                onClick={() => setActiveCategory(cat)}
+                className={`flex-shrink-0 px-4 py-1.5 rounded-full text-sm font-semibold transition-all ${
+                  activeCategory === cat
+                    ? 'bg-emerald-600 text-white shadow-sm shadow-emerald-200'
+                    : 'bg-white text-slate-600 border border-slate-200 hover:border-emerald-300'
+                }`}
+              >
+                {catLabel[cat] || cat}
+              </button>
+            );
+          })}
         </div>
       </div>
+
+      {/* Popular Spots Slideshow */}
+      {slideshowItems.length > 0 && (
+        <div className="mt-4 mb-1">
+          <div className="flex items-center justify-between px-4 mb-3">
+            <h2 className="text-lg font-bold text-slate-900">{t.sectionPopularSpots || '🌟 Popular Spots'}</h2>
+            <span className="text-xs text-slate-400 font-medium">{t.sectionPopularSpotsDesc || 'Places · Tours · Rentals'}</span>
+          </div>
+          <FeaturedSlideshow items={slideshowItems} onPress={handleSlidePress} height="h-72" />
+        </div>
+      )}
 
       <div className="px-4 pt-5 space-y-8">
 
@@ -224,10 +305,10 @@ export const HomeScreen = ({
         <section>
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-bold text-slate-900">
-              {activeCategory === 'All' ? '📍 Popular Places' : `📍 ${activeCategory} Places`}
+              {activeCategory === 'All' ? (t.sectionPopularPlaces || '📍 Popular Places') : `${t.sectionPopularPlacesCat || '📍'} ${activeCategory}`}
             </h2>
             <button onClick={() => onNavigate?.('places')} className="flex items-center gap-1 text-xs font-bold text-emerald-600">
-              See all <ChevronRight className="w-3.5 h-3.5" />
+              {t.seeAll || 'See all'} <ChevronRight className="w-3.5 h-3.5" />
             </button>
           </div>
 
@@ -287,10 +368,10 @@ export const HomeScreen = ({
         <section>
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-bold text-slate-900">
-              {activeCategory === 'All' ? '🧭 Popular Tours' : `🧭 ${activeCategory} Tours`}
+              {activeCategory === 'All' ? (t.sectionPopularTours || '🧭 Popular Tours') : `${t.sectionPopularToursCat || '🧭'} ${activeCategory}`}
             </h2>
             <button onClick={() => onNavigate?.('tours')} className="flex items-center gap-1 text-xs font-bold text-emerald-600">
-              See all <ChevronRight className="w-3.5 h-3.5" />
+              {t.seeAll || 'See all'} <ChevronRight className="w-3.5 h-3.5" />
             </button>
           </div>
 

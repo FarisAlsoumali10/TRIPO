@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { MapPin, Star, Search, X, TrendingUp, Award, Navigation, Wallet } from 'lucide-react';
 import { Place } from '../types/index';
 import { placeAPI } from '../services/api';
@@ -6,8 +6,10 @@ import { MOCK_PLACES } from './HomeScreen';
 import { PlaceDetailModal } from '../components/PlaceDetailModal';
 import { SkeletonCard } from '../components/ui';
 import { showToast } from '../components/Toast';
+import { TrendingCards, TrendingItem } from '../components/TrendingSlideshow';
+import { FeaturedSlideshow, SlideItem } from '../components/FeaturedSlideshow';
 
-const CATEGORIES = ['All', 'Nature', 'Heritage', 'Adventure', 'Food', 'Urban', 'Beach', 'Desert', 'Cultural'];
+const CATEGORY_KEYS = ['All', 'Nature', 'Heritage', 'Adventure', 'Food', 'Urban', 'Beach', 'Desert', 'Cultural'];
 
 type QuickFilter = 'budget' | 'trending' | 'highest_rated' | 'near_me' | null;
 
@@ -43,6 +45,7 @@ export const PlacesScreen = ({ t, initialPlaceId, onPlaceOpened }: { t: any; ini
   const [selectedPlace, setSelectedPlace] = useState<Place | null>(null);
   const [category, setCategory] = useState('All');
   const [search, setSearch] = useState('');
+  const [searchFocused, setSearchFocused] = useState(false);
   const [quickFilter, setQuickFilter] = useState<QuickFilter>(null);
   const [userCoords, setUserCoords] = useState<[number, number] | null>(null);
   const [locating, setLocating] = useState(false);
@@ -100,11 +103,44 @@ export const PlacesScreen = ({ t, initialPlaceId, onPlaceOpened }: { t: any; ini
       return 0;
     });
 
+  const trendingItems: TrendingItem[] = useMemo(() =>
+    [...places]
+      .sort((a, b) => (b.ratingSummary?.reviewCount ?? 0) - (a.ratingSummary?.reviewCount ?? 0))
+      .slice(0, 8)
+      .filter(p => p.photos?.[0] || p.image)
+      .map(p => ({
+        id: p.id || p._id || '',
+        image: p.photos?.[0] || p.image || '',
+        name: p.name,
+        subtitle: p.city || 'Saudi Arabia',
+        badge: p.categoryTags?.[0] || 'Place',
+        badgeColor: '#0d9488',
+        rating: p.ratingSummary?.avgRating ?? p.rating,
+      })),
+  [places]);
+
+  const slideshowItems: SlideItem[] = useMemo(() =>
+    [...places]
+      .sort((a, b) => (b.ratingSummary?.avgRating ?? b.rating ?? 0) - (a.ratingSummary?.avgRating ?? a.rating ?? 0))
+      .slice(0, 8)
+      .filter(p => p.photos?.[0] || p.image)
+      .map(p => ({
+        id: p.id || p._id || '',
+        type: 'place' as const,
+        name: p.name,
+        image: p.photos?.[0] || p.image || '',
+        subtitle: p.city || 'Saudi Arabia',
+        rating: p.ratingSummary?.avgRating ?? p.rating,
+        badge: p.categoryTags?.[0] || 'Place',
+        badgeColor: '#0d9488',
+      })),
+  [places]);
+
   const QUICK_FILTERS: { id: QuickFilter; label: string; icon: React.ReactNode }[] = [
-    { id: 'budget', label: 'Budget', icon: <Wallet className="w-3.5 h-3.5" /> },
-    { id: 'trending', label: 'Trending', icon: <TrendingUp className="w-3.5 h-3.5" /> },
-    { id: 'highest_rated', label: 'Top Rated', icon: <Award className="w-3.5 h-3.5" /> },
-    { id: 'near_me', label: locating ? 'Locating…' : 'Near Me', icon: <Navigation className="w-3.5 h-3.5" /> },
+    { id: 'budget', label: t.filterBudget || 'Budget', icon: <Wallet className="w-3.5 h-3.5" /> },
+    { id: 'trending', label: t.filterTrending || 'Trending', icon: <TrendingUp className="w-3.5 h-3.5" /> },
+    { id: 'highest_rated', label: t.filterTopRated || 'Top Rated', icon: <Award className="w-3.5 h-3.5" /> },
+    { id: 'near_me', label: locating ? (t.filterLocating || 'Locating…') : (t.filterNearMe || 'Near Me'), icon: <Navigation className="w-3.5 h-3.5" /> },
   ];
 
   return (
@@ -113,8 +149,8 @@ export const PlacesScreen = ({ t, initialPlaceId, onPlaceOpened }: { t: any; ini
       {/* Header */}
       <div className="bg-white border-b border-slate-200 px-5 pt-5 pb-3">
         <div className="mb-3">
-          <h1 className="text-xl font-bold text-slate-900">Places</h1>
-          <p className="text-sm text-slate-500">{places.length} spots in Saudi Arabia</p>
+          <h1 className="text-xl font-bold text-slate-900">{t.placesTitle || 'Places'}</h1>
+          <p className="text-sm text-slate-500">{places.length} {t.placesSubtitle || 'spots in Saudi Arabia'}</p>
         </div>
 
         {/* Search */}
@@ -122,9 +158,11 @@ export const PlacesScreen = ({ t, initialPlaceId, onPlaceOpened }: { t: any; ini
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
           <input
             type="text"
-            placeholder="Search by name or city..."
+            placeholder={t.placesSearch || 'Search by name or city...'}
             value={search}
             onChange={e => setSearch(e.target.value)}
+            onFocus={() => setSearchFocused(true)}
+            onBlur={() => setTimeout(() => setSearchFocused(false), 150)}
             className="w-full pl-9 pr-9 py-2.5 bg-slate-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
           />
           {search && (
@@ -154,7 +192,15 @@ export const PlacesScreen = ({ t, initialPlaceId, onPlaceOpened }: { t: any; ini
 
         {/* Category Pills */}
         <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
-          {CATEGORIES.map(cat => (
+          {CATEGORY_KEYS.map(cat => {
+            const catLabels: Record<string, string> = {
+              All: t.catAll || 'All', Nature: t.catNature || 'Nature',
+              Heritage: t.catHeritage || 'Heritage', Adventure: t.catAdventure || 'Adventure',
+              Food: t.catFood || 'Food', Urban: t.catUrban || 'Urban',
+              Beach: t.catBeach || 'Beach', Desert: t.catDesert || 'Desert',
+              Cultural: t.catCultural || 'Cultural',
+            };
+            return (
             <button
               key={cat}
               onClick={() => setCategory(cat)}
@@ -164,11 +210,24 @@ export const PlacesScreen = ({ t, initialPlaceId, onPlaceOpened }: { t: any; ini
                   : 'bg-white text-slate-600 border border-slate-200 hover:border-emerald-300'
               }`}
             >
-              {cat}
+              {catLabels[cat] || cat}
             </button>
-          ))}
+            );
+          })}
         </div>
       </div>
+
+      {/* Featured slideshow */}
+      {slideshowItems.length > 0 && (
+        <FeaturedSlideshow
+          items={slideshowItems}
+          height="h-56"
+          onPress={item => {
+            const place = places.find(p => (p.id || p._id) === item.id) ?? null;
+            if (place) setSelectedPlace(place);
+          }}
+        />
+      )}
 
       {/* Content */}
       <div className="flex-1 overflow-y-auto p-4 pb-24">
@@ -176,61 +235,75 @@ export const PlacesScreen = ({ t, initialPlaceId, onPlaceOpened }: { t: any; ini
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
             {[1,2,3,4,5,6].map(i => <SkeletonCard key={i} />)}
           </div>
-        ) : filtered.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-20 text-center">
-            <MapPin className="w-12 h-12 text-slate-200 mb-3" />
-            <p className="font-semibold text-slate-500 text-sm">No places found</p>
-            <p className="text-slate-400 text-xs mt-1">Try a different category or search term</p>
-          </div>
         ) : (
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-            {filtered.map(place => {
-              const img = place.photos?.[0] || place.image;
-              const rating = place.ratingSummary?.avgRating ?? place.rating;
-              return (
-                <button
-                  key={place._id || place.id}
-                  onClick={() => setSelectedPlace(place)}
-                  className="bg-white rounded-2xl overflow-hidden shadow-sm border border-slate-100 hover:shadow-md hover:-translate-y-0.5 transition-all text-left group"
-                >
-                  <div className="h-36 bg-slate-200 relative overflow-hidden">
-                    {img ? (
-                      <img
-                        src={img}
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                        alt={place.name}
-                      />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center">
-                        <MapPin className="w-8 h-8 text-slate-300" />
+          <>
+            {filtered.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-20 text-center">
+                <MapPin className="w-12 h-12 text-slate-200 mb-3" />
+                <p className="font-semibold text-slate-500 text-sm">{t.noPlacesFound || 'No places found'}</p>
+                <p className="text-slate-400 text-xs mt-1">{t.tryDifferentSearch || 'Try a different category or search term'}</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                {filtered.map(place => {
+                  const img = place.photos?.[0] || place.image;
+                  const rating = place.ratingSummary?.avgRating ?? place.rating;
+                  return (
+                    <button
+                      key={place._id || place.id}
+                      onClick={() => setSelectedPlace(place)}
+                      className="bg-white rounded-2xl overflow-hidden shadow-sm border border-slate-100 hover:shadow-md hover:-translate-y-0.5 transition-all text-left group"
+                    >
+                      <div className="h-36 bg-slate-200 relative overflow-hidden">
+                        {img ? (
+                          <img
+                            src={img}
+                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                            alt={place.name}
+                          />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center">
+                            <MapPin className="w-8 h-8 text-slate-300" />
+                          </div>
+                        )}
+                        {rating && (
+                          <div className="absolute top-2 right-2 flex items-center gap-0.5 bg-white/90 backdrop-blur-sm px-1.5 py-0.5 rounded-full">
+                            <Star className="w-2.5 h-2.5 fill-amber-400 text-amber-400" />
+                            <span className="text-[10px] font-bold text-slate-700">{Number(rating).toFixed(1)}</span>
+                          </div>
+                        )}
+                        {place.categoryTags?.[0] && (
+                          <div className="absolute bottom-2 left-2 bg-black/50 backdrop-blur-sm text-white text-[9px] font-bold px-2 py-0.5 rounded-full uppercase">
+                            {place.categoryTags[0]}
+                          </div>
+                        )}
                       </div>
-                    )}
-                    {rating && (
-                      <div className="absolute top-2 right-2 flex items-center gap-0.5 bg-white/90 backdrop-blur-sm px-1.5 py-0.5 rounded-full">
-                        <Star className="w-2.5 h-2.5 fill-amber-400 text-amber-400" />
-                        <span className="text-[10px] font-bold text-slate-700">{Number(rating).toFixed(1)}</span>
+                      <div className="p-3">
+                        <p className="font-bold text-slate-900 text-sm truncate">{place.name}</p>
+                        <p className="text-xs text-slate-400 flex items-center gap-1 mt-0.5">
+                          <MapPin className="w-3 h-3 flex-shrink-0" />
+                          <span className="truncate">{place.city || 'Saudi Arabia'}</span>
+                        </p>
+                        {place.ratingSummary?.reviewCount != null && (
+                          <p className="text-xs text-slate-400 mt-0.5">{place.ratingSummary.reviewCount} {t.reviewsCount || 'reviews'}</p>
+                        )}
                       </div>
-                    )}
-                    {place.categoryTags?.[0] && (
-                      <div className="absolute bottom-2 left-2 bg-black/50 backdrop-blur-sm text-white text-[9px] font-bold px-2 py-0.5 rounded-full uppercase">
-                        {place.categoryTags[0]}
-                      </div>
-                    )}
-                  </div>
-                  <div className="p-3">
-                    <p className="font-bold text-slate-900 text-sm truncate">{place.name}</p>
-                    <p className="text-xs text-slate-400 flex items-center gap-1 mt-0.5">
-                      <MapPin className="w-3 h-3 flex-shrink-0" />
-                      <span className="truncate">{place.city || 'Saudi Arabia'}</span>
-                    </p>
-                    {place.ratingSummary?.reviewCount != null && (
-                      <p className="text-xs text-slate-400 mt-0.5">{place.ratingSummary.reviewCount} reviews</p>
-                    )}
-                  </div>
-                </button>
-              );
-            })}
-          </div>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+            {searchFocused && trendingItems.length > 0 && (
+              <TrendingCards
+                items={trendingItems}
+                label={t.trendingPlaces || '🔥 Trending Places'}
+                onSelect={item => {
+                  const place = places.find(p => (p.id || p._id) === item.id) ?? null;
+                  if (place) setSelectedPlace(place);
+                }}
+              />
+            )}
+          </>
         )}
       </div>
 

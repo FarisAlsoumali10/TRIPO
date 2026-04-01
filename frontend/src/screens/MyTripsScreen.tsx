@@ -1,9 +1,11 @@
-import React, { useState, useEffect } from 'react';
-import { Plus, Users, Calendar, Lock, ChevronRight, Loader2 } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Plus, Users, Calendar, Lock, ChevronRight, Loader2, Images, X } from 'lucide-react';
 import { PrivateTrip, User } from '../types/index';
 import { privateTripAPI } from '../services/api';
 import { CreatePrivateTripModal } from '../components/CreatePrivateTripModal';
 import { showToast } from '../components/Toast';
+
+interface TripPhoto { id: string; uploaderName: string; dataUrl: string; timestamp: number; }
 
 const STORAGE_KEY = 'tripo_private_trips';
 
@@ -101,6 +103,35 @@ export const MyTripsScreen = ({ currentUser, onOpenTrip }: Props) => {
   const [trips, setTrips] = useState<PrivateTrip[]>(() => { const local = loadLocalTrips(); return local.length > 0 ? local : MOCK_PRIVATE_TRIPS; });
   const [isLoading, setIsLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
+  const [slideIdx,    setSlideIdx]    = useState(0);
+  const [lightboxIdx, setLightboxIdx] = useState<number | null>(null);
+  const touchStartX = React.useRef<number | null>(null);
+
+  const openLightbox = (idx: number) => setLightboxIdx(idx);
+  const closeLightbox = () => setLightboxIdx(null);
+  const lightboxPrev = () => setLightboxIdx(i => i !== null ? (i - 1 + allSlides.length) % allSlides.length : null);
+  const lightboxNext = () => setLightboxIdx(i => i !== null ? (i + 1) % allSlides.length : null);
+
+  // Collect all photos from all trips out of localStorage
+  const allSlides = useMemo(() => {
+    const result: { photo: TripPhoto; tripTitle: string }[] = [];
+    for (const trip of trips) {
+      try {
+        const raw = localStorage.getItem(`tripo_photos_${trip.id}`);
+        if (raw) {
+          const photos: TripPhoto[] = JSON.parse(raw);
+          photos.forEach(p => result.push({ photo: p, tripTitle: trip.title }));
+        }
+      } catch { /* skip */ }
+    }
+    return result;
+  }, [trips]);
+
+  useEffect(() => {
+    if (allSlides.length <= 1) return;
+    const id = setInterval(() => setSlideIdx(i => (i + 1) % allSlides.length), 3500);
+    return () => clearInterval(id);
+  }, [allSlides.length]);
 
   useEffect(() => {
     const fetch = async () => {
@@ -155,6 +186,47 @@ export const MyTripsScreen = ({ currentUser, onOpenTrip }: Props) => {
           New Trip
         </button>
       </div>
+
+      {/* ── Trip Memories Slideshow ───────────────────────────────────────────── */}
+      {allSlides.length > 0 && (
+        <div className="relative h-48 overflow-hidden flex-shrink-0">
+          {allSlides.map((slide, i) => (
+            <button
+              key={slide.photo.id}
+              type="button"
+              onClick={() => openLightbox(i)}
+              className={`absolute inset-0 w-full text-left transition-opacity duration-700 ${i === slideIdx ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+            >
+              <img src={slide.photo.dataUrl} alt="" className="w-full h-full object-cover" />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent" />
+              <div className="absolute bottom-7 left-4 right-4 flex items-end justify-between">
+                <div>
+                  <p className="text-white text-xs font-semibold opacity-80">📍 {slide.tripTitle}</p>
+                  <p className="text-white/60 text-[10px] mt-0.5">
+                    {new Date(slide.photo.timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                  </p>
+                </div>
+                <div className="flex items-center gap-1">
+                  <Images className="w-3.5 h-3.5 text-white/60" />
+                  <span className="text-white/60 text-[10px]">{allSlides.length} memories</span>
+                </div>
+              </div>
+            </button>
+          ))}
+          {/* Dot indicators */}
+          {allSlides.length > 1 && (
+            <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1 z-10">
+              {allSlides.map((_, i) => (
+                <button
+                  key={i}
+                  onClick={e => { e.stopPropagation(); setSlideIdx(i); }}
+                  className={`rounded-full transition-all ${i === slideIdx ? 'w-5 h-1.5 bg-white' : 'w-1.5 h-1.5 bg-white/40'}`}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Content */}
       <div className="flex-1 overflow-y-auto p-4 pb-24">
@@ -246,6 +318,99 @@ export const MyTripsScreen = ({ currentUser, onOpenTrip }: Props) => {
           onClose={() => setShowCreate(false)}
           onCreated={handleCreated}
         />
+      )}
+
+      {/* ── Memories Lightbox ─────────────────────────────────────────────────── */}
+      {lightboxIdx !== null && (
+        <div
+          className="fixed inset-0 bg-black z-50 flex flex-col"
+          onTouchStart={e => { touchStartX.current = e.touches[0].clientX; }}
+          onTouchEnd={e => {
+            if (touchStartX.current === null) return;
+            const dx = e.changedTouches[0].clientX - touchStartX.current;
+            if (dx < -50) lightboxNext();
+            else if (dx > 50) lightboxPrev();
+            touchStartX.current = null;
+          }}
+        >
+          {/* Top bar */}
+          <div className="flex items-center justify-between px-4 pt-10 pb-3 flex-shrink-0">
+            <span className="text-white/60 text-sm font-semibold">
+              {lightboxIdx + 1} / {allSlides.length}
+            </span>
+            <button
+              type="button"
+              onClick={closeLightbox}
+              className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center active:bg-white/30"
+            >
+              <X className="w-5 h-5 text-white" />
+            </button>
+          </div>
+
+          {/* Photo */}
+          <div className="flex-1 flex items-center justify-center px-4 min-h-0 relative">
+            {/* Prev tap zone */}
+            <button
+              type="button"
+              onClick={lightboxPrev}
+              className="absolute left-0 top-0 bottom-0 w-16 z-10"
+              aria-label="Previous"
+            />
+            <img
+              key={lightboxIdx}
+              src={allSlides[lightboxIdx].photo.dataUrl}
+              alt=""
+              className="max-w-full max-h-full object-contain rounded-xl"
+            />
+            {/* Next tap zone */}
+            <button
+              type="button"
+              onClick={lightboxNext}
+              className="absolute right-0 top-0 bottom-0 w-16 z-10"
+              aria-label="Next"
+            />
+          </div>
+
+          {/* Caption */}
+          <div className="flex-shrink-0 px-5 py-4 pb-8">
+            <p className="text-white font-semibold text-sm">📍 {allSlides[lightboxIdx].tripTitle}</p>
+            <p className="text-white/50 text-xs mt-0.5">
+              {allSlides[lightboxIdx].photo.uploaderName} ·{' '}
+              {new Date(allSlides[lightboxIdx].photo.timestamp).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+            </p>
+          </div>
+
+          {/* Thumbnail strip */}
+          <div className="flex-shrink-0 pb-6">
+            <div className="flex gap-2 overflow-x-auto no-scrollbar px-4">
+              {allSlides.map((slide, i) => (
+                <button
+                  key={slide.photo.id}
+                  type="button"
+                  onClick={() => setLightboxIdx(i)}
+                  className={`flex-shrink-0 w-14 h-14 rounded-xl overflow-hidden border-2 transition-all ${
+                    i === lightboxIdx ? 'border-white scale-105' : 'border-transparent opacity-50'
+                  }`}
+                >
+                  <img src={slide.photo.dataUrl} alt="" className="w-full h-full object-cover" />
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Dot indicators */}
+          {allSlides.length > 1 && allSlides.length <= 12 && (
+            <div className="flex justify-center gap-1.5 pb-4 flex-shrink-0">
+              {allSlides.map((_, i) => (
+                <button
+                  key={i}
+                  onClick={() => setLightboxIdx(i)}
+                  className={`rounded-full transition-all ${i === lightboxIdx ? 'w-5 h-1.5 bg-white' : 'w-1.5 h-1.5 bg-white/30'}`}
+                />
+              ))}
+            </div>
+          )}
+        </div>
       )}
     </div>
   );

@@ -201,6 +201,7 @@ export interface Expense {
   description: string;
   amount: number;
   timestamp: number;
+  category?: string;
 }
 
 export interface GroupTrip {
