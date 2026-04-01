@@ -16,6 +16,8 @@ export interface ISmartProfile extends SmartProfile {
 export interface IUser extends Document {
   email: string;
   passwordHash: string;
+  googleId?: string;
+  facebookId?: string;
   name: string;
   bio?: string; // ✅ نبذة قصيرة أو اقتباس مفضل للمستخدم
   avatar?: string;
@@ -64,7 +66,18 @@ const userSchema = new Schema({
   },
   passwordHash: {
     type: String,
-    required: true
+    required: false,
+    default: null
+  },
+  googleId: {
+    type: String,
+    sparse: true,
+    index: true
+  },
+  facebookId: {
+    type: String,
+    sparse: true,
+    index: true
   },
   name: {
     type: String,

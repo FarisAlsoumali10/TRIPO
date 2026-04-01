@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { MapPin, Calendar, Clock, ArrowLeft, Ticket, Globe, DollarSign, Info, Navigation } from 'lucide-react';
+import { FeaturedSlideshow, SlideItem } from '../components/FeaturedSlideshow';
 
 // ── SaudiEvent type ───────────────────────────────────────────────────────────
 
@@ -353,10 +354,12 @@ const EventDetailPage = ({
   event,
   onBack,
   onCreateWithEvent,
+  lang,
 }: {
   event: SaudiEvent;
   onBack: () => void;
   onCreateWithEvent?: (title: string) => void;
+  lang?: string;
 }) => {
   const countdown = getCountdown(event.startDate, event.endDate);
   const isPast = countdown.label === 'Past event';
@@ -502,7 +505,7 @@ const EventDetailPage = ({
             onClick={() => onCreateWithEvent?.(event.title)}
             className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-2xl transition-colors shadow-md text-sm"
           >
-            Plan a Trip Around This Event
+            {lang === 'ar' ? 'خطط رحلة حول هذه الفعالية' : 'Plan a Trip Around This Event'}
           </button>
         )}
       </div>
@@ -513,10 +516,14 @@ const EventDetailPage = ({
 // ── Events List ───────────────────────────────────────────────────────────────
 
 export const EventsScreen = ({
+  t,
+  lang,
   onCreateWithEvent,
   initialEventId,
   onEventOpened,
 }: {
+  t?: any;
+  lang?: string;
   onCreateWithEvent?: (eventTitle: string) => void;
   initialEventId?: string;
   onEventOpened?: () => void;
@@ -546,6 +553,7 @@ export const EventsScreen = ({
         event={selectedEvent}
         onBack={() => setSelectedEvent(null)}
         onCreateWithEvent={onCreateWithEvent}
+        lang={lang}
       />
     );
   }
@@ -555,8 +563,8 @@ export const EventsScreen = ({
       {/* Header */}
       <div className="sticky top-0 z-20 bg-white border-b border-slate-100 px-6 py-5">
         <div className="max-w-3xl mx-auto">
-          <h1 className="text-2xl font-extrabold text-slate-900 mb-1">Events &amp; Experiences</h1>
-          <p className="text-sm text-slate-500">Upcoming events &amp; festivals across Saudi Arabia</p>
+          <h1 className="text-2xl font-extrabold text-slate-900 mb-1">{t?.tabEventsLabel || 'Events'} &amp; {lang === 'ar' ? 'تجارب' : 'Experiences'}</h1>
+          <p className="text-sm text-slate-500">{lang === 'ar' ? 'الفعاليات والمهرجانات القادمة في المملكة العربية السعودية' : 'Upcoming events & festivals across Saudi Arabia'}</p>
         </div>
       </div>
 
@@ -573,11 +581,42 @@ export const EventsScreen = ({
                   : 'bg-white text-slate-600 border-slate-200 hover:border-emerald-400 hover:text-emerald-600'
               }`}
             >
-              {cat}
+              {cat === 'All' ? (t?.catAll || 'All') : cat}
             </button>
           ))}
         </div>
       </div>
+
+      {/* Featured Events Slideshow */}
+      {(() => {
+        const now = new Date();
+        const upcomingItems: SlideItem[] = allEvents
+          .filter(e => new Date(e.endDate) >= now && e.image)
+          .sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime())
+          .slice(0, 8)
+          .map(e => ({
+            id: e.id,
+            type: 'event' as const,
+            name: e.title,
+            image: e.image,
+            subtitle: `${e.city} · ${new Date(e.startDate).toLocaleDateString('en-SA', { day: 'numeric', month: 'short' })}`,
+            badge: e.category,
+            badgeColor: e.color || '#0d9488',
+          }));
+        if (!upcomingItems.length) return null;
+        return (
+          <div className="mb-2">
+            <FeaturedSlideshow
+              items={upcomingItems}
+              onPress={item => {
+                const found = allEvents.find(e => e.id === item.id) ?? null;
+                if (found) setSelectedEvent(found);
+              }}
+              height="h-72"
+            />
+          </div>
+        );
+      })()}
 
       {/* Events list */}
       <div className="px-6 py-6 space-y-6 max-w-3xl mx-auto">
@@ -610,7 +649,7 @@ export const EventsScreen = ({
                 </span>
                 {/* Price badge */}
                 <span className={`absolute top-3 right-3 px-3 py-1 text-xs font-bold rounded-full shadow ${event.isFree ? 'bg-emerald-500 text-white' : 'bg-white/90 text-slate-700'}`}>
-                  {event.isFree ? 'Free' : event.price.split(';')[0]}
+                  {event.isFree ? (t?.eventsFree || 'Free') : event.price.split(';')[0]}
                 </span>
               </div>
 

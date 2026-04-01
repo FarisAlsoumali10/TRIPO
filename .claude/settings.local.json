@@ -42,7 +42,22 @@
       "WebFetch(domain:www.pexels.com)",
       "Bash(docker-compose logs:*)",
       "Bash(docker-compose ps:*)",
-      "Bash(xargs grep:*)"
+      "Bash(xargs grep:*)",
+      "Bash(find C:Userscd-88TRIPO_NEWbackendsrc -type f \\\\\\(-name *.ts -o -name *.js \\\\\\))",
+      "Bash(grep -r rental C:Userscd-88TRIPO_NEWbackendsrc --include=*.ts --include=*.js)",
+      "Bash(python3:*)",
+      "Bash(ls -la C:/Users/cd-88/TRIPO_NEW/frontend/.env*)",
+      "Bash(netstat -ano)",
+      "Bash(curl -s \"http://localhost:5173/src/screens/AuthScreen.tsx\")",
+      "Bash(curl -s \"http://localhost:5173/index.tsx\")",
+      "Bash(curl:*)",
+      "Bash(sed -n '104,130p' \"C:/Users/cd-88/TRIPO_NEW/frontend/src/types/index.ts\")",
+      "Bash(sed -n '104,130p' \"C:/Users/cd-88/TRIPO_NEW/frontend/types.ts\")",
+      "Bash(sed -n '300,360p' \"C:/Users/cd-88/TRIPO_NEW/frontend/src/types/index.ts\")",
+      "Bash(sed -n '300,360p' \"C:/Users/cd-88/TRIPO_NEW/frontend/types.ts\")",
+      "Bash(grep:*)",
+      "Bash(/tmp/report.md:*)",
+      "Read(//tmp/**)"
     ],
     "deny": [],
     "ask": []

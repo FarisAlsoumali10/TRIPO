@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Home, Search, Plus, User as UserIcon, Settings, ChevronLeft, LogOut, Globe, Users, Menu, X, Heart, Shield, Users2, Sparkles, Download, Trash2, WifiOff, ChevronDown, ChevronUp, MapPin, Calendar, Star, Store, Tent, Compass, Lock, LayoutGrid } from 'lucide-react';
+import { Home, Search, Plus, User as UserIcon, Settings, ChevronLeft, LogOut, Globe, Users, Menu, X, Heart, Shield, Users2, Sparkles, Download, Trash2, WifiOff, ChevronDown, ChevronUp, MapPin, Calendar, Star, Store, Tent, Compass, Lock, LayoutGrid, Camera } from 'lucide-react';
 import { User, Itinerary, GroupTrip, SmartProfile, PrivateTrip } from './src/types/index';
 import { TRANSLATIONS } from './translations';
 import { authAPI, itineraryAPI, groupTripAPI } from './src/services/api';
@@ -7,9 +7,8 @@ import { getOfflineItineraries, removeOfflineItinerary } from './src/screens/Iti
 
 // Screens
 import { AuthScreen } from './src/screens/AuthScreen';
-import { SmartProfileScreen } from './src/screens/SmartProfileScreen';
 import { HomeScreen } from './src/screens/HomeScreen';
-import { OnboardingWizard } from './src/components/OnboardingWizard';
+import { YourMoodScreen } from './src/screens/YourMoodScreen';
 import { CreateScreen } from './src/screens/CreateScreen';
 import { ItineraryDetailScreen } from './src/screens/ItineraryDetailScreen';
 import { GroupTripScreen } from './src/screens/GroupTripScreen';
@@ -30,6 +29,39 @@ import { ToursScreen } from './src/screens/ToursScreen';
 import { PlacesScreen } from './src/screens/PlacesScreen';
 import { MyTripsScreen } from './src/screens/MyTripsScreen';
 import { PrivateTripScreen } from './src/screens/PrivateTripScreen';
+import { WelcomeScreen } from './src/screens/WelcomeScreen';
+
+// Error boundary to prevent blank screens on render crashes
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+class AuthErrorBoundary extends (React.Component as any) {
+  constructor(props: any) {
+    super(props);
+    (this as any).state = { error: null };
+  }
+  static getDerivedStateFromError(error: Error) { return { error }; }
+  render() {
+    const { error } = (this as any).state as { error: Error | null };
+    const { children, onReset } = (this as any).props as { children: React.ReactNode; onReset: () => void };
+    if (error) {
+      return (
+        <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 p-8 text-center">
+          <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mb-4">
+            <span className="text-red-500 text-xl font-bold">!</span>
+          </div>
+          <h2 className="text-lg font-bold text-slate-800 mb-2">Something went wrong</h2>
+          <p className="text-sm text-slate-500 mb-6">{error.message}</p>
+          <button
+            onClick={() => { (this as any).setState({ error: null }); onReset(); }}
+            className="px-6 py-2.5 bg-emerald-600 text-white rounded-xl font-semibold text-sm hover:bg-emerald-700"
+          >
+            Go Back
+          </button>
+        </div>
+      );
+    }
+    return children;
+  }
+}
 
 // Stable layout wrappers — must be defined OUTSIDE App so React doesn't
 // treat them as new component types on every render (which would unmount children).
@@ -52,29 +84,28 @@ const ACTIVE_TRIP_KEY = 'tripo_active_group_trip';
 const KARAM_POINTS_KEY = 'tripo_karam_points';
 const KARAM_HISTORY_KEY = 'tripo_karam_history';
 
-const getKaramLevel = (points: number): string => {
-  if (points >= 1000) return 'Legend';
-  if (points >= 500) return 'Pathfinder';
-  if (points >= 200) return 'Adventurer';
-  return 'Explorer';
+const getKaramLevel = (points: number, t?: any): string => {
+  if (points >= 1000) return t?.karamLegend    || 'Legend';
+  if (points >= 500)  return t?.karamPathfinder || 'Pathfinder';
+  if (points >= 200)  return t?.karamAdventurer || 'Adventurer';
+  return t?.karamExplorer || 'Explorer';
 };
 
-const getContributionTier = (count: number) => {
-  if (count >= 50) return { label: 'Expert Explorer',  color: 'text-purple-700',  bg: 'bg-purple-50',  icon: '💎' };
-  if (count >= 20) return { label: 'Trusted Guide',    color: 'text-blue-700',    bg: 'bg-blue-50',    icon: '🥇' };
-  if (count >= 5)  return { label: 'Active Traveller', color: 'text-emerald-700', bg: 'bg-emerald-50', icon: '🌟' };
-  return           { label: 'New Explorer',            color: 'text-slate-600',   bg: 'bg-slate-50',   icon: '🌱' };
+const getContributionTier = (count: number, t?: any) => {
+  if (count >= 50) return { label: t?.tierExpert  || 'Expert Explorer',  color: 'text-purple-700',  bg: 'bg-purple-50',  icon: '💎' };
+  if (count >= 20) return { label: t?.tierGuide   || 'Trusted Guide',    color: 'text-blue-700',    bg: 'bg-blue-50',    icon: '🥇' };
+  if (count >= 5)  return { label: t?.tierActive  || 'Active Traveller', color: 'text-emerald-700', bg: 'bg-emerald-50', icon: '🌟' };
+  return           { label: t?.tierNew    || 'New Explorer',            color: 'text-slate-600',   bg: 'bg-slate-50',   icon: '🌱' };
 };
 
 export const App = () => {
-  const [view, setView] = useState<'auth' | 'onboarding' | 'main' | 'itinerary' | 'group' | 'ar' | 'loading' | 'privateTrip'>('loading');
+  const [view, setView] = useState<'welcome' | 'auth' | 'main' | 'itinerary' | 'group' | 'loading' | 'privateTrip'>('loading');
+  const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
   const [activeTab, setActiveTab] = useState('home');
   const [user, setUser] = useState<User | null>(null);
   const [lang, setLang] = useState<'en' | 'ar'>('en');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
-  // Controls the first-launch onboarding wizard overlay (separate from the SmartProfileScreen onboarding)
-  const [showOnboardingWizard, setShowOnboardingWizard] = useState(false);
   const [userReviewCount, setUserReviewCount] = useState<number>(
     parseInt(localStorage.getItem('tripo_review_count') || '0', 10)
   );
@@ -172,10 +203,7 @@ export const App = () => {
           setUser(profile);
           localStorage.setItem('user', JSON.stringify(profile));
 
-          if (!profile.smartProfile) {
-            setView('onboarding');
-          } else {
-            setView('main');
+          setView('main');
             // Feature 4: Restore active group trip after successful auth
             try {
               const raw = localStorage.getItem(ACTIVE_TRIP_KEY);
@@ -184,26 +212,21 @@ export const App = () => {
                 if (trip?.id && trip?.itinerary) setActiveTrip(trip);
               }
             } catch (_) { /* noop */ }
-          }
         } catch (e) {
           console.error("Failed to fetch fresh profile, falling back to local storage...", e);
           if (storedUser) {
             try {
               const parsedUser = JSON.parse(storedUser);
               setUser(parsedUser);
-              if (!parsedUser.smartProfile) {
-                setView('onboarding');
-              } else {
-                setView('main');
-                // Feature 4: Restore active group trip from localStorage
-                try {
-                  const raw = localStorage.getItem(ACTIVE_TRIP_KEY);
-                  if (raw) {
-                    const trip: GroupTrip = JSON.parse(raw);
-                    if (trip?.id && trip?.itinerary) setActiveTrip(trip);
-                  }
-                } catch (_) { /* noop */ }
-              }
+              setView('main');
+              // Feature 4: Restore active group trip from localStorage
+              try {
+                const raw = localStorage.getItem(ACTIVE_TRIP_KEY);
+                if (raw) {
+                  const trip: GroupTrip = JSON.parse(raw);
+                  if (trip?.id && trip?.itinerary) setActiveTrip(trip);
+                }
+              } catch (_) { /* noop */ }
             } catch (err) {
               console.error("Local storage user parse failed", err);
               handleLogout();
@@ -213,7 +236,7 @@ export const App = () => {
           }
         }
       } else {
-        setView('auth');
+        setView('welcome');
       }
     };
 
@@ -226,50 +249,38 @@ export const App = () => {
 
   const handleLogin = async () => {
     setView('loading');
+    const restoreTrip = () => {
+      try {
+        const raw = localStorage.getItem(ACTIVE_TRIP_KEY);
+        if (raw) {
+          const trip: GroupTrip = JSON.parse(raw);
+          if (trip?.id && trip?.itinerary) setActiveTrip(trip);
+        }
+      } catch (_) { /* noop */ }
+    };
     const storedUser = localStorage.getItem('user');
     if (storedUser) {
-      const u = JSON.parse(storedUser);
-      setUser(u);
-      if (!u.smartProfile) {
-        setView('onboarding');
-      } else {
+      try {
+        const u = JSON.parse(storedUser);
+        setUser(u);
         setView('main');
-        // Feature 4: Restore active group trip on login
-        try {
-          const raw = localStorage.getItem(ACTIVE_TRIP_KEY);
-          if (raw) {
-            const trip: GroupTrip = JSON.parse(raw);
-            if (trip?.id && trip?.itinerary) setActiveTrip(trip);
-          }
-        } catch (_) { /* noop */ }
+        restoreTrip();
+      } catch (_) {
+        setView('auth');
       }
     } else {
       // Backup in case localStorage isn't set instantly by AuthScreen
       try {
         const profile = await authAPI.getProfile();
         setUser(profile);
-        if (!profile.smartProfile) setView('onboarding');
-        else {
-          setView('main');
-          try {
-            const raw = localStorage.getItem(ACTIVE_TRIP_KEY);
-            if (raw) {
-              const trip: GroupTrip = JSON.parse(raw);
-              if (trip?.id && trip?.itinerary) setActiveTrip(trip);
-            }
-          } catch (_) { /* noop */ }
-        }
-      } catch (e) {
+        setView('main');
+        restoreTrip();
+      } catch (_) {
         setView('auth');
       }
     }
   };
 
-  /**
-   * Called after a NEW user registers (not a login).
-   * Load the user into state then show the first-launch onboarding wizard
-   * unless this device has already completed it.
-   */
   const handleRegister = async () => {
     setView('loading');
     const storedUser = localStorage.getItem('user');
@@ -288,16 +299,11 @@ export const App = () => {
     }
     setUser(resolvedUser);
     setView('main');
-
-    // Show the onboarding wizard overlay if this device hasn't completed it
-    const alreadyOnboarded = localStorage.getItem('tripo_onboarded') === 'true';
-    if (!alreadyOnboarded) {
-      setShowOnboardingWizard(true);
-    }
   };
 
   const handleGuestLogin = () => {
-    setView('onboarding');
+    setUser({ id: 'guest', name: 'Guest', email: '' } as any);
+    setView('main');
   };
 
   const handleLogout = () => {
@@ -306,7 +312,7 @@ export const App = () => {
     localStorage.removeItem(ACTIVE_TRIP_KEY);
     setUser(null);
     setActiveTrip(null);
-    setView('auth');
+    setView('welcome');
   };
 
   // Karam Points: award points for actions
@@ -348,25 +354,6 @@ export const App = () => {
       }
     } catch (e) {
       console.warn('Failed to restore active group trip:', e);
-    }
-  };
-
-  const handleOnboardingComplete = (prefs: SmartProfile) => {
-    if (user) {
-      const updatedUser = { ...user, smartProfile: prefs };
-      setUser(updatedUser);
-      localStorage.setItem('user', JSON.stringify(updatedUser));
-    }
-    setView('main');
-  };
-
-  /** Called when the first-launch OnboardingWizard completes its 3 steps. */
-  const handleWizardComplete = (prefs: SmartProfile) => {
-    setShowOnboardingWizard(false);
-    const updatedUser = user ? { ...user, smartProfile: prefs } : null;
-    if (updatedUser) {
-      setUser(updatedUser);
-      localStorage.setItem('user', JSON.stringify(updatedUser));
     }
   };
 
@@ -448,8 +435,17 @@ export const App = () => {
     );
   }
 
-  if (view === 'auth') return <AuthScreen onLogin={handleLogin} onRegister={handleRegister} onGuestLogin={handleGuestLogin} t={t} lang={lang} onToggleLang={toggleLanguage} />;
-  if (view === 'onboarding') return <ModalWrapper><SmartProfileScreen onComplete={handleOnboardingComplete} t={t} /></ModalWrapper>;
+  if (view === 'welcome') return (
+    <WelcomeScreen
+      onGetStarted={() => { setAuthMode('register'); setView('auth'); }}
+      onSignIn={() => { setAuthMode('login'); setView('auth'); }}
+    />
+  );
+  if (view === 'auth') return (
+    <AuthErrorBoundary onReset={() => setView('welcome')}>
+      <AuthScreen onLogin={handleLogin} onRegister={handleRegister} onGuestLogin={handleGuestLogin} t={t} lang={lang} onToggleLang={toggleLanguage} initialMode={authMode} />
+    </AuthErrorBoundary>
+  );
   if (view === 'itinerary' && selectedItinerary) return <ModalWrapper><ItineraryDetailScreen itinerary={selectedItinerary} onBack={() => setView('main')} onStartGroup={startGroupTrip} t={t} onAwardKaramPoints={awardKaramPoints} /></ModalWrapper>;
   if (view === 'group' && activeTrip && user) return <AppWrapper><ModalWrapper><GroupTripScreen trip={activeTrip} currentUser={user} onBack={handleEndTrip} onUpdateTrip={handleUpdateTrip as any} t={t} /></ModalWrapper></AppWrapper>;
   if (view === 'privateTrip' && selectedPrivateTrip && user) return (
@@ -465,10 +461,8 @@ export const App = () => {
     </AppWrapper>
   );
 
-  // AR screen
-  if (view === 'ar') return <ARGuideScreen onBack={() => setView('main')} t={t} user={user!} lang={lang} nearbyPlaces={[]} itineraryPlaces={[]} />;
 
-  const tier = getContributionTier(userReviewCount);
+  const tier = getContributionTier(userReviewCount, t);
   const isAdmin = (user as any)?.role === 'admin';
 
   // Feature 2: Check if user has any claimed places
@@ -493,7 +487,7 @@ export const App = () => {
         )}
 
         {/* Left Sidebar (Desktop fixed, Mobile sliding) */}
-        <div className={`fixed lg:static inset-y-0 left-0 z-50 w-64 bg-white border-r border-slate-200 transform transition-transform duration-300 ease-in-out ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0 rtl:translate-x-full lg:rtl:translate-x-0'}`}>
+        <div className={`fixed lg:static inset-y-0 left-0 z-50 w-64 bg-white border-r border-slate-200 transform transition-transform duration-300 ease-in-out ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}>
           <div className="h-full flex flex-col pt-6 pb-4">
 
             {/* Logo / Header */}
@@ -511,7 +505,16 @@ export const App = () => {
 
             {/* Global Search */}
             <div className="px-4 mb-4">
-              <GlobalSearch onNavigate={(tab) => { setActiveTab(tab); setIsSidebarOpen(false); }} />
+              <GlobalSearch onNavigate={(tab, id) => {
+                  setActiveTab(tab);
+                  setIsSidebarOpen(false);
+                  if (id) {
+                    if (tab === 'places')  setPendingPlaceId(id);
+                    if (tab === 'tours')   setPendingTourId(id);
+                    if (tab === 'rentals') setPendingRentalId(id);
+                    if (tab === 'events')  setPendingEventId(id);
+                  }
+                }} />
             </div>
 
             {/* Navigation Links */}
@@ -519,17 +522,19 @@ export const App = () => {
               {[
                 { id: 'home', icon: Home, label: t.tabHome },
                 { id: 'explore', icon: Search, label: t.tabExplore },
-                { id: 'places', icon: MapPin, label: 'Places' },
-                { id: 'tours', icon: Compass, label: 'Tours' },
-                { id: 'my_trips', icon: Lock, label: 'My Private Trips' },
+                { id: 'places', icon: MapPin, label: (t as any).tabPlaces || 'Places' },
+                { id: 'tours', icon: Compass, label: (t as any).tabTours || 'Tours' },
+                { id: 'my_trips', icon: Lock, label: (t as any).tabMyTrips || 'My Private Trips' },
                 { id: 'create', icon: Plus, label: (t as any).tabCreate || 'New Trip' },
                 { id: 'communities', icon: Users, label: t.tabCommunities },
-                { id: 'ai_planner', icon: Sparkles, label: '✨ AI Planner' },
-                { id: 'events', icon: Calendar, label: 'Events' },
-                { id: 'rentals', icon: Tent, label: 'Rentals' },
+                { id: 'your_mood', icon: Heart, label: (t as any).tabYourMood || 'Your Mood' },
+                { id: 'ar', icon: Camera, label: (t as any).tabAR || 'AR Guide' },
+                { id: 'ai_planner', icon: Sparkles, label: `✨ ${(t as any).tabAIPlanner || 'AI Planner'}` },
+                { id: 'events', icon: Calendar, label: (t as any).tabEvents || 'Events' },
+                { id: 'rentals', icon: Tent, label: (t as any).tabRentals || 'Rentals' },
                 { id: 'profile', icon: UserIcon, label: t.tabProfile },
-                ...(isAdmin ? [{ id: 'admin', icon: Shield, label: 'Admin' }] : []),
-                ...(hasClaimedPlaces ? [{ id: 'host', icon: Store, label: 'Host Dashboard' }] : []),
+                ...(isAdmin ? [{ id: 'admin', icon: Shield, label: (t as any).tabAdmin || 'Admin' }] : []),
+                ...(hasClaimedPlaces ? [{ id: 'host', icon: Store, label: (t as any).tabHost || 'Host Dashboard' }] : []),
               ].map((nav) => (
                 <button
                   key={nav.id}
@@ -588,7 +593,7 @@ export const App = () => {
                           <Users2 className="w-5 h-5 text-emerald-700" />
                         </div>
                         <div className="min-w-0">
-                          <p className="text-xs font-bold text-emerald-700 uppercase tracking-wider">Active Group Trip</p>
+                          <p className="text-xs font-bold text-emerald-700 uppercase tracking-wider">{(t as any).activeGroupTrip || 'Active Group Trip'}</p>
                           <p className="text-sm font-semibold text-slate-800 truncate">{activeTrip.itinerary.title}</p>
                         </div>
                       </div>
@@ -597,18 +602,18 @@ export const App = () => {
                           onClick={() => setView('group')}
                           className="px-4 py-2 bg-emerald-600 text-white text-sm font-bold rounded-xl hover:bg-emerald-700 transition"
                         >
-                          Resume
+                          {(t as any).resumeBtn || 'Resume'}
                         </button>
                         <button
                           onClick={handleEndTrip}
                           className="px-3 py-2 border border-slate-200 text-slate-500 text-sm font-medium rounded-xl hover:bg-slate-100 transition"
                         >
-                          End
+                          {(t as any).endBtn || 'End'}
                         </button>
                       </div>
                     </div>
                   )}
-                  <HomeScreen user={user} onOpenItinerary={openItinerary} t={t} onOpenAR={() => setView('ar')} onNavigate={(tab: string, id?: string) => { setActiveTab(tab); if (id && tab === 'events') setPendingEventId(id); if (id && tab === 'tours') setPendingTourId(id); if (id && tab === 'places') setPendingPlaceId(id); if (id && tab === 'rentals') setPendingRentalId(id); if (id && tab === 'communities') setPendingCommunityId(id); }} />
+                  <HomeScreen user={user} onOpenItinerary={openItinerary} t={t} onOpenAR={() => setActiveTab('ar')} onNavigate={(tab: string, id?: string) => { setActiveTab(tab); if (id && tab === 'events') setPendingEventId(id); if (id && tab === 'tours') setPendingTourId(id); if (id && tab === 'places') setPendingPlaceId(id); if (id && tab === 'rentals') setPendingRentalId(id); if (id && tab === 'communities') setPendingCommunityId(id); }} />
                 </>
               )}
 
@@ -656,9 +661,26 @@ export const App = () => {
                 </div>
               )}
 
-              {activeTab === 'events' && <EventsScreen onCreateWithEvent={(title) => { setCreateInitialTitle(title); setActiveTab('create'); }} initialEventId={pendingEventId} onEventOpened={() => setPendingEventId(undefined)} />}
+              {activeTab === 'events' && <EventsScreen t={t} lang={lang} onCreateWithEvent={(title) => { setCreateInitialTitle(title); setActiveTab('create'); }} initialEventId={pendingEventId} onEventOpened={() => setPendingEventId(undefined)} />}
 
               {activeTab === 'rentals' && <RentalsScreen t={t} initialRentalId={pendingRentalId} onRentalOpened={() => setPendingRentalId(undefined)} />}
+
+              {activeTab === 'ar' && user && (
+                <ARGuideScreen onBack={() => setActiveTab('home')} t={t} user={user} lang={lang} nearbyPlaces={[]} itineraryPlaces={[]} />
+              )}
+
+              {activeTab === 'your_mood' && user && (
+                <YourMoodScreen
+                  t={t}
+                  user={user}
+                  onNavigate={(tab, id) => {
+                    setActiveTab(tab);
+                    if (id && tab === 'places')  setPendingPlaceId(id);
+                    if (id && tab === 'tours')   setPendingTourId(id);
+                    if (id && tab === 'rentals') setPendingRentalId(id);
+                  }}
+                />
+              )}
 
               {activeTab === 'admin' && isAdmin && <AdminScreen t={t} />}
 
@@ -684,12 +706,12 @@ export const App = () => {
                         <p className="text-2xl font-extrabold text-slate-900">
                           {profileItineraryCount !== null ? profileItineraryCount : '—'}
                         </p>
-                        <p className="text-xs text-slate-500 font-medium mt-0.5">Trips</p>
+                        <p className="text-xs text-slate-500 font-medium mt-0.5">{(t as any).profileTripsLabel || 'Trips'}</p>
                       </div>
                       <div className="w-px bg-slate-100" />
                       <div className="text-center">
                         <p className="text-2xl font-extrabold text-slate-900">{userReviewCount}</p>
-                        <p className="text-xs text-slate-500 font-medium mt-0.5">Reviews</p>
+                        <p className="text-xs text-slate-500 font-medium mt-0.5">{(t as any).profileReviewsLabel || 'Reviews'}</p>
                       </div>
                     </div>
 
@@ -698,7 +720,7 @@ export const App = () => {
                       <span className="text-2xl">{tier.icon}</span>
                       <div>
                         <p className={`font-bold text-sm ${tier.color}`}>{tier.label}</p>
-                        <p className="text-xs text-slate-500">{userReviewCount} reviews written</p>
+                        <p className="text-xs text-slate-500">{userReviewCount} {(t as any).profileReviewsLabel || 'Reviews'}</p>
                       </div>
                     </div>
 
@@ -708,30 +730,30 @@ export const App = () => {
                         <div className="flex items-center justify-between mb-2">
                           <div className="flex items-center gap-2">
                             <Star className="w-5 h-5 text-amber-500 fill-amber-400" />
-                            <span className="font-bold text-amber-800 text-sm">Karam Points</span>
+                            <span className="font-bold text-amber-800 text-sm">{(t as any).profileKaramPoints || 'Karam Points'}</span>
                           </div>
                           <span className="px-3 py-1 bg-amber-100 text-amber-700 text-xs font-bold rounded-full border border-amber-200">
-                            {getKaramLevel(karamPoints)}
+                            {getKaramLevel(karamPoints, t)}
                           </span>
                         </div>
                         <p className="text-3xl font-extrabold text-amber-700">{karamPoints.toLocaleString()}</p>
-                        <p className="text-xs text-amber-600 mt-0.5">points earned</p>
+                        <p className="text-xs text-amber-600 mt-0.5">{(t as any).profilePointsEarned || 'points earned'}</p>
                         <div className="mt-3 text-xs text-amber-500 space-y-0.5">
-                          <p>Write a review: +50 pts &bull; Create trip: +100 pts</p>
-                          <p>Complete trip: +75 pts &bull; Daily login: +10 pts</p>
+                          <p>{(t as any).profileKaramDesc1 || 'Write a review: +50 pts · Create trip: +100 pts'}</p>
+                          <p>{(t as any).profileKaramDesc2 || 'Complete trip: +75 pts · Daily login: +10 pts'}</p>
                         </div>
                         <button
                           onClick={() => setShowKaramHistory(v => !v)}
                           className="mt-3 flex items-center gap-1 text-xs font-bold text-amber-700 hover:text-amber-900 transition-colors"
                         >
-                          View History
+                          {(t as any).profileViewHistory || 'View History'}
                           {showKaramHistory ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
                         </button>
                       </div>
                       {showKaramHistory && (
                         <div className="border-t border-amber-100 bg-white divide-y divide-amber-50">
                           {karamHistory.length === 0 ? (
-                            <p className="text-center text-xs text-slate-400 py-4">No history yet</p>
+                            <p className="text-center text-xs text-slate-400 py-4">{(t as any).profileNoHistory || 'No history yet'}</p>
                           ) : karamHistory.slice(0, 10).map(h => (
                             <div key={h.id} className="flex items-center justify-between px-4 py-2.5">
                               <div>
@@ -753,7 +775,7 @@ export const App = () => {
                       >
                         <span className="flex items-center gap-2 font-bold text-slate-700 text-sm">
                           <WifiOff className="w-4 h-4 text-emerald-600" />
-                          Offline Trips
+                          {(t as any).profileOfflineTrips || 'Offline Trips'}
                           {offlineTrips.length > 0 && (
                             <span className="ml-1 px-2 py-0.5 bg-emerald-100 text-emerald-700 text-xs font-bold rounded-full">{offlineTrips.length}</span>
                           )}
@@ -765,8 +787,8 @@ export const App = () => {
                           {offlineTrips.length === 0 ? (
                             <div className="text-center py-8 bg-white">
                               <Download className="w-8 h-8 mx-auto text-slate-200 mb-2" />
-                              <p className="text-sm text-slate-400 font-medium">No offline trips saved yet.</p>
-                              <p className="text-xs text-slate-300 mt-1">Tap "Save Offline" on any trip.</p>
+                              <p className="text-sm text-slate-400 font-medium">{(t as any).profileNoOffline || 'No offline trips saved yet.'}</p>
+                              <p className="text-xs text-slate-300 mt-1">{(t as any).profileSaveOfflineHint || 'Tap "Save Offline" on any trip.'}</p>
                             </div>
                           ) : offlineTrips.map(it => {
                             const itId = it._id || it.id || '';
@@ -783,7 +805,7 @@ export const App = () => {
                                   onClick={() => handleOpenOfflineItinerary(it)}
                                   className="px-3 py-1.5 bg-emerald-600 text-white text-xs font-bold rounded-xl hover:bg-emerald-700 transition flex-shrink-0"
                                 >
-                                  Open
+                                  {(t as any).profileOpen || 'Open'}
                                 </button>
                                 <button
                                   onClick={() => handleRemoveOfflineTrip(itId)}
@@ -805,7 +827,7 @@ export const App = () => {
                         <div className="flex items-center gap-3 min-w-0">
                           <Users2 className="w-5 h-5 text-emerald-700 flex-shrink-0" />
                           <div className="min-w-0">
-                            <p className="text-xs font-bold text-emerald-700 uppercase tracking-wider">Active Trip</p>
+                            <p className="text-xs font-bold text-emerald-700 uppercase tracking-wider">{(t as any).profileActiveTrip || 'Active Trip'}</p>
                             <p className="text-sm font-semibold text-slate-800 truncate">{activeTrip.itinerary.title}</p>
                           </div>
                         </div>
@@ -813,14 +835,14 @@ export const App = () => {
                           onClick={() => setView('group')}
                           className="flex-shrink-0 px-4 py-2 bg-emerald-600 text-white text-sm font-bold rounded-xl hover:bg-emerald-700 transition"
                         >
-                          Resume Trip
+                          {(t as any).profileResumeTripFull || 'Resume Trip'}
                         </button>
                       </div>
                     )}
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <button onClick={() => setShowEditProfile(true)} className="flex items-center justify-between p-5 bg-emerald-50 hover:bg-emerald-100 transition-colors rounded-2xl font-medium border border-emerald-100 md:col-span-2">
-                        <span className="flex items-center gap-3 text-emerald-800 font-bold"><Sparkles className="w-5 h-5 text-emerald-600" /> Edit Travel Preferences</span>
+                        <span className="flex items-center gap-3 text-emerald-800 font-bold"><Sparkles className="w-5 h-5 text-emerald-600" /> {(t as any).profileEditPrefs || 'Edit Travel Preferences'}</span>
                         <ChevronLeft className="w-4 h-4 text-emerald-400 rotate-180" />
                       </button>
                       <button onClick={toggleLanguage} className="flex items-center justify-between p-5 bg-slate-50 hover:bg-slate-100 transition-colors rounded-2xl font-medium border border-slate-100">
@@ -832,7 +854,7 @@ export const App = () => {
                         <ChevronLeft className="w-4 h-4 text-slate-400 rotate-180" />
                       </button>
                       <button onClick={() => setShowWishLists(true)} className="flex items-center justify-between p-5 bg-slate-50 hover:bg-slate-100 transition-colors rounded-2xl font-medium border border-slate-100">
-                        <span className="flex items-center gap-3 text-slate-700 font-bold"><Heart className="w-5 h-5 text-emerald-600" /> My Wish Lists</span>
+                        <span className="flex items-center gap-3 text-slate-700 font-bold"><Heart className="w-5 h-5 text-emerald-600" /> {(t as any).profileWishLists || 'My Wish Lists'}</span>
                         <ChevronLeft className="w-4 h-4 text-slate-400 rotate-180" />
                       </button>
                       <button onClick={handleLogout} className="flex items-center justify-center p-5 bg-red-50 hover:bg-red-100 transition-colors text-red-600 rounded-2xl font-bold border border-red-100 shadow-sm">
@@ -865,11 +887,11 @@ export const App = () => {
                   </button>
                 </div>
                 <div className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl">
-                  <span className="font-medium text-slate-700">Account</span>
+                  <span className="font-medium text-slate-700">{(t as any).settingsAccount || 'Account'}</span>
                   <span className="text-sm text-slate-500">{user?.email}</span>
                 </div>
                 <div className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl">
-                  <span className="font-medium text-slate-700">Version</span>
+                  <span className="font-medium text-slate-700">{(t as any).settingsVersion || 'Version'}</span>
                   <span className="text-sm text-slate-400">1.0.0</span>
                 </div>
                 <button onClick={() => { setShowSettings(false); handleLogout(); }} className="w-full p-4 bg-red-50 hover:bg-red-100 text-red-600 rounded-2xl font-bold transition text-sm">
@@ -883,18 +905,13 @@ export const App = () => {
         {/* Wish Lists Modal */}
         {showWishLists && <WishListModal onClose={() => setShowWishLists(false)} />}
 
-        {/* First-launch Onboarding Wizard — shown once per device after registration */}
-        {showOnboardingWizard && (
-          <OnboardingWizard onComplete={handleWizardComplete} />
-        )}
-
         {/* Mobile Bottom Nav — 5 core tabs + More */}
         <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 px-2 py-2 flex justify-around items-center z-40 pb-safe">
           {[
-            { id: 'home', icon: Home, label: 'Home' },
-            { id: 'explore', icon: Search, label: 'Map' },
-            { id: 'communities', icon: Users, label: 'Community' },
-            { id: 'rentals', icon: Tent, label: 'Rentals' },
+            { id: 'home', icon: Home, label: (t as any).navHome || 'Home' },
+            { id: 'explore', icon: Search, label: (t as any).navMap || 'Map' },
+            { id: 'communities', icon: Users, label: (t as any).navCommunity || 'Community' },
+            { id: 'rentals', icon: Tent, label: (t as any).navRentals || 'Rentals' },
           ].map(nav => (
             <button key={nav.id} onClick={() => setActiveTab(nav.id)} className={`flex flex-col items-center gap-0.5 px-2 py-1 rounded-xl transition-colors min-w-0 ${activeTab === nav.id ? 'text-emerald-600' : 'text-slate-400'}`}>
               <nav.icon className={`w-6 h-6 ${activeTab === nav.id ? 'fill-emerald-100' : ''}`} />
@@ -910,9 +927,9 @@ export const App = () => {
           </div>
 
           {/* More button */}
-          <button onClick={() => setShowMoreSheet(true)} className={`flex flex-col items-center gap-0.5 px-2 py-1 rounded-xl transition-colors min-w-0 ${['places','tours','my_trips','ai_planner','events','profile','admin','host'].includes(activeTab) ? 'text-emerald-600' : 'text-slate-400'}`}>
+          <button onClick={() => setShowMoreSheet(true)} className={`flex flex-col items-center gap-0.5 px-2 py-1 rounded-xl transition-colors min-w-0 ${['places','tours','my_trips','ar','your_mood','ai_planner','events','profile','admin','host'].includes(activeTab) ? 'text-emerald-600' : 'text-slate-400'}`}>
             <Menu className="w-6 h-6" />
-            <span className="text-[10px] font-medium">More</span>
+            <span className="text-[10px] font-medium">{(t as any).navMore || 'More'}</span>
           </button>
         </div>
 
@@ -922,19 +939,20 @@ export const App = () => {
             <div className="fixed inset-0 bg-slate-900/40 z-[60] lg:hidden" onClick={() => setShowMoreSheet(false)} />
             <div className="fixed bottom-0 left-0 right-0 bg-white rounded-t-3xl z-[70] lg:hidden shadow-2xl pb-safe">
               <div className="flex justify-between items-center px-6 pt-5 pb-3">
-                <h3 className="font-bold text-slate-900">More</h3>
+                <h3 className="font-bold text-slate-900">{(t as any).moreTitle || 'More'}</h3>
                 <button onClick={() => setShowMoreSheet(false)} className="p-2 rounded-full hover:bg-slate-100 transition"><X className="w-5 h-5 text-slate-500" /></button>
               </div>
               <div className="grid grid-cols-3 gap-3 px-6 pb-8">
                 {[
-                  { id: 'places', icon: MapPin, label: 'Places', color: 'bg-slate-50 text-slate-600' },
-                  { id: 'tours', icon: Compass, label: 'Tours', color: 'bg-teal-50 text-teal-600' },
-                  { id: 'my_trips', icon: Lock, label: 'My Trips', color: 'bg-emerald-50 text-emerald-600' },
-                  { id: 'ai_planner', icon: Sparkles, label: 'AI Planner', color: 'bg-purple-50 text-purple-600' },
-                  { id: 'events', icon: Calendar, label: 'Events', color: 'bg-blue-50 text-blue-600' },
-                  { id: 'profile', icon: UserIcon, label: 'Profile', color: 'bg-slate-50 text-slate-600' },
-                  ...(isAdmin ? [{ id: 'admin', icon: Shield, label: 'Admin', color: 'bg-red-50 text-red-600' }] : []),
-                  ...(hasClaimedPlaces ? [{ id: 'host', icon: Store, label: 'Host', color: 'bg-emerald-50 text-emerald-600' }] : []),
+                  { id: 'places', icon: MapPin, label: (t as any).tabPlaces || 'Places', color: 'bg-slate-50 text-slate-600' },
+                  { id: 'tours', icon: Compass, label: (t as any).tabTours || 'Tours', color: 'bg-teal-50 text-teal-600' },
+                  { id: 'my_trips', icon: Lock, label: (t as any).moreMyTrips || 'My Trips', color: 'bg-emerald-50 text-emerald-600' },
+                  { id: 'ar', icon: Camera, label: (t as any).moreARGuide || 'AR Guide', color: 'bg-emerald-50 text-emerald-600' },
+                  { id: 'ai_planner', icon: Sparkles, label: (t as any).moreAIPlanner || 'AI Planner', color: 'bg-purple-50 text-purple-600' },
+                  { id: 'events', icon: Calendar, label: (t as any).tabEvents || 'Events', color: 'bg-blue-50 text-blue-600' },
+                  { id: 'profile', icon: UserIcon, label: t.tabProfile, color: 'bg-slate-50 text-slate-600' },
+                  ...(isAdmin ? [{ id: 'admin', icon: Shield, label: (t as any).tabAdmin || 'Admin', color: 'bg-red-50 text-red-600' }] : []),
+                  ...(hasClaimedPlaces ? [{ id: 'host', icon: Store, label: (t as any).moreHost || 'Host', color: 'bg-emerald-50 text-emerald-600' }] : []),
                 ].map(item => (
                   <button
                     key={item.id}
@@ -957,24 +975,6 @@ export const App = () => {
       {/* Toast notifications */}
       <ToastContainer />
 
-      {/* Edit Preferences Modal */}
-      {showEditProfile && user && (
-        <div className="fixed inset-0 z-[250] overflow-y-auto bg-white">
-          <SmartProfileScreen
-            onComplete={(profile) => {
-              setUser(prev => prev ? { ...prev, smartProfile: profile } : prev);
-              setShowEditProfile(false);
-            }}
-            t={t}
-          />
-          <button
-            onClick={() => setShowEditProfile(false)}
-            className="fixed top-4 right-4 z-[260] w-10 h-10 bg-white/90 backdrop-blur-sm rounded-full shadow-lg flex items-center justify-center border border-slate-200"
-          >
-            <X className="w-5 h-5 text-slate-600" />
-          </button>
-        </div>
-      )}
 
     </AppWrapper>
   );

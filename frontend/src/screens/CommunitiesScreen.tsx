@@ -24,7 +24,16 @@ interface TravelPost {
 
 const TRAVEL_POSTS_KEY = 'tripo_travel_posts';
 
-const INTEREST_OPTIONS = ['Hiking', 'Foodie', 'Art', 'History', 'Photography', 'Adventure', 'Relaxation', 'Culture'];
+const INTEREST_KEYS = [
+  { val: 'Hiking', tKey: 'ttInterestHiking' },
+  { val: 'Foodie', tKey: 'ttInterestFoodie' },
+  { val: 'Art', tKey: 'ttInterestArt' },
+  { val: 'History', tKey: 'ttInterestHistory' },
+  { val: 'Photography', tKey: 'ttInterestPhoto' },
+  { val: 'Adventure', tKey: 'ttInterestAdventure' },
+  { val: 'Relaxation', tKey: 'ttInterestRelax' },
+  { val: 'Culture', tKey: 'ttInterestCulture' },
+];
 
 const SEED_POSTS: TravelPost[] = [
   {
@@ -885,7 +894,7 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
             onClick={() => setMainTab('traveling')}
             className={`flex items-center gap-1.5 px-4 py-2.5 rounded-t-2xl text-sm font-black transition-all border-b-2 ${mainTab === 'traveling' ? 'border-emerald-600 text-emerald-600 bg-emerald-50' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
           >
-            🤝 Traveling Together
+            {(t as any).travelingTogether || '🤝 Traveling Together'}
             {travelPosts.length > 0 && (
               <span className="ml-1 px-1.5 py-0.5 bg-emerald-100 text-emerald-700 text-[9px] font-black rounded-full">{travelPosts.length}</span>
             )}
@@ -954,13 +963,13 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
           {/* Header & Post Trip button */}
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-slate-500 text-sm">Find travel companions for your next micro-escape!</p>
+              <p className="text-slate-500 text-sm">{(t as any).ttFindCompanions || 'Find travel companions for your next micro-escape!'}</p>
             </div>
             <button
               onClick={() => setShowPostTripModal(true)}
               className="flex items-center gap-1.5 px-4 py-2.5 bg-emerald-600 text-white text-sm font-black rounded-2xl shadow-md active:scale-95 transition-transform"
             >
-              <Plus className="w-4 h-4" /> Post a Trip
+              <Plus className="w-4 h-4" /> {(t as any).ttPostTrip || 'Post a Trip'}
             </button>
           </div>
 
@@ -968,13 +977,13 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
           {travelPosts.length === 0 ? (
             <div className="text-center py-16 bg-white rounded-3xl border border-dashed border-slate-200">
               <div className="text-4xl mb-3">🤝</div>
-              <h3 className="font-bold text-slate-600 mb-1">No trips posted yet</h3>
-              <p className="text-xs text-slate-400 mb-4">Be the first to find travel companions!</p>
+              <h3 className="font-bold text-slate-600 mb-1">{(t as any).ttNoTrips || 'No trips posted yet'}</h3>
+              <p className="text-xs text-slate-400 mb-4">{(t as any).ttBeFirst || 'Be the first to find travel companions!'}</p>
               <button
                 onClick={() => setShowPostTripModal(true)}
                 className="px-5 py-2.5 bg-emerald-600 text-white text-sm font-bold rounded-full"
               >
-                Post Your Trip
+                {(t as any).ttPostYourTrip || 'Post Your Trip'}
               </button>
             </div>
           ) : travelPosts.map(post => {
@@ -992,7 +1001,7 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
                   />
                   <div className="flex-1 min-w-0">
                     <p className="font-black text-slate-900 text-sm">{post.userName}</p>
-                    <p className="text-xs text-slate-500">is heading to <span className="font-bold text-emerald-700">{post.placeName}</span></p>
+                    <p className="text-xs text-slate-500">{(t as any).ttIsHeadingTo || 'is heading to'} <span className="font-bold text-emerald-700">{post.placeName}</span></p>
                   </div>
                   <div className="text-right flex-shrink-0">
                     <p className="text-[10px] text-slate-400 font-bold flex items-center gap-1 justify-end">
@@ -1010,11 +1019,14 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
                 {/* Interests */}
                 {post.interests.length > 0 && (
                   <div className="flex flex-wrap gap-1.5 mb-3">
-                    {post.interests.map(i => (
+                    {post.interests.map(i => {
+                      const opt = INTEREST_KEYS.find(k => k.val === i);
+                      return (
                       <span key={i} className="px-2 py-0.5 bg-emerald-50 text-emerald-700 text-[10px] font-bold rounded-full">
-                        {i}
+                        {opt ? ((t as any)[opt.tKey] || i) : i}
                       </span>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
 
@@ -1030,8 +1042,8 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
                       ))}
                     </div>
                     <span className="text-xs text-slate-500 font-bold">
-                      {post.groupSize}/{post.maxSize} spots
-                      {!isFull && <span className="text-emerald-600"> · {spotsLeft} left</span>}
+                      {post.groupSize}/{post.maxSize} {(t as any).ttSpots || 'spots'}
+                      {!isFull && <span className="text-emerald-600"> · {spotsLeft} {(t as any).ttLeft || 'left'}</span>}
                     </span>
                   </div>
                   {!isMyPost && (
@@ -1046,11 +1058,11 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
                           : 'bg-emerald-600 text-white hover:bg-emerald-700 active:scale-95'
                         }`}
                     >
-                      {post.joinedByMe ? <><CheckCircle2 className="w-3.5 h-3.5" /> Joined</> : isFull ? 'Full' : <><UserPlus className="w-3.5 h-3.5" /> Join</>}
+                      {post.joinedByMe ? <><CheckCircle2 className="w-3.5 h-3.5" /> {(t as any).ttJoined || 'Joined'}</> : isFull ? ((t as any).ttFull || 'Full') : <><UserPlus className="w-3.5 h-3.5" /> {(t as any).ttJoin || 'Join'}</>}
                     </button>
                   )}
                   {isMyPost && (
-                    <span className="text-[10px] font-bold text-slate-400 bg-slate-50 px-3 py-1.5 rounded-xl">Your post</span>
+                    <span className="text-[10px] font-bold text-slate-400 bg-slate-50 px-3 py-1.5 rounded-xl">{(t as any).ttYourPost || 'Your post'}</span>
                   )}
                 </div>
               </div>
@@ -1069,16 +1081,16 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
             >
               <X className="w-5 h-5 text-slate-400" />
             </button>
-            <h3 className="font-black text-xl text-slate-900 mb-1">Post a Trip 🗺️</h3>
-            <p className="text-xs text-slate-400 mb-5">Let others join your next micro-escape</p>
+            <h3 className="font-black text-xl text-slate-900 mb-1">{(t as any).ttModalTitle || 'Post a Trip 🗺️'}</h3>
+            <p className="text-xs text-slate-400 mb-5">{(t as any).ttModalSubtitle || 'Let others join your next micro-escape'}</p>
 
             <div className="space-y-4">
               {/* Place name */}
               <div>
-                <label className="text-xs font-black text-slate-500 uppercase tracking-wide mb-1.5 block">Place / Destination *</label>
+                <label className="text-xs font-black text-slate-500 uppercase tracking-wide mb-1.5 block">{(t as any).ttPlaceLabel || 'Place / Destination *'}</label>
                 <input
                   className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-emerald-500"
-                  placeholder="e.g. Al Bujairi Heritage Park"
+                  placeholder={(t as any).ttPlacePlaceholder || 'e.g. Al Bujairi Heritage Park'}
                   value={newTripPost.placeName}
                   onChange={e => setNewTripPost(p => ({ ...p, placeName: e.target.value }))}
                 />
@@ -1086,7 +1098,7 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
 
               {/* Date */}
               <div>
-                <label className="text-xs font-black text-slate-500 uppercase tracking-wide mb-1.5 block">Date *</label>
+                <label className="text-xs font-black text-slate-500 uppercase tracking-wide mb-1.5 block">{(t as any).ttDateLabel || 'Date *'}</label>
                 <input
                   type="date"
                   className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-emerald-500"
@@ -1098,7 +1110,7 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
 
               {/* Max group size */}
               <div>
-                <label className="text-xs font-black text-slate-500 uppercase tracking-wide mb-1.5 block">Looking for (total group size)</label>
+                <label className="text-xs font-black text-slate-500 uppercase tracking-wide mb-1.5 block">{(t as any).ttGroupSizeLabel || 'Looking for (total group size)'}</label>
                 <div className="flex items-center gap-3">
                   <button
                     onClick={() => setNewTripPost(p => ({ ...p, maxSize: Math.max(2, p.maxSize - 1) }))}
@@ -1113,17 +1125,17 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
                   >
                     +
                   </button>
-                  <span className="text-xs text-slate-400">people total</span>
+                  <span className="text-xs text-slate-400">{(t as any).ttPeopleTotal || 'people total'}</span>
                 </div>
               </div>
 
               {/* Description */}
               <div>
-                <label className="text-xs font-black text-slate-500 uppercase tracking-wide mb-1.5 block">Description</label>
+                <label className="text-xs font-black text-slate-500 uppercase tracking-wide mb-1.5 block">{(t as any).ttDescLabel || 'Description'}</label>
                 <textarea
                   rows={3}
                   className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-emerald-500 resize-none"
-                  placeholder="Tell others about your plans..."
+                  placeholder={(t as any).ttDescPlaceholder || 'Tell others about your plans...'}
                   value={newTripPost.description}
                   onChange={e => setNewTripPost(p => ({ ...p, description: e.target.value }))}
                 />
@@ -1131,22 +1143,22 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
 
               {/* Interests */}
               <div>
-                <label className="text-xs font-black text-slate-500 uppercase tracking-wide mb-1.5 block">Interests</label>
+                <label className="text-xs font-black text-slate-500 uppercase tracking-wide mb-1.5 block">{(t as any).ttInterestsLabel || 'Interests'}</label>
                 <div className="flex flex-wrap gap-2">
-                  {INTEREST_OPTIONS.map(interest => {
-                    const active = newTripPost.interests.includes(interest);
+                  {INTEREST_KEYS.map(opt => {
+                    const active = newTripPost.interests.includes(opt.val);
                     return (
                       <button
-                        key={interest}
+                        key={opt.val}
                         onClick={() => setNewTripPost(p => ({
                           ...p,
                           interests: active
-                            ? p.interests.filter(i => i !== interest)
-                            : [...p.interests, interest]
+                            ? p.interests.filter(i => i !== opt.val)
+                            : [...p.interests, opt.val]
                         }))}
                         className={`px-3 py-1.5 rounded-full text-xs font-bold border transition-all ${active ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-slate-50 text-slate-600 border-slate-200 hover:border-emerald-400'}`}
                       >
-                        {interest}
+                        {(t as any)[opt.tKey] || opt.val}
                       </button>
                     );
                   })}
@@ -1158,7 +1170,7 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
                 disabled={!newTripPost.placeName.trim() || !newTripPost.date}
                 className="w-full py-3.5 bg-emerald-600 text-white font-black rounded-2xl hover:bg-emerald-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Post Trip 🤝
+                {(t as any).ttPostBtn || 'Post Trip 🤝'}
               </button>
             </div>
           </div>

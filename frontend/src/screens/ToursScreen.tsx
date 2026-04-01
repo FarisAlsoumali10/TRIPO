@@ -1,11 +1,13 @@
-import React, { useState, useEffect } from 'react';
-import { Star, Clock, Users, ChevronRight, MapPin, Compass, TrendingUp, Award, Navigation, Wallet } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Star, Clock, Users, ChevronRight, MapPin, Compass, TrendingUp, Award, Navigation, Wallet, Search, X } from 'lucide-react';
 import { Tour, Itinerary, GroupTrip } from '../types';
 import { tourAPI } from '../services/api';
 import { showToast } from '../components/Toast';
 import { SkeletonCard } from '../components/ui';
 import { TourDetailScreen } from './TourDetailScreen';
 import { BookingModal } from '../components/BookingModal';
+import { TrendingCards, TrendingItem } from '../components/TrendingSlideshow';
+import { FeaturedSlideshow, SlideItem } from '../components/FeaturedSlideshow';
 
 // ==========================================
 // Fallback mock data (matches seedTours.ts)
@@ -171,14 +173,6 @@ export const MOCK_TOURS: Tour[] = [
   },
 ];
 
-const CATEGORIES = [
-  { id: 'all', label: 'All' },
-  { id: 'Nature', label: 'Nature' },
-  { id: 'Heritage', label: 'Heritage' },
-  { id: 'Food', label: 'Food' },
-  { id: 'Adventure', label: 'Desert' },
-  { id: 'Night', label: 'Night' },
-];
 
 type QuickFilter = 'budget' | 'trending' | 'highest_rated' | 'near_me' | null;
 
@@ -205,10 +199,10 @@ function departureCityDistance(location: string, userLat: number, userLon: numbe
   return 9999;
 }
 
-const difficultyConfig: Record<string, { label: string; color: string }> = {
-  easy: { label: 'Easy', color: 'bg-emerald-600 text-white' },
-  moderate: { label: 'Moderate', color: 'bg-amber-500 text-white' },
-  challenging: { label: 'Challenging', color: 'bg-red-600 text-white' },
+const DIFFICULTY_COLORS: Record<string, string> = {
+  easy: 'bg-emerald-600 text-white',
+  moderate: 'bg-amber-500 text-white',
+  challenging: 'bg-red-600 text-white',
 };
 
 interface ToursScreenProps {
@@ -228,6 +222,12 @@ export const ToursScreen: React.FC<ToursScreenProps> = ({ t, onBookingComplete, 
   const [quickFilter, setQuickFilter] = useState<QuickFilter>(null);
   const [userCoords, setUserCoords] = useState<[number, number] | null>(null);
   const [locating, setLocating] = useState(false);
+  const [search, setSearch] = useState('');
+  const [searchFocused, setSearchFocused] = useState(false);
+
+  const getUserTours = (): Tour[] => {
+    try { return JSON.parse(localStorage.getItem('tripo_user_tours') || '[]'); } catch { return []; }
+  };
 
   useEffect(() => {
     const load = async () => {
@@ -235,9 +235,15 @@ export const ToursScreen: React.FC<ToursScreenProps> = ({ t, onBookingComplete, 
       try {
         const params = category !== 'all' ? { category } : undefined;
         const data = await tourAPI.getTours(params);
-        setTours(data.length > 0 ? data : MOCK_TOURS);
+        const base = data.length > 0 ? data : MOCK_TOURS;
+        const userTours = getUserTours();
+        // Prepend user-created tours, avoiding duplicates by id
+        const existingIds = new Set(base.map((t: Tour) => t.id || (t as any)._id));
+        const newUserTours = userTours.filter((t: Tour) => !existingIds.has(t.id));
+        setTours([...newUserTours, ...base]);
       } catch {
-        setTours(MOCK_TOURS);
+        const userTours = getUserTours();
+        setTours([...userTours, ...MOCK_TOURS]);
       } finally {
         setIsLoading(false);
       }
@@ -266,7 +272,42 @@ export const ToursScreen: React.FC<ToursScreenProps> = ({ t, onBookingComplete, 
     setQuickFilter(f);
   };
 
-  const displayedTours = [...tours].sort((a, b) => {
+  const trendingItems: TrendingItem[] = useMemo(() =>
+    [...tours]
+      .sort((a, b) => (b.bookingsCount ?? b.reviewCount ?? 0) - (a.bookingsCount ?? a.reviewCount ?? 0))
+      .slice(0, 8)
+      .filter(t => t.heroImage)
+      .map(t => ({
+        id: t.id || (t as any)._id || '',
+        image: t.heroImage || '',
+        name: t.title,
+        subtitle: t.departureLocation || t.category || 'Saudi Arabia',
+        badge: t.category || 'Tour',
+        badgeColor: '#7c3aed',
+        rating: Number(t.rating) || undefined,
+      })),
+  [tours]);
+
+  const slideshowItems: SlideItem[] = useMemo(() =>
+    [...tours]
+      .sort((a, b) => (b.rating ?? 0) - (a.rating ?? 0))
+      .slice(0, 8)
+      .filter(t => t.heroImage)
+      .map(t => ({
+        id: t.id || (t as any)._id || '',
+        type: 'tour' as const,
+        name: t.title,
+        image: t.heroImage || '',
+        subtitle: t.departureLocation || t.category || 'Saudi Arabia',
+        rating: Number(t.rating) || undefined,
+        badge: t.category || 'Tour',
+        badgeColor: '#7c3aed',
+      })),
+  [tours]);
+
+  const displayedTours = [...tours]
+    .filter(t => !search || t.title?.toLowerCase().includes(search.toLowerCase()) || t.category?.toLowerCase().includes(search.toLowerCase()) || t.departureLocation?.toLowerCase().includes(search.toLowerCase()))
+    .sort((a, b) => {
     if (quickFilter === 'budget') return a.pricePerPerson - b.pricePerPerson;
     if (quickFilter === 'trending') return (b.bookingsCount ?? b.reviewCount ?? 0) - (a.bookingsCount ?? a.reviewCount ?? 0);
     if (quickFilter === 'highest_rated') return (b.rating ?? 0) - (a.rating ?? 0);
@@ -277,11 +318,20 @@ export const ToursScreen: React.FC<ToursScreenProps> = ({ t, onBookingComplete, 
     return 0;
   });
 
+  const CATEGORIES = [
+    { id: 'all', label: t.catAll || 'All' },
+    { id: 'Nature', label: t.catNature || 'Nature' },
+    { id: 'Heritage', label: t.catHeritage || 'Heritage' },
+    { id: 'Food', label: t.catFood || 'Food' },
+    { id: 'Adventure', label: t.catDesert || 'Desert' },
+    { id: 'Night', label: t.catNight || 'Night' },
+  ];
+
   const QUICK_FILTERS: { id: QuickFilter; label: string; icon: React.ReactNode }[] = [
-    { id: 'budget', label: 'Budget', icon: <Wallet className="w-3.5 h-3.5" /> },
-    { id: 'trending', label: 'Trending', icon: <TrendingUp className="w-3.5 h-3.5" /> },
-    { id: 'highest_rated', label: 'Top Rated', icon: <Award className="w-3.5 h-3.5" /> },
-    { id: 'near_me', label: locating ? 'Locating…' : 'Near Me', icon: <Navigation className="w-3.5 h-3.5" /> },
+    { id: 'budget', label: t.filterBudget || 'Budget', icon: <Wallet className="w-3.5 h-3.5" /> },
+    { id: 'trending', label: t.filterTrending || 'Trending', icon: <TrendingUp className="w-3.5 h-3.5" /> },
+    { id: 'highest_rated', label: t.topRatedSection ? 'Top Rated' : 'Top Rated', icon: <Award className="w-3.5 h-3.5" /> },
+    { id: 'near_me', label: locating ? (t.filterNearMe || 'Near Me') : (t.filterNearMe || 'Near Me'), icon: <Navigation className="w-3.5 h-3.5" /> },
   ];
 
   const handleBook = async (date: string, guests: number) => {
@@ -331,6 +381,8 @@ export const ToursScreen: React.FC<ToursScreenProps> = ({ t, onBookingComplete, 
           onBack={() => setSelectedTour(null)}
           onBook={(tour) => setBookingTour(tour)}
           t={t}
+          allTours={tours}
+          onSelectTour={setSelectedTour}
         />
         {bookingTour && (
           <BookingModal
@@ -385,6 +437,39 @@ export const ToursScreen: React.FC<ToursScreenProps> = ({ t, onBookingComplete, 
         </div>
       </div>
 
+      {/* Featured slideshow */}
+      {slideshowItems.length > 0 && (
+        <FeaturedSlideshow
+          items={slideshowItems}
+          height="h-56"
+          onPress={item => {
+            const tour = tours.find(t => (t.id || (t as any)._id) === item.id) ?? null;
+            if (tour) setSelectedTour(tour);
+          }}
+        />
+      )}
+
+      {/* Search bar */}
+      <div className="bg-white px-4 pt-3 pb-2 border-b border-slate-100">
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+          <input
+            type="text"
+            placeholder="Search tours by name, category, location…"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            onFocus={() => setSearchFocused(true)}
+            onBlur={() => setTimeout(() => setSearchFocused(false), 150)}
+            className="w-full pl-9 pr-9 py-2.5 bg-slate-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+          />
+          {search && (
+            <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+              <X className="w-4 h-4" />
+            </button>
+          )}
+        </div>
+      </div>
+
       {/* Category pills + quick filters */}
       <div className="sticky top-0 z-20 bg-white border-b border-slate-100 shadow-sm">
         <div className="flex gap-2 px-4 pt-3 pb-2 overflow-x-auto scrollbar-hide">
@@ -428,24 +513,38 @@ export const ToursScreen: React.FC<ToursScreenProps> = ({ t, onBookingComplete, 
               <SkeletonCard key={i} />
             ))}
           </div>
-        ) : displayedTours.length === 0 ? (
-          <div className="text-center py-16">
-            <Compass className="w-12 h-12 text-slate-200 mx-auto mb-3" />
-            <h3 className="font-bold text-slate-700 text-lg mb-1">No tours found</h3>
-            <p className="text-slate-400 text-sm">Try a different category or check back soon.</p>
-            <button
-              onClick={() => setCategory('all')}
-              className="mt-4 px-5 py-2.5 bg-emerald-600 text-white rounded-xl font-bold text-sm hover:bg-emerald-700 transition"
-            >
-              View All Tours
-            </button>
-          </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {displayedTours.map((tour) => (
-              <TourCard key={tour.id || tour._id} tour={tour} onSelect={setSelectedTour} />
-            ))}
-          </div>
+          <>
+            {displayedTours.length === 0 ? (
+              <div className="text-center py-16">
+                <Compass className="w-12 h-12 text-slate-200 mx-auto mb-3" />
+                <h3 className="font-bold text-slate-700 text-lg mb-1">No tours found</h3>
+                <p className="text-slate-400 text-sm">Try a different category or check back soon.</p>
+                <button
+                  onClick={() => setCategory('all')}
+                  className="mt-4 px-5 py-2.5 bg-emerald-600 text-white rounded-xl font-bold text-sm hover:bg-emerald-700 transition"
+                >
+                  View All Tours
+                </button>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {displayedTours.map((tour) => (
+                  <TourCard key={tour.id || tour._id} tour={tour} onSelect={setSelectedTour} t={t} />
+                ))}
+              </div>
+            )}
+            {searchFocused && trendingItems.length > 0 && (
+              <TrendingCards
+                items={trendingItems}
+                label="🔥 Trending Tours"
+                onSelect={item => {
+                  const tour = tours.find(t => (t.id || (t as any)._id) === item.id) ?? null;
+                  if (tour) setSelectedTour(tour);
+                }}
+              />
+            )}
+          </>
         )}
       </div>
 
@@ -466,12 +565,19 @@ export const ToursScreen: React.FC<ToursScreenProps> = ({ t, onBookingComplete, 
 // Tour Card Component
 // ==========================================
 interface TourCardProps {
+  t: any;
   tour: Tour;
   onSelect: (tour: Tour) => void;
 }
 
-const TourCard: React.FC<TourCardProps> = ({ tour, onSelect }) => {
-  const difficulty = difficultyConfig[tour.difficulty] || difficultyConfig.easy;
+const TourCard: React.FC<TourCardProps> = ({ tour, onSelect, t }) => {
+  const diffLabels: Record<string, string> = {
+    easy: t.diffEasy || 'Easy',
+    moderate: t.diffModerate || 'Moderate',
+    challenging: t.diffChallenging || 'Challenging',
+  };
+  const diffColor = DIFFICULTY_COLORS[tour.difficulty] || DIFFICULTY_COLORS.easy;
+  const diffLabel = diffLabels[tour.difficulty] || diffLabels.easy;
 
   return (
     <div
@@ -494,9 +600,9 @@ const TourCard: React.FC<TourCardProps> = ({ tour, onSelect }) => {
 
         {/* Difficulty badge — top-left */}
         <span
-          className={`absolute top-3 left-3 px-2.5 py-1 rounded-full text-[11px] font-extrabold uppercase tracking-wide ${difficulty.color}`}
+          className={`absolute top-3 left-3 px-2.5 py-1 rounded-full text-[11px] font-extrabold uppercase tracking-wide ${diffColor}`}
         >
-          {difficulty.label}
+          {diffLabel}
         </span>
 
         {/* Rating badge — top-right */}

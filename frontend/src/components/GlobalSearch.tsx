@@ -1,34 +1,45 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Search, X, MapPin, FileText, Tent } from 'lucide-react';
-import { placeAPI, itineraryAPI, rentalAPI } from '../services/api';
+import { Search, X, MapPin, FileText, Tent, Compass } from 'lucide-react';
+import { placeAPI, itineraryAPI, rentalAPI, tourAPI } from '../services/api';
+import { MOCK_PLACES } from '../screens/HomeScreen';
+import { MOCK_TOURS } from '../screens/ToursScreen';
+import { MOCK_RENTALS } from '../screens/RentalsScreen';
 
 interface SearchResult {
   id: string;
-  type: 'place' | 'itinerary' | 'rental';
+  type: 'place' | 'itinerary' | 'rental' | 'tour';
   title: string;
   subtitle?: string;
   image?: string;
 }
 
+// Maps result type → app tab name (matches App.tsx tab ids)
 const TYPE_TAB: Record<SearchResult['type'], string> = {
-  place: 'explore',
-  itinerary: 'home',
-  rental: 'rentals',
+  place:     'places',
+  tour:      'tours',
+  rental:    'rentals',
+  itinerary: 'my_trips',
 };
 
 const TYPE_LABEL: Record<SearchResult['type'], string> = {
-  place: 'Place',
-  itinerary: 'Trip',  // already correct
-  rental: 'Rental',
+  place:     'Place',
+  tour:      'Tour',
+  rental:    'Rental',
+  itinerary: 'Trip',
 };
 
 const TYPE_BADGE: Record<SearchResult['type'], string> = {
-  place: 'bg-slate-100 text-slate-600',
-  itinerary: 'bg-blue-50 text-blue-600',
-  rental: 'bg-orange-50 text-orange-600',
+  place:     'bg-teal-50 text-teal-700',
+  tour:      'bg-purple-50 text-purple-700',
+  rental:    'bg-orange-50 text-orange-700',
+  itinerary: 'bg-blue-50 text-blue-700',
 };
 
-export const GlobalSearch = ({ onNavigate }: { onNavigate: (tab: string) => void }) => {
+export const GlobalSearch = ({
+  onNavigate,
+}: {
+  onNavigate: (tab: string, id?: string) => void;
+}) => {
   const [isOpen, setIsOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<SearchResult[]>([]);
@@ -43,82 +54,153 @@ export const GlobalSearch = ({ onNavigate }: { onNavigate: (tab: string) => void
     if (!query.trim()) { setResults([]); return; }
     const timeout = setTimeout(async () => {
       setIsSearching(true);
+      const q = query.toLowerCase();
+      const collected: SearchResult[] = [];
+
+      // ── Places ──────────────────────────────────────────────
       try {
-        const [placesResult, itinsResult, rentalsResult] = await Promise.allSettled([
-          placeAPI.getPlaces(),
-          itineraryAPI.getItineraries({ limit: 50 }),
-          rentalAPI.getRentals(),
-        ]);
-        const q = query.toLowerCase();
-        const collected: SearchResult[] = [];
-
-        if (placesResult.status === 'fulfilled') {
-          placesResult.value
-            .filter((p: any) => p.name?.toLowerCase().includes(q))
-            .slice(0, 3)
-            .forEach((p: any) => collected.push({
-              id: p.id || p._id,
-              type: 'place',
-              title: p.name,
-              subtitle: p.categoryTags?.[0] || 'Place',
-              image: p.photos?.[0] || p.image,
-            }));
-        }
-
-        if (itinsResult.status === 'fulfilled') {
-          itinsResult.value
-            .filter((i: any) => i.title?.toLowerCase().includes(q))
-            .slice(0, 3)
-            .forEach((i: any) => collected.push({
-              id: i.id || i._id,
-              type: 'itinerary',
-              title: i.title,
-              subtitle: `${i.places?.length ?? 0} stops`,
-            }));
-        }
-
-        if (rentalsResult.status === 'fulfilled') {
-          rentalsResult.value
-            .filter((r: any) => r.title?.toLowerCase().includes(q))
-            .slice(0, 3)
-            .forEach((r: any) => collected.push({
-              id: r.id || r._id,
-              type: 'rental',
-              title: r.title,
-              subtitle: `${r.price} SAR · ${r.type}`,
-              image: r.image,
-            }));
-        }
-
-        setResults(collected);
+        const list = await placeAPI.getPlaces();
+        const data = Array.isArray(list) ? list : [];
+        const source = data.length > 0 ? data : MOCK_PLACES;
+        source
+          .filter((p: any) =>
+            p.name?.toLowerCase().includes(q) ||
+            p.city?.toLowerCase().includes(q) ||
+            p.categoryTags?.some((t: string) => t.toLowerCase().includes(q))
+          )
+          .slice(0, 4)
+          .forEach((p: any) => collected.push({
+            id: p.id || p._id || '',
+            type: 'place',
+            title: p.name,
+            subtitle: [p.city, p.categoryTags?.[0]].filter(Boolean).join(' · '),
+            image: p.photos?.[0] || p.image,
+          }));
       } catch {
-        setResults([]);
+        MOCK_PLACES
+          .filter(p => p.name?.toLowerCase().includes(q) || p.city?.toLowerCase().includes(q))
+          .slice(0, 4)
+          .forEach(p => collected.push({
+            id: p.id || p._id || '',
+            type: 'place',
+            title: p.name,
+            subtitle: [p.city, p.categoryTags?.[0]].filter(Boolean).join(' · '),
+            image: p.photos?.[0],
+          }));
       }
+
+      // ── Tours ────────────────────────────────────────────────
+      try {
+        const list = await tourAPI.getTours();
+        const data = Array.isArray(list) ? list : [];
+        const source = data.length > 0 ? data : MOCK_TOURS;
+        source
+          .filter((t: any) =>
+            t.title?.toLowerCase().includes(q) ||
+            t.category?.toLowerCase().includes(q) ||
+            t.departureLocation?.toLowerCase().includes(q)
+          )
+          .slice(0, 3)
+          .forEach((t: any) => collected.push({
+            id: t.id || t._id || '',
+            type: 'tour',
+            title: t.title,
+            subtitle: [t.category, t.departureLocation].filter(Boolean).join(' · '),
+            image: t.heroImage,
+          }));
+      } catch {
+        MOCK_TOURS
+          .filter(t => t.title?.toLowerCase().includes(q) || t.category?.toLowerCase().includes(q))
+          .slice(0, 3)
+          .forEach(t => collected.push({
+            id: t.id || '',
+            type: 'tour',
+            title: t.title,
+            subtitle: [t.category, t.departureLocation].filter(Boolean).join(' · '),
+            image: t.heroImage,
+          }));
+      }
+
+      // ── Rentals ──────────────────────────────────────────────
+      try {
+        const list = await rentalAPI.getRentals();
+        const data = Array.isArray(list) ? list : [];
+        const source = data.length > 0 ? data : MOCK_RENTALS;
+        source
+          .filter((r: any) =>
+            r.title?.toLowerCase().includes(q) ||
+            r.type?.toLowerCase().includes(q) ||
+            r.locationName?.toLowerCase().includes(q)
+          )
+          .slice(0, 3)
+          .forEach((r: any) => collected.push({
+            id: r.id || r._id || '',
+            type: 'rental',
+            title: r.title,
+            subtitle: [`${r.price} SAR`, r.type].filter(Boolean).join(' · '),
+            image: (r.images && r.images[0]) || r.image,
+          }));
+      } catch {
+        MOCK_RENTALS
+          .filter(r => r.title?.toLowerCase().includes(q) || r.type?.toLowerCase().includes(q))
+          .slice(0, 3)
+          .forEach(r => collected.push({
+            id: r.id || '',
+            type: 'rental',
+            title: r.title,
+            subtitle: [`${r.price} SAR`, r.type].filter(Boolean).join(' · '),
+            image: (r.images && r.images[0]) || r.image,
+          }));
+      }
+
+      // ── Itineraries ──────────────────────────────────────────
+      try {
+        const list = await itineraryAPI.getItineraries({ limit: 50 });
+        const data = Array.isArray(list) ? list : [];
+        data
+          .filter((i: any) =>
+            i.title?.toLowerCase().includes(q) ||
+            i.city?.toLowerCase().includes(q)
+          )
+          .slice(0, 3)
+          .forEach((i: any) => collected.push({
+            id: i.id || i._id || '',
+            type: 'itinerary',
+            title: i.title,
+            subtitle: [i.city, `${i.places?.length ?? i.stops?.length ?? 0} stops`].filter(Boolean).join(' · '),
+          }));
+      } catch { /* no mock for itineraries */ }
+
+      setResults(collected);
       setIsSearching(false);
-    }, 300);
+    }, 280);
     return () => clearTimeout(timeout);
   }, [query]);
 
   const close = () => { setIsOpen(false); setQuery(''); setResults([]); };
 
   const handleSelect = (result: SearchResult) => {
-    onNavigate(TYPE_TAB[result.type]);
+    onNavigate(TYPE_TAB[result.type], result.id || undefined);
     close();
   };
 
   return (
     <>
+      {/* Trigger button (shown in sidebar) */}
       <button
         onClick={() => setIsOpen(true)}
         className="flex items-center gap-2 w-full px-3 py-2.5 bg-slate-100 hover:bg-slate-200 rounded-xl text-slate-500 text-sm font-medium transition-colors"
       >
         <Search className="w-4 h-4 flex-shrink-0" />
-        <span>Search...</span>
-        <kbd className="ml-auto text-[10px] bg-white border border-slate-200 text-slate-400 px-1.5 py-0.5 rounded font-mono hidden lg:block">/</kbd>
+        <span>Search places, tours, rentals…</span>
       </button>
 
+      {/* Modal */}
       {isOpen && (
-        <div className="fixed inset-0 z-[300] bg-slate-900/50 flex flex-col items-center pt-16 px-4" onClick={close}>
+        <div
+          className="fixed inset-0 z-[300] bg-slate-900/50 backdrop-blur-sm flex flex-col items-center pt-14 px-4"
+          onClick={close}
+        >
           <div
             className="bg-white w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden"
             onClick={e => e.stopPropagation()}
@@ -130,39 +212,38 @@ export const GlobalSearch = ({ onNavigate }: { onNavigate: (tab: string) => void
                 ref={inputRef}
                 value={query}
                 onChange={e => setQuery(e.target.value)}
-                placeholder="Search places, trips, rentals..."
-                className="flex-1 outline-none text-slate-800 font-medium placeholder-slate-400 text-sm"
+                placeholder="Search places, tours, rentals, trips…"
+                className="flex-1 outline-none text-slate-800 font-medium placeholder-slate-400 text-sm bg-transparent"
               />
-              {query ? (
-                <button onClick={() => setQuery('')} className="text-slate-400 hover:text-slate-600 transition-colors">
-                  <X className="w-4 h-4" />
-                </button>
-              ) : (
-                <button onClick={close} className="text-slate-400 hover:text-slate-600 transition-colors">
-                  <X className="w-4 h-4" />
-                </button>
-              )}
+              <button
+                onClick={query ? () => setQuery('') : close}
+                className="text-slate-400 hover:text-slate-600 transition-colors p-0.5"
+              >
+                <X className="w-4 h-4" />
+              </button>
             </div>
 
-            {/* Results */}
-            <div className="max-h-80 overflow-y-auto">
+            {/* Results list */}
+            <div className="max-h-[60vh] overflow-y-auto">
               {isSearching && (
-                <div className="py-8 text-center text-sm text-slate-400 flex items-center justify-center gap-2">
+                <div className="py-8 flex items-center justify-center gap-2 text-sm text-slate-400">
                   <div className="w-4 h-4 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
-                  Searching...
+                  Searching…
                 </div>
               )}
 
-              {!isSearching && query && results.length === 0 && (
-                <div className="py-10 text-center text-sm text-slate-500">
-                  <Search className="w-8 h-8 mx-auto mb-2 text-slate-300" />
-                  No results for "<span className="font-semibold">{query}</span>"
+              {!isSearching && query.trim() && results.length === 0 && (
+                <div className="py-12 text-center">
+                  <Search className="w-10 h-10 mx-auto mb-3 text-slate-200" />
+                  <p className="text-slate-500 font-semibold text-sm">No results for "{query}"</p>
+                  <p className="text-slate-400 text-xs mt-1">Try a different name or keyword</p>
                 </div>
               )}
 
-              {!isSearching && !query && (
-                <div className="py-10 text-center text-sm text-slate-400">
-                  Type to search places, trips, and rentals
+              {!isSearching && !query.trim() && (
+                <div className="py-10 text-center">
+                  <Compass className="w-10 h-10 mx-auto mb-3 text-slate-200" />
+                  <p className="text-slate-400 text-sm">Search for places, tours, rentals or trips</p>
                 </div>
               )}
 
@@ -170,21 +251,33 @@ export const GlobalSearch = ({ onNavigate }: { onNavigate: (tab: string) => void
                 <button
                   key={`${r.type}-${r.id}`}
                   onClick={() => handleSelect(r)}
-                  className="w-full flex items-center gap-3 px-4 py-3 hover:bg-slate-50 transition-colors text-left border-b border-slate-50 last:border-0"
+                  className="w-full flex items-center gap-3 px-4 py-3 hover:bg-slate-50 active:bg-slate-100 transition-colors text-left border-b border-slate-50 last:border-0"
                 >
+                  {/* Thumbnail */}
                   {r.image ? (
-                    <img src={r.image} className="w-10 h-10 rounded-xl object-cover flex-shrink-0" alt={r.title} />
+                    <img
+                      src={r.image}
+                      className="w-11 h-11 rounded-xl object-cover flex-shrink-0"
+                      alt={r.title}
+                    />
                   ) : (
-                    <div className="w-10 h-10 bg-slate-100 rounded-xl flex items-center justify-center flex-shrink-0">
-                      {r.type === 'place' && <MapPin className="w-4 h-4 text-slate-400" />}
-                      {r.type === 'itinerary' && <FileText className="w-4 h-4 text-slate-400" />}
-                      {r.type === 'rental' && <Tent className="w-4 h-4 text-slate-400" />}
+                    <div className="w-11 h-11 bg-slate-100 rounded-xl flex items-center justify-center flex-shrink-0">
+                      {r.type === 'place'     && <MapPin   className="w-5 h-5 text-slate-400" />}
+                      {r.type === 'tour'      && <Compass  className="w-5 h-5 text-slate-400" />}
+                      {r.type === 'rental'    && <Tent     className="w-5 h-5 text-slate-400" />}
+                      {r.type === 'itinerary' && <FileText className="w-5 h-5 text-slate-400" />}
                     </div>
                   )}
+
+                  {/* Text */}
                   <div className="flex-1 min-w-0">
                     <p className="font-semibold text-slate-900 truncate text-sm">{r.title}</p>
-                    <p className="text-xs text-slate-500">{r.subtitle}</p>
+                    {r.subtitle && (
+                      <p className="text-xs text-slate-500 truncate mt-0.5">{r.subtitle}</p>
+                    )}
                   </div>
+
+                  {/* Badge */}
                   <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full flex-shrink-0 ${TYPE_BADGE[r.type]}`}>
                     {TYPE_LABEL[r.type]}
                   </span>

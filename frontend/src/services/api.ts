@@ -381,4 +381,53 @@ export const privateTripAPI = {
   },
 };
 
+// ==========================================
+// Social Auth API
+// ==========================================
+export const socialAuthAPI = {
+  login: async (provider: 'google' | 'facebook', token: string) => {
+    const { data } = await api.post('/auth/social', { provider, token });
+    return data; // { token, user }
+  },
+};
+
+// ==========================================
+// Google Places API (proxied through backend)
+// ==========================================
+
+export interface GooglePlacePhoto {
+  url: string;   // /api/v1/google-places/photo?name=...
+  width: number;
+  height: number;
+}
+
+export interface GooglePlaceReview {
+  author: string;
+  authorPhoto: string | null;
+  rating: number;
+  text: string;
+  relativeTime: string;
+  publishTime: string;
+}
+
+export interface GooglePlaceDetails {
+  googlePlaceId: string | null;
+  rating?: number;
+  userRatingCount?: number;
+  photos: GooglePlacePhoto[];
+  reviews: GooglePlaceReview[];
+  address?: string;
+  website?: string;
+  phone?: string;
+}
+
+export const googlePlacesAPI = {
+  getDetails: async (name: string, city?: string): Promise<GooglePlaceDetails> => {
+    const { data } = await api.get('/google-places/details', { params: { name, city } });
+    return data;
+  },
+  // Build the full URL for a photo proxy path
+  photoSrc: (proxyPath: string): string => `${API_URL}${proxyPath}`,
+};
+
 export default api;

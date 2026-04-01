@@ -12,6 +12,7 @@ import expenseRoutes from './expenseRoutes';
 import reportRoutes from './reportRoutes';
 import adminRoutes from './adminRoutes';
 import tourRoutes from './tourRoutes';
+import googlePlacesRoutes from './googlePlacesRoutes';
 
 const router = Router();
 
@@ -28,5 +29,6 @@ router.use('/', expenseRoutes);
 router.use('/', reportRoutes);
 router.use('/', adminRoutes);
 router.use('/tours', tourRoutes);
+router.use('/', googlePlacesRoutes);
 
 export default router;
