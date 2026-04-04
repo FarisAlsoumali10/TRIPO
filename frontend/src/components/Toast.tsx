@@ -22,7 +22,7 @@ export const ToastContainer: React.FC = () => {
       const { message, type } = (e as CustomEvent).detail as { message: string; type: ToastType };
       const id = `${Date.now()}-${Math.random()}`;
       setToasts(prev => [...prev, { id, type, message }]);
-      setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 3500);
+      setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 5000);
     };
     window.addEventListener('toast:show', handler);
     return () => window.removeEventListener('toast:show', handler);

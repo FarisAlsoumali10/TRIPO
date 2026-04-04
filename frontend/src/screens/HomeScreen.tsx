@@ -371,6 +371,7 @@ export const HomeScreen = ({
           src={cityHero.url}
           className="w-full h-full object-cover"
           alt={cityHero.label}
+          loading="lazy"
         />
 
         {/* Top scrim — ensures top-bar icons + location text are always legible */}
@@ -481,7 +482,7 @@ export const HomeScreen = ({
                     <div className="h-28 relative overflow-hidden bg-slate-100 dark:bg-slate-800">
                       {img
                         ? <img src={img} className="w-full h-full object-cover" alt={place.name}
-                            onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                            onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} loading="lazy" />
                         : <ImgPlaceholder icon={Mountain} />
                       }
                       {rating && <RatingPill rating={rating} />}
@@ -542,7 +543,7 @@ export const HomeScreen = ({
                   <div className="w-28 h-28 flex-shrink-0 relative overflow-hidden bg-slate-100 dark:bg-slate-800">
                     {tour.heroImage
                       ? <img src={tour.heroImage} className="w-full h-full object-cover" alt={tour.title}
-                          onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                          onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} loading="lazy" />
                       : <ImgPlaceholder icon={Compass} />
                     }
                     <DifficultyBadge level={tour.difficulty} />
@@ -622,7 +623,7 @@ export const HomeScreen = ({
                     <div className="relative h-32 bg-slate-100 dark:bg-slate-800 overflow-hidden">
                       {event.image
                         ? <img src={event.image} alt={event.title} className="w-full h-full object-cover"
-                            onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                            onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} loading="lazy" />
                         : <ImgPlaceholder icon={Calendar} />
                       }
                       <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent" />
@@ -687,7 +688,7 @@ export const HomeScreen = ({
                   <div className="h-32 relative overflow-hidden bg-slate-100 dark:bg-slate-800">
                     {img
                       ? <img src={img} alt={rental.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                          onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                          onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} loading="lazy" />
                       : <ImgPlaceholder icon={Tent} />
                     }
                     {rental.rating && <RatingPill rating={rental.rating} />}
@@ -738,7 +739,7 @@ export const HomeScreen = ({
                 <div className="h-24 bg-slate-100 dark:bg-slate-800 relative overflow-hidden">
                   {community.image
                     ? <img src={community.image} alt={community.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                        onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                        onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} loading="lazy" />
                     : <ImgPlaceholder icon={Users} />
                   }
                   <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />

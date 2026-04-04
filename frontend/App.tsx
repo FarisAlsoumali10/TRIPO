@@ -1,35 +1,43 @@
-import React, { useState, useEffect } from 'react';
-import { Home, Search, Plus, User as UserIcon, Settings, ChevronLeft, LogOut, Globe, Users, Menu, X, Heart, Shield, Users2, Sparkles, Download, Trash2, WifiOff, ChevronDown, ChevronUp, MapPin, Calendar, Star, Store, Tent, Compass, Lock, LayoutGrid, Camera, Sun, Moon } from 'lucide-react';
+import React, { useState, useEffect, useRef, Suspense, lazy } from 'react';
+import { Home, Search, Plus, User as UserIcon, Settings, ChevronLeft, LogOut, Globe, Users, Menu, X, Heart, Shield, Users2, Sparkles, Download, Trash2, WifiOff, ChevronDown, ChevronUp, MapPin, Calendar, Star, Store, Tent, Compass, Lock, LayoutGrid, Camera, Sun, Moon, Bell } from 'lucide-react';
 import { User, Itinerary, GroupTrip, SmartProfile, PrivateTrip } from './src/types/index';
 import { TRANSLATIONS } from './translations';
 import { authAPI, itineraryAPI, groupTripAPI } from './src/services/api';
 import { getOfflineItineraries, removeOfflineItinerary } from './src/screens/ItineraryDetailScreen';
 
-// Screens
+// ── Eagerly-loaded screens (used immediately on startup) ──────────────────
 import { AuthScreen } from './src/screens/AuthScreen';
 import { HomeScreen } from './src/screens/HomeScreen';
-import { YourMoodScreen } from './src/screens/YourMoodScreen';
 import { CreateScreen } from './src/screens/CreateScreen';
 import { ItineraryDetailScreen } from './src/screens/ItineraryDetailScreen';
 import { GroupTripScreen } from './src/screens/GroupTripScreen';
 import { ExploreScreen } from './src/screens/ExploreScreen';
-import { CommunitiesScreen } from './src/screens/CommunitiesScreen';
-import { AdminScreen } from './src/screens/AdminScreen';
-import { HostDashboardScreen } from './src/screens/HostDashboardScreen';
-import { AIAssistant } from './src/components/AIAssistant';
-import { ARGuideScreen } from './src/screens/ARGuideScreen';
-import { AIPlannerScreen } from './src/screens/AIPlannerScreen';
-import { WishListModal } from './src/components/WishListModal';
-import { NotificationPanel } from './src/components/NotificationPanel';
-import { EventsScreen } from './src/screens/EventsScreen';
-import { RentalsScreen } from './src/screens/RentalsScreen';
-import { ToastContainer } from './src/components/Toast';
-import { GlobalSearch } from './src/components/GlobalSearch';
-import { ToursScreen } from './src/screens/ToursScreen';
-import { PlacesScreen } from './src/screens/PlacesScreen';
+import { WelcomeScreen } from './src/screens/WelcomeScreen';
 import { MyTripsScreen } from './src/screens/MyTripsScreen';
 import { PrivateTripScreen } from './src/screens/PrivateTripScreen';
-import { WelcomeScreen } from './src/screens/WelcomeScreen';
+import { WalletScreen } from './src/screens/WalletScreen';
+import { SettingsScreen } from './src/screens/SettingsScreen';
+import { NotificationsScreen } from './src/screens/NotificationsScreen';
+import { BookingHistoryScreen, saveBooking } from './src/screens/BookingHistoryScreen';
+
+// ── Lazily-loaded heavy screens (only loaded when user navigates to them) ──
+const YourMoodScreen    = lazy(() => import('./src/screens/YourMoodScreen').then(m => ({ default: m.YourMoodScreen })));
+const CommunitiesScreen = lazy(() => import('./src/screens/CommunitiesScreen').then(m => ({ default: m.CommunitiesScreen })));
+const AIAssistantLazy   = lazy(() => import('./src/components/AIAssistant').then(m => ({ default: m.AIAssistant })));
+const ARGuideScreen     = lazy(() => import('./src/screens/ARGuideScreen').then(m => ({ default: m.ARGuideScreen })));
+const AIPlannerScreen   = lazy(() => import('./src/screens/AIPlannerScreen').then(m => ({ default: m.AIPlannerScreen })));
+const EventsScreen      = lazy(() => import('./src/screens/EventsScreen').then(m => ({ default: m.EventsScreen })));
+const RentalsScreen     = lazy(() => import('./src/screens/RentalsScreen').then(m => ({ default: m.RentalsScreen })));
+const ToursScreen       = lazy(() => import('./src/screens/ToursScreen').then(m => ({ default: m.ToursScreen })));
+const PlacesScreen      = lazy(() => import('./src/screens/PlacesScreen').then(m => ({ default: m.PlacesScreen })));
+const AdminScreen       = lazy(() => import('./src/screens/AdminScreen').then(m => ({ default: m.AdminScreen })));
+const HostDashboardScreen = lazy(() => import('./src/screens/HostDashboardScreen').then(m => ({ default: m.HostDashboardScreen })));
+
+import { WishListModal } from './src/components/WishListModal';
+import { NotificationPanel } from './src/components/NotificationPanel';
+import { ToastContainer } from './src/components/Toast';
+import { GlobalSearch } from './src/components/GlobalSearch';
+import { SkeletonCard } from './src/components/ui';
 
 // Error boundary to prevent blank screens on render crashes
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -132,6 +140,30 @@ export const App = () => {
   const [pendingRentalId, setPendingRentalId] = useState<string | undefined>(undefined);
   const [pendingCommunityId, setPendingCommunityId] = useState<string | undefined>(undefined);
   const [showEditProfile, setShowEditProfile] = useState(false);
+  const [editProfileName, setEditProfileName] = useState('');
+  const [editProfileAvatar, setEditProfileAvatar] = useState('');
+
+  // ── Scroll position memory — preserve scroll per tab ──────────────────
+  const scrollPositions = useRef<Record<string, number>>({});
+  const contentRef = useRef<HTMLDivElement>(null);
+
+  // Save scroll position before switching tabs
+  const switchTab = (tabId: string) => {
+    if (contentRef.current) {
+      scrollPositions.current[activeTab] = contentRef.current.scrollTop;
+    }
+    setActiveTab(tabId);
+  };
+
+  // Restore scroll position after tab switch
+  useEffect(() => {
+    if (!contentRef.current) return;
+    const saved = scrollPositions.current[activeTab] || 0;
+    // Use rAF to wait for the new content to render
+    requestAnimationFrame(() => {
+      if (contentRef.current) contentRef.current.scrollTop = saved;
+    });
+  }, [activeTab]);
   const [showMoreSheet, setShowMoreSheet] = useState(false);
   const [isDark, setIsDark] = useState<boolean>(() => {
     const stored = localStorage.getItem('tripo_theme');
@@ -549,13 +581,17 @@ export const App = () => {
                 { id: 'ai_planner', icon: Sparkles, label: `✨ ${(t as any).tabAIPlanner || 'AI Planner'}` },
                 { id: 'events', icon: Calendar, label: (t as any).tabEvents || 'Events' },
                 { id: 'rentals', icon: Tent, label: (t as any).tabRentals || 'Rentals' },
-                { id: 'profile', icon: UserIcon, label: t.tabProfile },
+                { id: 'profile',          icon: UserIcon,   label: t.tabProfile },
+                { id: 'wallet',           icon: Star,       label: (t as any).tabWallet   || (lang === 'ar' ? 'محفظتي' : 'Wallet') },
+                { id: 'notifications',    icon: Bell,       label: (t as any).tabNotifs   || (lang === 'ar' ? 'الإشعارات' : 'Notifications') },
+                { id: 'booking_history',  icon: Calendar,   label: (t as any).tabBookings || (lang === 'ar' ? 'حجوزاتي' : 'Bookings') },
+                { id: 'settings',         icon: Settings,   label: t.settings },
                 ...(isAdmin ? [{ id: 'admin', icon: Shield, label: (t as any).tabAdmin || 'Admin' }] : []),
                 ...(hasClaimedPlaces ? [{ id: 'host', icon: Store, label: (t as any).tabHost || 'Host Dashboard' }] : []),
               ].map((nav) => (
                 <button
                   key={nav.id}
-                  onClick={() => { setActiveTab(nav.id); setIsSidebarOpen(false); }}
+                  onClick={() => { switchTab(nav.id); setIsSidebarOpen(false); }}
                   className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${activeTab === nav.id ? 'bg-emerald-50 text-emerald-700 font-bold' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900 font-medium'}`}
                 >
                   <nav.icon className={`w-5 h-5 ${activeTab === nav.id ? 'text-emerald-600' : 'text-slate-400'}`} />
@@ -641,8 +677,8 @@ export const App = () => {
           </div>
 
           {/* Scrollable Content View */}
-          <div className="flex-1 overflow-y-auto w-full">
-            <div className="max-w-7xl mx-auto h-full">
+          <div ref={contentRef} className="flex-1 overflow-y-auto w-full">
+            <div className="max-w-7xl mx-auto h-full page-enter">
               {activeTab === 'home' && user && (
                 <>
                   {/* Feature 4: Resume Trip banner on home screen */}
@@ -677,16 +713,34 @@ export const App = () => {
                 </>
               )}
 
-              {activeTab === 'places' && <PlacesScreen t={t} initialPlaceId={pendingPlaceId} onPlaceOpened={() => setPendingPlaceId(undefined)} />}
+              {activeTab === 'places' && <Suspense fallback={<div className="p-4 grid grid-cols-2 gap-3">{Array.from({length:6}).map((_,i)=><SkeletonCard key={i}/>)}</div>}><PlacesScreen t={t} initialPlaceId={pendingPlaceId} onPlaceOpened={() => setPendingPlaceId(undefined)} /></Suspense>}
 
               {activeTab === 'explore' && <ExploreScreen t={t} onOpenPlace={(p) => console.log('Place clicked', p)} />}
 
+
               {activeTab === 'tours' && (
+                <Suspense fallback={<div className="p-4 grid grid-cols-1 gap-3">{Array.from({length:4}).map((_,i)=><SkeletonCard key={i}/>)}</div>}>
                 <ToursScreen
                   t={t}
                   initialTourId={pendingTourId}
                   onTourOpened={() => setPendingTourId(undefined)}
                   onBookingComplete={(itinerary, groupTrip) => {
+                    // Save to booking history
+                    saveBooking({
+                      id: (groupTrip as any)._id || (groupTrip as any).id || Date.now().toString(),
+                      tourId: itinerary._id || itinerary.id || '',
+                      tourTitle: itinerary.title,
+                      tourImage: (itinerary as any).heroImage || (itinerary as any).image || '',
+                      guideName: (itinerary as any).guideName || 'مرشد تريبو',
+                      date: new Date().toISOString().split('T')[0],
+                      guests: (groupTrip as any).guests || 1,
+                      totalPrice: itinerary.estimatedCost || 0,
+                      currency: 'SAR',
+                      status: 'confirmed',
+                      departureLocation: itinerary.city || (itinerary as any).departureLocation || 'الرياض',
+                      duration: Math.round((itinerary.estimatedDuration || 0) / 60) || 4,
+                      bookedAt: Date.now(),
+                    });
                     const trip: GroupTrip = {
                       id: (groupTrip as any)._id || (groupTrip as any).id || Date.now().toString(),
                       backendId: (groupTrip as any)._id || (groupTrip as any).id,
@@ -699,6 +753,7 @@ export const App = () => {
                     setView('group');
                   }}
                 />
+                </Suspense>
               )}
 
               {activeTab === 'my_trips' && user && (
@@ -713,38 +768,71 @@ export const App = () => {
 
               {activeTab === 'create' && user && <CreateScreen onSave={(_it) => { awardKaramPoints('publish_itinerary', 100, 'Published a trip'); setCreateInitialTitle(undefined); setActiveTab('home'); }} t={t} initialTitle={createInitialTitle} currentUser={user} onPrivateTripCreated={() => { setCreateInitialTitle(undefined); setActiveTab('my_trips'); }} />}
 
-              {activeTab === 'communities' && <CommunitiesScreen t={t} lang={lang} onOpenItinerary={openItinerary} initialCommunityId={pendingCommunityId} onCommunityOpened={() => setPendingCommunityId(undefined)} />}
+              {activeTab === 'communities' && <Suspense fallback={<div className="p-4 space-y-3">{Array.from({length:5}).map((_,i)=><SkeletonCard key={i}/>)}</div>}><CommunitiesScreen t={t} lang={lang} onOpenItinerary={openItinerary} initialCommunityId={pendingCommunityId} onCommunityOpened={() => setPendingCommunityId(undefined)} /></Suspense>}
 
               {activeTab === 'ai_planner' && (
-                <div className="h-full flex flex-col" style={{ height: 'calc(100vh - 120px)' }}>
-                  <AIPlannerScreen />
-                </div>
+                <Suspense fallback={<div className="flex items-center justify-center h-full"><div className="animate-spin w-8 h-8 border-2 border-emerald-500 border-t-transparent rounded-full" /></div>}>
+                  <div className="h-full flex flex-col" style={{ height: 'calc(100vh - 120px)' }}>
+                    <AIPlannerScreen />
+                  </div>
+                </Suspense>
               )}
 
-              {activeTab === 'events' && <EventsScreen t={t} lang={lang} onCreateWithEvent={(title) => { setCreateInitialTitle(title); setActiveTab('create'); }} initialEventId={pendingEventId} onEventOpened={() => setPendingEventId(undefined)} />}
+              {activeTab === 'events' && <Suspense fallback={<div className="p-4 space-y-3">{Array.from({length:4}).map((_,i)=><SkeletonCard key={i}/>)}</div>}><EventsScreen t={t} lang={lang} onCreateWithEvent={(title) => { setCreateInitialTitle(title); setActiveTab('create'); }} initialEventId={pendingEventId} onEventOpened={() => setPendingEventId(undefined)} /></Suspense>}
 
-              {activeTab === 'rentals' && <RentalsScreen t={t} initialRentalId={pendingRentalId} onRentalOpened={() => setPendingRentalId(undefined)} />}
+              {activeTab === 'rentals' && <Suspense fallback={<div className="p-4 grid grid-cols-1 gap-3">{Array.from({length:4}).map((_,i)=><SkeletonCard key={i}/>)}</div>}><RentalsScreen t={t} initialRentalId={pendingRentalId} onRentalOpened={() => setPendingRentalId(undefined)} /></Suspense>}
 
               {activeTab === 'ar' && user && (
-                <ARGuideScreen onBack={() => setActiveTab('home')} t={t} user={user} lang={lang} nearbyPlaces={[]} itineraryPlaces={[]} />
+                <Suspense fallback={<div className="flex items-center justify-center h-full"><div className="animate-spin w-8 h-8 border-2 border-emerald-500 border-t-transparent rounded-full" /></div>}>
+                  <ARGuideScreen onBack={() => setActiveTab('home')} t={t} user={user} lang={lang} nearbyPlaces={[]} itineraryPlaces={[]} />
+                </Suspense>
               )}
 
               {activeTab === 'your_mood' && user && (
-                <YourMoodScreen
+                <Suspense fallback={<div className="p-4 space-y-3">{Array.from({length:3}).map((_,i)=><SkeletonCard key={i}/>)}</div>}>
+                  <YourMoodScreen
+                    t={t}
+                    user={user}
+                    onNavigate={(tab, id) => {
+                      setActiveTab(tab);
+                      if (id && tab === 'places')  setPendingPlaceId(id);
+                      if (id && tab === 'tours')   setPendingTourId(id);
+                      if (id && tab === 'rentals') setPendingRentalId(id);
+                    }}
+                  />
+                </Suspense>
+              )}
+
+              {activeTab === 'wallet' && (
+                <WalletScreen
+                  karamPoints={karamPoints}
+                  karamHistory={karamHistory}
+                  walletBalance={user?.walletBalance || 0}
                   t={t}
-                  user={user}
-                  onNavigate={(tab, id) => {
-                    setActiveTab(tab);
-                    if (id && tab === 'places')  setPendingPlaceId(id);
-                    if (id && tab === 'tours')   setPendingTourId(id);
-                    if (id && tab === 'rentals') setPendingRentalId(id);
-                  }}
+                  lang={lang}
                 />
               )}
 
-              {activeTab === 'admin' && isAdmin && <AdminScreen t={t} />}
+              {activeTab === 'notifications' && <NotificationsScreen t={t} lang={lang} />}
 
-              {activeTab === 'host' && <HostDashboardScreen />}
+              {activeTab === 'booking_history' && <BookingHistoryScreen t={t} lang={lang} user={user} />}
+
+              {activeTab === 'settings' && user && (
+                <SettingsScreen
+                  user={user}
+                  lang={lang}
+                  isDark={isDark}
+                  onToggleLang={toggleLanguage}
+                  onToggleDark={() => setIsDark(d => !d)}
+                  onUpdateUser={(u) => setUser(u)}
+                  onLogout={handleLogout}
+                  t={t}
+                />
+              )}
+
+              {activeTab === 'admin' && isAdmin && <Suspense fallback={null}><AdminScreen t={t} /></Suspense>}
+
+              {activeTab === 'host' && <Suspense fallback={null}><HostDashboardScreen /></Suspense>}
 
               {activeTab === 'profile' && user && (
                 <div className="p-6 pt-10 max-w-3xl mx-auto">
@@ -901,15 +989,23 @@ export const App = () => {
                     )}
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <button onClick={() => setShowEditProfile(true)} className="flex items-center justify-between p-5 bg-emerald-50 hover:bg-emerald-100 transition-colors rounded-2xl font-medium border border-emerald-100 md:col-span-2">
-                        <span className="flex items-center gap-3 text-emerald-800 font-bold"><Sparkles className="w-5 h-5 text-emerald-600" /> {(t as any).profileEditPrefs || 'Edit Travel Preferences'}</span>
+                      <button onClick={() => { setEditProfileName(user?.name || ''); setEditProfileAvatar(user?.avatar || ''); setShowEditProfile(true); }} className="flex items-center justify-between p-5 bg-emerald-50 hover:bg-emerald-100 transition-colors rounded-2xl font-medium border border-emerald-100 md:col-span-2">
+                        <span className="flex items-center gap-3 text-emerald-800 font-bold"><Sparkles className="w-5 h-5 text-emerald-600" /> {(t as any).profileEditPrefs || 'Edit Profile & Preferences'}</span>
                         <ChevronLeft className="w-4 h-4 text-emerald-400 rotate-180" />
+                      </button>
+                      <button onClick={() => setActiveTab('wallet')} className="flex items-center justify-between p-5 bg-amber-50 hover:bg-amber-100 transition-colors rounded-2xl font-medium border border-amber-100">
+                        <span className="flex items-center gap-3 text-amber-800 font-bold"><Star className="w-5 h-5 text-amber-500" /> {(t as any).tabWallet || (lang === 'ar' ? 'محفظتي' : 'My Wallet')}</span>
+                        <span className="text-sm font-bold text-amber-600">{karamPoints} pts</span>
+                      </button>
+                      <button onClick={() => setActiveTab('booking_history')} className="flex items-center justify-between p-5 bg-teal-50 hover:bg-teal-100 transition-colors rounded-2xl font-medium border border-teal-100">
+                        <span className="flex items-center gap-3 text-teal-800 font-bold"><Calendar className="w-5 h-5 text-teal-600" /> {(t as any).tabBookings || (lang === 'ar' ? 'حجوزاتي' : 'My Bookings')}</span>
+                        <ChevronLeft className="w-4 h-4 text-teal-400 rotate-180" />
                       </button>
                       <button onClick={toggleLanguage} className="flex items-center justify-between p-5 bg-slate-50 hover:bg-slate-100 transition-colors rounded-2xl font-medium border border-slate-100">
                         <span className="flex items-center gap-3 text-slate-700 font-bold"><Globe className="w-5 h-5 text-emerald-600" /> Language / اللغة</span>
                         <span className="text-sm font-bold text-emerald-600">{lang === 'en' ? 'English' : 'العربية'}</span>
                       </button>
-                      <button onClick={() => setShowSettings(true)} className="flex items-center justify-between p-5 bg-slate-50 hover:bg-slate-100 transition-colors rounded-2xl font-medium border border-slate-100">
+                      <button onClick={() => setActiveTab('settings')} className="flex items-center justify-between p-5 bg-slate-50 hover:bg-slate-100 transition-colors rounded-2xl font-medium border border-slate-100">
                         <span className="flex items-center gap-3 text-slate-700 font-bold"><Settings className="w-5 h-5 text-emerald-600" /> {t.settings}</span>
                         <ChevronLeft className="w-4 h-4 text-slate-400 rotate-180" />
                       </button>
@@ -929,7 +1025,69 @@ export const App = () => {
         </div>
 
         {/* AI Assistant - Floating Button */}
-        {user && <AIAssistant user={user as any} t={t} lang={lang} />}
+        {user && (
+          <Suspense fallback={null}>
+            <AIAssistantLazy user={user as any} t={t} lang={lang} />
+          </Suspense>
+        )}
+
+        {/* Profile Edit Modal */}
+        {showEditProfile && user && (
+          <div className="fixed inset-0 z-[200] bg-black/50 flex items-end" onClick={() => setShowEditProfile(false)}>
+            <div className="bg-white w-full rounded-t-3xl shadow-2xl p-6 space-y-5" onClick={e => e.stopPropagation()}>
+              <div className="w-10 h-1 bg-slate-200 rounded-full mx-auto mb-2" />
+              <div className="flex items-center justify-between">
+                <h3 className="text-xl font-black text-slate-900">{(t as any).profileEditPrefs || 'Edit Profile'}</h3>
+                <button onClick={() => setShowEditProfile(false)} className="p-2 bg-slate-50 rounded-full"><X className="w-5 h-5 text-slate-400" /></button>
+              </div>
+
+              {/* Avatar preview */}
+              <div className="flex items-center gap-4">
+                <div className="w-16 h-16 rounded-full bg-emerald-100 border-4 border-slate-50 shadow overflow-hidden flex items-center justify-center text-emerald-700 font-black text-2xl">
+                  {editProfileAvatar ? <img src={editProfileAvatar} className="w-full h-full object-cover" onError={e => (e.currentTarget.style.display = 'none')} /> : editProfileName?.charAt(0).toUpperCase() || user.name?.charAt(0).toUpperCase()}
+                </div>
+                <input
+                  className="flex-1 px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-sm outline-none focus:ring-2 focus:ring-emerald-500"
+                  placeholder="رابط الصورة الشخصية (URL)..."
+                  value={editProfileAvatar}
+                  onChange={e => setEditProfileAvatar(e.target.value)}
+                />
+              </div>
+
+              {/* Name */}
+              <div>
+                <label className="block text-xs font-black text-slate-500 mb-1.5">الاسم</label>
+                <input
+                  className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-bold outline-none focus:ring-2 focus:ring-emerald-500"
+                  placeholder="اسمك الكامل"
+                  value={editProfileName}
+                  onChange={e => setEditProfileName(e.target.value)}
+                />
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowEditProfile(false)}
+                  className="flex-1 py-3.5 bg-slate-100 text-slate-600 font-black text-sm rounded-2xl active:scale-95 transition-transform"
+                >
+                  إلغاء
+                </button>
+                <button
+                  onClick={() => {
+                    if (!editProfileName.trim()) return;
+                    const updated = { ...user, name: editProfileName.trim(), avatar: editProfileAvatar.trim() || undefined };
+                    setUser(updated);
+                    localStorage.setItem('user', JSON.stringify(updated));
+                    setShowEditProfile(false);
+                  }}
+                  className="flex-1 py-3.5 bg-emerald-600 text-white font-black text-sm rounded-2xl active:scale-95 transition-transform"
+                >
+                  حفظ التغييرات
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Settings Modal */}
         {showSettings && (
@@ -965,33 +1123,35 @@ export const App = () => {
         {/* Wish Lists Modal */}
         {showWishLists && <WishListModal onClose={() => setShowWishLists(false)} />}
 
-        {/* Mobile Bottom Nav — 5 tabs */}
+        {/* Mobile Bottom Nav — 5 core tabs */}
         <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-white/95 dark:bg-slate-950/95 backdrop-blur-xl border-t border-slate-200 dark:border-white/8 px-1 pt-2 pb-safe flex justify-around items-center z-40 shadow-2xl transition-colors duration-300" style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 8px)' }}>
           {[
-            { id: 'home',        icon: Home,   label: (t as any).navHome      || (lang === 'ar' ? 'الرئيسية' : 'Home') },
-            { id: 'explore',     icon: Search, label: (t as any).navMap       || (lang === 'ar' ? 'الخريطة'  : 'Map') },
-            { id: 'rentals',     icon: Tent,   label: (t as any).navRentals   || (lang === 'ar' ? 'الإيجارات': 'Rentals') },
-            { id: 'communities', icon: Users,  label: (t as any).navCommunity || (lang === 'ar' ? 'المجتمع'  : 'Community') },
+            { id: 'home',        icon: Home,    label: lang === 'ar' ? 'الرئيسية' : 'Home'      },
+            { id: 'explore',     icon: Search,  label: lang === 'ar' ? 'استكشف'  : 'Explore'    },
+            { id: 'communities', icon: Users,   label: lang === 'ar' ? 'المجتمع' : 'Community'  },
+            { id: 'profile',     icon: UserIcon,label: lang === 'ar' ? 'حسابي'   : 'Profile'    },
           ].map(nav => (
             <button
               key={nav.id}
-              onClick={() => setActiveTab(nav.id)}
+              onClick={() => switchTab(nav.id)}
+              aria-label={nav.label}
               className={`flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-2xl transition-all min-w-0 ${
                 activeTab === nav.id
                   ? 'text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/12'
                   : 'text-slate-400 dark:text-slate-500'
               }`}
             >
-              <nav.icon className={`w-5.5 h-5.5 transition-all ${activeTab === nav.id ? 'scale-110' : ''}`} style={{ width: 22, height: 22 }} />
+              <nav.icon className={`transition-all ${activeTab === nav.id ? 'scale-110' : ''}`} style={{ width: 22, height: 22 }} />
               <span className="text-[10px] font-bold tracking-wide">{nav.label}</span>
             </button>
           ))}
 
-          {/* More button */}
+          {/* More button — opens the full sheet */}
           <button
             onClick={() => setShowMoreSheet(true)}
+            aria-label="More options"
             className={`flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-2xl transition-all min-w-0 ${
-              ['places','tours','my_trips','ar','your_mood','ai_planner','events','profile','admin','host'].includes(activeTab)
+              ['places','tours','my_trips','ar','your_mood','ai_planner','events','rentals','wallet','notifications','booking_history','settings','admin','host'].includes(activeTab)
                 ? 'text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/12'
                 : 'text-slate-400 dark:text-slate-500'
             }`}
@@ -1003,7 +1163,8 @@ export const App = () => {
 
         {/* Floating Action Button — above nav bar, for creating trips/itineraries */}
         <button
-          onClick={() => setActiveTab('create')}
+          onClick={() => switchTab('create')}
+          aria-label={lang === 'ar' ? 'إنشاء رحلة جديدة' : 'Create new trip'}
           className="lg:hidden fixed z-50 bg-gradient-to-tr from-emerald-500 to-teal-400 text-white rounded-full shadow-2xl shadow-emerald-900/60 active:scale-90 transition-transform hover:scale-105 flex items-center justify-center"
           style={{
             width: 52,
@@ -1036,13 +1197,17 @@ export const App = () => {
                   { id: 'ar',         icon: Camera,    label: (t as any).moreARGuide  || 'AR Guide',   lightColor: 'bg-orange-50 text-orange-600',   darkColor: 'bg-orange-900/50 text-orange-400' },
                   { id: 'ai_planner', icon: Sparkles,  label: (t as any).moreAIPlanner|| 'AI Planner', lightColor: 'bg-purple-50 text-purple-600',   darkColor: 'bg-purple-900/50 text-purple-400' },
                   { id: 'events',     icon: Calendar,  label: (t as any).tabEvents    || 'Events',     lightColor: 'bg-blue-50 text-blue-600',       darkColor: 'bg-blue-900/50 text-blue-400' },
-                  { id: 'profile',    icon: UserIcon,  label: t.tabProfile,                            lightColor: 'bg-slate-100 text-slate-600',    darkColor: 'bg-slate-800 text-slate-300' },
+                  { id: 'profile',         icon: UserIcon,  label: t.tabProfile,                                         lightColor: 'bg-slate-100 text-slate-600',    darkColor: 'bg-slate-800 text-slate-300' },
+                  { id: 'wallet',          icon: Star,      label: (t as any).tabWallet   || (lang === 'ar' ? 'محفظتي' : 'Wallet'),  lightColor: 'bg-amber-50 text-amber-600',     darkColor: 'bg-amber-900/50 text-amber-400' },
+                  { id: 'notifications',   icon: Bell,      label: (t as any).tabNotifs   || (lang === 'ar' ? 'الإشعارات' : 'Notifs'), lightColor: 'bg-purple-50 text-purple-600',   darkColor: 'bg-purple-900/50 text-purple-400' },
+                  { id: 'booking_history', icon: Calendar,  label: (t as any).tabBookings || (lang === 'ar' ? 'حجوزاتي' : 'Bookings'), lightColor: 'bg-teal-50 text-teal-600',       darkColor: 'bg-teal-900/50 text-teal-400' },
+                  { id: 'settings',        icon: Settings,  label: t.settings,                                                        lightColor: 'bg-slate-100 text-slate-600',    darkColor: 'bg-slate-800 text-slate-300' },
                   ...(isAdmin       ? [{ id: 'admin', icon: Shield, label: (t as any).tabAdmin || 'Admin', lightColor: 'bg-red-50 text-red-600', darkColor: 'bg-red-900/50 text-red-400' }] : []),
                   ...(hasClaimedPlaces ? [{ id: 'host', icon: Store, label: (t as any).moreHost || 'Host', lightColor: 'bg-emerald-50 text-emerald-600', darkColor: 'bg-emerald-900/50 text-emerald-400' }] : []),
                 ].map(item => (
                   <button
                     key={item.id}
-                    onClick={() => { setActiveTab(item.id); setShowMoreSheet(false); }}
+                    onClick={() => { switchTab(item.id); setShowMoreSheet(false); }}
                     className={`flex flex-col items-center gap-2 p-4 rounded-2xl border transition-all ${
                       activeTab === item.id
                         ? 'border-emerald-400 bg-emerald-50 dark:bg-emerald-900/30 dark:border-emerald-600'

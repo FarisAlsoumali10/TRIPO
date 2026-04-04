@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { X, Star, MapPin, Sparkles, Send, MessageSquare, Clock, ThumbsUp, Award, Camera, Building2, CheckCircle, ArrowLeft, ChevronLeft, ChevronRight, Bookmark, ExternalLink } from 'lucide-react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { X, Star, MapPin, Sparkles, Send, MessageSquare, Clock, ThumbsUp, Award, Camera, Building2, CheckCircle, ArrowLeft, ChevronLeft, ChevronRight, Bookmark, ExternalLink, FolderPlus, Plus, CheckCheck } from 'lucide-react';
 import { GoogleGenAI } from "@google/genai";
 import { Place, Rental, QAItem } from '../types/index';
 import { PhotoLightbox } from './PhotoLightbox';
@@ -65,6 +65,9 @@ interface PlaceDetailModalProps {
   mode?: 'modal' | 'page';
 }
 
+const RATING_CATS = ['Atmosphere', 'Value', 'Service', 'Location'] as const;
+type RatingCatType = typeof RATING_CATS[number];
+
 interface ClaimedPlace {
   placeId: string;
   businessName: string;
@@ -72,6 +75,8 @@ interface ClaimedPlace {
   email: string;
   claimedAt: string;
 }
+
+interface ModalTrip { id: string; name: string; placeIds: string[] }
 
 // ─── component ───────────────────────────────────────────────────────────────
 
@@ -121,6 +126,62 @@ export const PlaceDetailModal = ({ place, onClose, t, allPlaces, onSwitchPlace, 
 
   // Active promo from localStorage
   const [activePromo, setActivePromo] = useState<string | null>(null);
+
+  // ── Feature 13: Contributed photos ─────────────────────────────────────────
+  const _pid0 = (place as Place)._id || (place as Place).id || '';
+  const [contributedPhotos, setContributedPhotos] = useState<string[]>(() => {
+    try { return JSON.parse(localStorage.getItem(`tripo_contributed_photos_${_pid0}`) || '[]') as string[]; } catch { return []; }
+  });
+  const photoContribRef = useRef<HTMLInputElement>(null);
+
+  const handleContribPhoto = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const pid = (place as Place)._id || (place as Place).id || '';
+    const files = Array.from(e.target.files || []);
+    files.forEach(file => {
+      const reader = new FileReader();
+      reader.onload = ev => {
+        const b64 = ev.target?.result as string;
+        if (!b64) return;
+        setContributedPhotos(prev => {
+          const updated = [...prev, b64].slice(0, 10);
+          try { localStorage.setItem(`tripo_contributed_photos_${pid}`, JSON.stringify(updated)); } catch {}
+          return updated;
+        });
+      };
+      reader.readAsDataURL(file as File);
+    });
+    e.target.value = '';
+  };
+
+  // ── Feature 14: Rating breakdown ────────────────────────────────────────────
+  const [reviewBreakdown, setReviewBreakdown] = useState<Partial<Record<RatingCatType, number>>>({});
+  const [showBreakdown, setShowBreakdown] = useState(false);
+
+  const breakdownAggregate = useMemo(() => {
+    const pid = (place as Place)._id || (place as Place).id || '';
+    if (!pid) return null;
+    try {
+      const stored = JSON.parse(localStorage.getItem(`tripo_rating_breakdown_${pid}`) || '[]') as { breakdown: Partial<Record<RatingCatType, number>> }[];
+      if (!stored.length) return null;
+      const agg: Partial<Record<RatingCatType, number>> = {};
+      for (const cat of RATING_CATS) {
+        const vals = stored.map(s => s.breakdown[cat]).filter((v): v is number => v !== undefined);
+        if (vals.length) agg[cat] = vals.reduce((a: number, b: number) => a + b, 0) / vals.length;
+      }
+      return Object.keys(agg).length > 0 ? agg : null;
+    } catch { return null; }
+  }, [place, reviews.length]);
+
+  const saveBreakdown = (breakdown: Partial<Record<RatingCatType, number>>) => {
+    const pid = (place as Place)._id || (place as Place).id || '';
+    if (!pid || Object.keys(breakdown).length === 0) return;
+    try {
+      const key = `tripo_rating_breakdown_${pid}`;
+      const stored: { breakdown: Partial<Record<RatingCatType, number>> }[] = JSON.parse(localStorage.getItem(key) || '[]');
+      stored.push({ breakdown });
+      localStorage.setItem(key, JSON.stringify(stored));
+    } catch {}
+  };
 
   // ── Photo slideshow ─────────────────────────────────────────────────────
   const placePhotos: string[] = (() => {
@@ -263,8 +324,12 @@ export const PlaceDetailModal = ({ place, onClose, t, allPlaces, onSwitchPlace, 
         localStorage.setItem(key, JSON.stringify(existing));
       }
       setReviews(prev => [saved, ...prev]);
+      // Save rating breakdown (Feature 14)
+      saveBreakdown(reviewBreakdown);
       setReviewComment('');
       setReviewRating(5);
+      setReviewBreakdown({});
+      setShowBreakdown(false);
       setReviewPhotos([]);
     } catch (_) {}
     setIsSubmitting(false);
@@ -375,6 +440,36 @@ export const PlaceDetailModal = ({ place, onClose, t, allPlaces, onSwitchPlace, 
   const [saved, setSaved] = useState(() => {
     try { return (JSON.parse(localStorage.getItem('tripo_saved_places') || '[]') as string[]).includes(placeId); } catch { return false; }
   });
+
+  // Add to Trip
+  const [showTripPanel, setShowTripPanel] = useState(false);
+  const [trips, setTrips] = useState<ModalTrip[]>(() => {
+    try { return JSON.parse(localStorage.getItem('tripo_custom_trips') || '[]'); } catch { return []; }
+  });
+  const [newTripName, setNewTripName] = useState('');
+  const [addingNewTrip, setAddingNewTrip] = useState(false);
+
+  const addToTrip = (tripId: string) => {
+    const updated = trips.map(t =>
+      t.id === tripId && !t.placeIds.includes(placeId)
+        ? { ...t, placeIds: [...t.placeIds, placeId] }
+        : t
+    );
+    localStorage.setItem('tripo_custom_trips', JSON.stringify(updated));
+    setTrips(updated);
+    setShowTripPanel(false);
+  };
+
+  const createAndAddTrip = () => {
+    if (!newTripName.trim() || !placeId) return;
+    const newTrip: ModalTrip = { id: Date.now().toString(), name: newTripName.trim(), placeIds: [placeId] };
+    const updated = [...trips, newTrip];
+    localStorage.setItem('tripo_custom_trips', JSON.stringify(updated));
+    setTrips(updated);
+    setNewTripName('');
+    setAddingNewTrip(false);
+    setShowTripPanel(false);
+  };
 
   const handleSave = () => {
     try {
@@ -528,7 +623,62 @@ export const PlaceDetailModal = ({ place, onClose, t, allPlaces, onSwitchPlace, 
               <Bookmark className={`w-4 h-4 ${saved ? 'fill-rose-500 text-rose-500' : ''}`} />
               {saved ? (t.saved || 'Saved') : (t.save || 'Save')}
             </button>
+            {isPlace && placeId && (
+              <button
+                onClick={() => { setShowTripPanel(v => !v); setAddingNewTrip(trips.length === 0); }}
+                className="flex-shrink-0 flex items-center gap-1.5 bg-slate-100 dark:bg-white/10 text-slate-700 dark:text-slate-200 px-4 py-2 rounded-full text-sm font-semibold hover:bg-slate-200 dark:hover:bg-white/15 transition-colors"
+              >
+                <FolderPlus className="w-4 h-4" />
+                Add to Trip
+              </button>
+            )}
           </div>
+
+          {/* Trip panel */}
+          {showTripPanel && isPlace && (
+            <div className="px-4 pb-3 bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-white/8">
+              <div className="bg-slate-50 dark:bg-white/5 rounded-2xl p-3">
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-xs font-bold text-slate-600 dark:text-slate-300">Add to a Trip</p>
+                  <button onClick={() => setShowTripPanel(false)}><X className="w-3.5 h-3.5 text-slate-400" /></button>
+                </div>
+                {trips.length > 0 && !addingNewTrip && (
+                  <div className="space-y-1.5 mb-2">
+                    {trips.map(trip => {
+                      const alreadyIn = trip.placeIds.includes(placeId);
+                      return (
+                        <button key={trip.id} onClick={() => !alreadyIn && addToTrip(trip.id)}
+                          className={`w-full flex items-center justify-between px-3 py-2 rounded-xl border text-left text-xs transition-all ${alreadyIn ? 'border-emerald-200 bg-emerald-50 dark:bg-emerald-500/10 cursor-default' : 'border-slate-200 dark:border-white/10 hover:border-emerald-400 hover:bg-emerald-50/50 bg-white dark:bg-white/5'}`}>
+                          <span className="font-semibold text-slate-700 dark:text-slate-200">{trip.name}</span>
+                          {alreadyIn
+                            ? <CheckCheck className="w-3.5 h-3.5 text-emerald-500" />
+                            : <Plus className="w-3.5 h-3.5 text-slate-400" />}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+                {addingNewTrip ? (
+                  <div className="flex gap-1.5">
+                    <input autoFocus value={newTripName} onChange={e => setNewTripName(e.target.value)}
+                      onKeyDown={e => e.key === 'Enter' && createAndAddTrip()}
+                      placeholder="Trip name…"
+                      className="flex-1 px-3 py-1.5 bg-white dark:bg-white/8 border border-slate-200 dark:border-white/10 rounded-xl text-xs outline-none focus:ring-2 focus:ring-emerald-500 dark:text-white dark:placeholder-slate-500" />
+                    {trips.length > 0 && <button onClick={() => setAddingNewTrip(false)} className="px-2 py-1.5 text-xs text-slate-500 hover:text-slate-700">Cancel</button>}
+                    <button onClick={createAndAddTrip} disabled={!newTripName.trim()}
+                      className="px-3 py-1.5 bg-emerald-600 text-white rounded-xl text-xs font-bold disabled:opacity-50 hover:bg-emerald-700 transition">
+                      Add
+                    </button>
+                  </div>
+                ) : (
+                  <button onClick={() => setAddingNewTrip(true)}
+                    className="w-full flex items-center justify-center gap-1.5 py-2 border border-dashed border-slate-300 dark:border-white/15 rounded-xl text-xs text-slate-400 hover:border-emerald-400 hover:text-emerald-600 transition-colors">
+                    <FolderPlus className="w-3.5 h-3.5" /> New Trip
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* ── INFO CHIPS STRIP ── */}
           <div className="flex items-center gap-2 px-4 py-2.5 overflow-x-auto no-scrollbar bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-white/8 shrink-0">
@@ -606,6 +756,48 @@ export const PlaceDetailModal = ({ place, onClose, t, allPlaces, onSwitchPlace, 
                     )}
                   </div>
                 </div>
+              </div>
+            )}
+
+            {/* ── Feature 13: Community photo contribution ── */}
+            {isPlace && (
+              <div className="mx-4 mt-4">
+                <input ref={photoContribRef} type="file" accept="image/*" multiple className="hidden" onChange={handleContribPhoto} />
+                {contributedPhotos.length > 0 ? (
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Your Photos ({contributedPhotos.length})</p>
+                      <button onClick={() => photoContribRef.current?.click()}
+                        className="text-xs text-emerald-600 dark:text-emerald-400 font-semibold hover:text-emerald-700 transition-colors flex items-center gap-1">
+                        <Camera className="w-3 h-3" /> Add more
+                      </button>
+                    </div>
+                    <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
+                      {contributedPhotos.map((src, i) => (
+                        <div key={i} className="relative flex-shrink-0">
+                          <img src={src} alt="" className="w-20 h-20 rounded-xl object-cover border border-slate-100 dark:border-white/10" />
+                          <button
+                            onClick={() => setContributedPhotos(prev => {
+                              const updated = prev.filter((_, j) => j !== i);
+                              try { localStorage.setItem(`tripo_contributed_photos_${placeId}`, JSON.stringify(updated)); } catch {}
+                              return updated;
+                            })}
+                            className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center shadow">
+                            <X className="w-3 h-3" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => photoContribRef.current?.click()}
+                    className="w-full flex items-center justify-center gap-2 border border-dashed border-slate-300 dark:border-white/15 rounded-2xl py-3 text-sm text-slate-400 dark:text-slate-500 hover:border-emerald-400 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors"
+                  >
+                    <Camera className="w-4 h-4" />
+                    Contribute Photos to this Place
+                  </button>
+                )}
               </div>
             )}
 
@@ -739,6 +931,55 @@ export const PlaceDetailModal = ({ place, onClose, t, allPlaces, onSwitchPlace, 
                       </div>
                     </div>
                   )}
+                  {/* ── Feature 16: Nearby places ── */}
+                  {allPlaces && asPlace?.city && (() => {
+                    const nearby = allPlaces
+                      .filter(p => {
+                        const pid = p._id || p.id;
+                        return pid !== placeId && p.city?.toLowerCase() === asPlace.city?.toLowerCase();
+                      })
+                      .slice(0, 6);
+                    if (!nearby.length) return null;
+                    return (
+                      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-white/8 p-4 shadow-sm">
+                        <div className="flex items-center justify-between mb-3">
+                          <h4 className="font-bold text-sm text-slate-900 dark:text-white">Nearby in {asPlace.city}</h4>
+                          <a
+                            href={`https://www.google.com/maps/search/attractions+near+${encodeURIComponent(asPlace.city || '')}`}
+                            target="_blank" rel="noopener noreferrer"
+                            className="text-xs text-emerald-600 dark:text-emerald-400 font-semibold flex items-center gap-1 hover:text-emerald-700 transition-colors"
+                          >
+                            <ExternalLink className="w-3 h-3" /> View on Maps
+                          </a>
+                        </div>
+                        <div className="flex gap-3 overflow-x-auto no-scrollbar pb-1 -mx-1 px-1">
+                          {nearby.map(p => {
+                            const pid = p._id || p.id || '';
+                            const img = p.photos?.[0] || p.image;
+                            return (
+                              <button key={pid} onClick={() => onSwitchPlace?.(p)}
+                                className="flex-shrink-0 w-28 text-left group bg-white dark:bg-slate-800 rounded-xl overflow-hidden border border-slate-100 dark:border-white/8 shadow-sm active:scale-95 transition-transform">
+                                <div className="h-16 overflow-hidden bg-slate-100 dark:bg-slate-700">
+                                  {img ? (
+                                    <img src={img} alt={p.name} className="w-full h-full object-cover group-hover:scale-110 transition duration-300"
+                                      onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                                  ) : (
+                                    <div className="w-full h-full flex items-center justify-center"><MapPin className="w-4 h-4 text-slate-300" /></div>
+                                  )}
+                                </div>
+                                <div className="p-1.5">
+                                  <p className="text-[10px] font-bold text-slate-800 dark:text-white line-clamp-2 leading-tight">{p.name}</p>
+                                  {p.categoryTags?.[0] && (
+                                    <p className="text-[9px] text-slate-400 uppercase mt-0.5">{p.categoryTags[0]}</p>
+                                  )}
+                                </div>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </>
               )}
 
@@ -785,14 +1026,64 @@ export const PlaceDetailModal = ({ place, onClose, t, allPlaces, onSwitchPlace, 
                           ))}
                         </div>
                       )}
-                      {reviewPhotos.length < 3 && (
-                        <button onClick={() => photoInputRef.current?.click()}
-                          className="flex items-center gap-1.5 text-xs text-slate-400 dark:text-slate-500 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors">
-                          <Camera className="w-3.5 h-3.5" />
-                          {t.addPhotos || 'Add Photos'}{reviewPhotos.length > 0 ? ` (${reviewPhotos.length}/3)` : ''}
+                      {/* Feature 14: Breakdown toggle */}
+                      <div className="flex items-center gap-2">
+                        {reviewPhotos.length < 3 && (
+                          <button onClick={() => photoInputRef.current?.click()}
+                            className="flex items-center gap-1.5 text-xs text-slate-400 dark:text-slate-500 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors">
+                            <Camera className="w-3.5 h-3.5" />
+                            {t.addPhotos || 'Add Photos'}{reviewPhotos.length > 0 ? ` (${reviewPhotos.length}/3)` : ''}
+                          </button>
+                        )}
+                        <button onClick={() => setShowBreakdown(v => !v)}
+                          className="flex items-center gap-1 text-xs text-slate-400 dark:text-slate-500 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors ml-auto">
+                          <Star className="w-3.5 h-3.5" />
+                          {showBreakdown ? 'Hide breakdown' : 'Rate by category'}
                         </button>
+                      </div>
+
+                      {/* Feature 14: Category rating breakdown */}
+                      {showBreakdown && (
+                        <div className="mt-3 space-y-2 bg-slate-50 dark:bg-white/5 rounded-xl p-3">
+                          <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Rate by Category (optional)</p>
+                          {RATING_CATS.map(cat => (
+                            <div key={cat} className="flex items-center justify-between gap-3">
+                              <span className="text-xs text-slate-600 dark:text-slate-300 w-20 flex-shrink-0">{cat}</span>
+                              <div className="flex gap-0.5">
+                                {[1,2,3,4,5].map(n => (
+                                  <button key={n} type="button"
+                                    onClick={() => setReviewBreakdown(prev => ({ ...prev, [cat]: n }))}
+                                    className="transition-transform active:scale-90 focus:outline-none">
+                                    <Star className={`w-5 h-5 transition-colors ${n <= (reviewBreakdown[cat] ?? 0) ? 'fill-amber-400 text-amber-400' : 'text-slate-200 dark:text-white/15'}`} />
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
                       )}
                       <input ref={photoInputRef} type="file" accept="image/*" multiple className="hidden" onChange={handlePhotoSelect} />
+                    </div>
+                  )}
+
+                  {/* Feature 14: Breakdown aggregate */}
+                  {breakdownAggregate && (
+                    <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-white/8 p-4 shadow-sm">
+                      <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-3">Rating Breakdown</p>
+                      <div className="space-y-2.5">
+                        {RATING_CATS.filter(c => breakdownAggregate[c] != null).map(cat => {
+                          const val = breakdownAggregate[cat]!;
+                          return (
+                            <div key={cat} className="flex items-center gap-3">
+                              <span className="text-xs text-slate-600 dark:text-slate-300 w-20 flex-shrink-0">{cat}</span>
+                              <div className="flex-1 h-1.5 bg-slate-100 dark:bg-white/10 rounded-full overflow-hidden">
+                                <div className="h-full bg-amber-400 rounded-full transition-all" style={{ width: `${(val / 5) * 100}%` }} />
+                              </div>
+                              <span className="text-xs font-bold text-slate-700 dark:text-slate-300 w-6 text-right">{val.toFixed(1)}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
                     </div>
                   )}
 

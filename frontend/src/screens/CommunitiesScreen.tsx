@@ -18,6 +18,76 @@ const COMMUNITY_ABOUT: Record<string, { about: string; rules: string[] }> = {
     rules: ['احترام الجميع وتجنب الكلام الجارح', 'لا إعلانات تجارية بدون إذن المشرف', 'المحتوى باللغتين العربية والإنجليزية مقبول', 'شارك تجاربك الحقيقية فقط', 'أبلغ عن أي محتوى مسيء للمشرفين']
   }
 };
+
+// ── Extended Event type (local, backward-compatible) ──────────────────────────
+interface ExtendedCommunityEvent extends CommunityEvent {
+  endTime?: string;
+  mapUrl?: string;
+  category?: string;
+  coverPreset?: number;
+  maxAttendees?: number;
+  minAttendees?: number;
+  recurrence?: 'once' | 'weekly' | 'monthly';
+  isFree?: boolean;
+  fee?: number;
+  requirements?: string[];
+  organizerNote?: string;
+  status?: 'draft' | 'published';
+}
+
+const EVENT_CATEGORIES = [
+  { id: 'sports',   label: 'رياضة',    emoji: '⚽' },
+  { id: 'food',     label: 'أكل وشرب', emoji: '🍽️' },
+  { id: 'hiking',   label: 'رحلات',    emoji: '🏔️' },
+  { id: 'cultural', label: 'ثقافي',    emoji: '🎭' },
+  { id: 'social',   label: 'تجمع',     emoji: '👥' },
+  { id: 'gaming',   label: 'ألعاب',    emoji: '🎮' },
+  { id: 'art',      label: 'فن',       emoji: '🎨' },
+  { id: 'other',    label: 'أخرى',     emoji: '✨' },
+] as const;
+
+const COVER_PRESETS = [
+  { bg: 'linear-gradient(135deg,#6366f1,#9333ea)', emoji: '🗓️' },
+  { bg: 'linear-gradient(135deg,#10b981,#0d9488)', emoji: '🌿' },
+  { bg: 'linear-gradient(135deg,#f97316,#ef4444)', emoji: '🔥' },
+  { bg: 'linear-gradient(135deg,#0ea5e9,#2563eb)', emoji: '⭐' },
+  { bg: 'linear-gradient(135deg,#ec4899,#f43f5e)', emoji: '💫' },
+  { bg: 'linear-gradient(135deg,#f59e0b,#eab308)', emoji: '✨' },
+];
+
+const RECURRENCE_OPTS = [
+  { id: 'once',    label: 'مرة واحدة' },
+  { id: 'weekly',  label: 'أسبوعياً'  },
+  { id: 'monthly', label: 'شهرياً'    },
+] as const;
+
+// ── Faza Request creation constants ──────────────────────────────────────────
+const FAZA_CATEGORIES = [
+  { id: 'recommendation', label: 'توصية',   emoji: '📍', color: '#6366f1' },
+  { id: 'advice',         label: 'نصيحة',   emoji: '💡', color: '#f59e0b' },
+  { id: 'planning',       label: 'تخطيط',   emoji: '🗺️', color: '#10b981' },
+  { id: 'emergency',      label: 'طارئ',    emoji: '🚨', color: '#ef4444' },
+  { id: 'general',        label: 'استفسار', emoji: '💬', color: '#8b5cf6' },
+  { id: 'transport',      label: 'مواصلات', emoji: '🚗', color: '#0ea5e9' },
+  { id: 'food',           label: 'أكل',     emoji: '🍽️', color: '#f97316' },
+  { id: 'gear',           label: 'معدات',   emoji: '🎒', color: '#64748b' },
+] as const;
+
+const FAZA_TEMPLATES = [
+  'أوصوني بـ...',
+  'أحتاج مساعدة في...',
+  'وين أقدر أحصل...',
+  'أحسن مكان لـ...',
+  'كيف أروح لـ...',
+  'ما أعرف وين...',
+];
+
+const FAZA_URGENCY = [
+  { id: 'today',   label: 'اليوم',       emoji: '🔴', desc: 'أحتاج رد سريع' },
+  { id: 'week',    label: 'هذا الأسبوع', emoji: '🟡', desc: 'ما في ضغط كبير' },
+  { id: 'anytime', label: 'في أي وقت',   emoji: '🟢', desc: 'مو مستعجل' },
+] as const;
+
 import { Button, Input, Badge } from '../components/ui';
 import { placeAPI, communityAPI } from '../services/api';
 
@@ -320,8 +390,39 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
     description: '',
     date: '',
     time: '',
-    location: ''
+    endTime: '',
+    location: '',
+    mapUrl: '',
+    category: '',
+    coverPreset: 0,
+    maxAttendees: '',
+    minAttendees: '',
+    recurrence: 'once' as 'once' | 'weekly' | 'monthly',
+    isFree: true,
+    fee: '',
+    requirements: [] as string[],
+    organizerNote: '',
+    status: 'published' as 'draft' | 'published',
   });
+  const [newReqText,   setNewReqText]   = useState('');
+  const [eventErrors,  setEventErrors]  = useState<Record<string, string>>({});
+  const [eventTouched, setEventTouched] = useState<Record<string, boolean>>({});
+  const [wizardStep,   setWizardStep]   = useState<1 | 2 | 3>(1);
+
+  // ── Faza creation wizard ─────────────────────────────────────────────────
+  const [showCreateFazaModal, setShowCreateFazaModal] = useState(false);
+  const [fazaWizardStep, setFazaWizardStep] = useState<1 | 2 | 3>(1);
+  const [fazaSubmitSuccess, setFazaSubmitSuccess] = useState(false);
+  const [fazaSubmitting, setFazaSubmitting] = useState(false);
+  const [newFazaForm, setNewFazaForm] = useState({
+    question: '',
+    category: '',
+    urgency: 'anytime' as 'today' | 'week' | 'anytime',
+    rewardPoints: 50,
+    photoUrl: '',
+    anonymous: false,
+  });
+  const [fazaErrors, setFazaErrors] = useState<Record<string, string>>({});
 
   const [communityMessages, setCommunityMessages] = useState<Record<string, ChatMessage[]>>(() => {
     try { return JSON.parse(localStorage.getItem('tripo_community_messages') || '{}'); } catch { return {}; }
@@ -369,28 +470,117 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
     }, 4500);
   };
 
+  const validateStep1 = () => {
+    const errs: Record<string, string> = {};
+    if (!newEvent.title.trim()) errs.title = 'اسم الفعالية مطلوب';
+    else if (newEvent.title.trim().length < 4) errs.title = 'الاسم قصير جداً (4 أحرف على الأقل)';
+    if (!newEvent.category) errs.category = 'اختر نوع الفعالية';
+    return errs;
+  };
+
+  const validateStep2 = () => {
+    const errs: Record<string, string> = {};
+    if (!newEvent.date) errs.date = 'التاريخ مطلوب';
+    else if (new Date(newEvent.date) < new Date(new Date().toDateString())) errs.date = 'التاريخ لا يمكن أن يكون في الماضي';
+    if (!newEvent.time) errs.time = 'وقت البداية مطلوب';
+    return errs;
+  };
+
+  const validateStep3 = () => {
+    const errs: Record<string, string> = {};
+    if (!newEvent.isFree && !newEvent.fee) errs.fee = 'أدخل رسوم الدخول';
+    if (newEvent.maxAttendees && newEvent.minAttendees) {
+      if (parseInt(newEvent.minAttendees) > parseInt(newEvent.maxAttendees)) errs.minAttendees = 'الحد الأدنى أكبر من الأقصى';
+    }
+    return errs;
+  };
+
+  const validateEventForm = () => ({ ...validateStep1(), ...validateStep2(), ...validateStep3() });
+
+  const handleNextStep = () => {
+    const errs = wizardStep === 1 ? validateStep1() : validateStep2();
+    if (Object.keys(errs).length > 0) {
+      setEventErrors(p => ({ ...p, ...errs }));
+      setEventTouched(p => { const t = { ...p }; Object.keys(errs).forEach(k => (t[k] = true)); return t; });
+      return;
+    }
+    setEventErrors({});
+    setWizardStep(s => (s + 1) as 1 | 2 | 3);
+  };
+
   const handleCreateEvent = () => {
-    if (!newEvent.title || !newEvent.date || !selectedCommunity || isSubmitting) return;
+    const errs = validateEventForm();
+    const allTouched = { title: true, date: true, time: true, category: true, fee: true, minAttendees: true };
+    setEventErrors(errs);
+    setEventTouched(allTouched);
+    if (Object.keys(errs).length > 0 || !selectedCommunity || isSubmitting) return;
     setIsSubmitting(true);
 
-    const event: CommunityEvent = {
+    const event: ExtendedCommunityEvent = {
       id: Date.now().toString(),
       communityId: selectedCommunity.id,
       title: newEvent.title,
       description: newEvent.description,
       date: newEvent.date,
       time: newEvent.time || '20:00',
+      endTime: newEvent.endTime || undefined,
       locationName: newEvent.location || 'الرياض',
+      mapUrl: newEvent.mapUrl || undefined,
       attendeesCount: 1,
-      image: selectedCommunity.image
+      image: selectedCommunity.image,
+      category: newEvent.category || undefined,
+      coverPreset: newEvent.coverPreset,
+      maxAttendees: newEvent.maxAttendees ? parseInt(newEvent.maxAttendees) : undefined,
+      minAttendees: newEvent.minAttendees ? parseInt(newEvent.minAttendees) : undefined,
+      recurrence: newEvent.recurrence,
+      isFree: newEvent.isFree,
+      fee: newEvent.isFree ? 0 : parseFloat(newEvent.fee || '0'),
+      requirements: newEvent.requirements.length > 0 ? newEvent.requirements : undefined,
+      organizerNote: newEvent.organizerNote || undefined,
+      status: newEvent.status,
     };
 
     setLocalEvents([event, ...localEvents]);
     setShowCreateEventModal(false);
-    setSuccessMessage(lang === 'ar' ? "تم نشر الفعالية بنجاح! ننتظر الجميع 🚀" : "Event published! Everyone's invited 🚀");
-    setNewEvent({ title: '', description: '', date: '', time: '', location: '' });
+    const isDraft = newEvent.status === 'draft';
+    setSuccessMessage(isDraft ? 'تم حفظ المسودة ✅' : (lang === 'ar' ? 'تم نشر الفعالية بنجاح! ننتظر الجميع 🚀' : "Event published! Everyone's invited 🚀"));
+    setNewEvent({ title: '', description: '', date: '', time: '', endTime: '', location: '', mapUrl: '', category: '', coverPreset: 0, maxAttendees: '', minAttendees: '', recurrence: 'once', isFree: true, fee: '', requirements: [], organizerNote: '', status: 'published' });
+    setNewReqText(''); setEventErrors({}); setEventTouched({}); setWizardStep(1);
     setIsSubmitting(false);
     setTimeout(() => setSuccessMessage(null), 3000);
+  };
+
+  const handleCreateFaza = () => {
+    if (!newFazaForm.question.trim() || !selectedCommunity || fazaSubmitting) return;
+    setFazaSubmitting(true);
+    const req: FazaRequest = {
+      id: Date.now().toString(),
+      userId: userProfile.id,
+      userName: newFazaForm.anonymous ? 'مجهول الهوية' : userProfile.name,
+      userAvatar: newFazaForm.anonymous
+        ? 'https://api.dicebear.com/7.x/avataaars/svg?seed=anon'
+        : (userProfile.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${userProfile.id}`),
+      question: newFazaForm.question.trim(),
+      communityId: selectedCommunity.id,
+      timestamp: Date.now(),
+      pointsReward: newFazaForm.rewardPoints,
+    };
+    setLocalFazaRequests(prev => [req, ...prev]);
+    setUserProfile(prev => ({
+      ...prev,
+      karamPoints: Math.max(0, (prev.karamPoints || 0) - newFazaForm.rewardPoints),
+    }));
+    setFazaSubmitting(false);
+    setFazaSubmitSuccess(true);
+  };
+
+  const resetFazaWizard = () => {
+    setShowCreateFazaModal(false);
+    setFazaWizardStep(1);
+    setFazaSubmitSuccess(false);
+    setFazaSubmitting(false);
+    setNewFazaForm({ question: '', category: '', urgency: 'anytime', rewardPoints: 50, photoUrl: '', anonymous: false });
+    setFazaErrors({});
   };
 
   const handleSendMessage = () => {
@@ -411,10 +601,16 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
   };
 
   const toggleJoinEvent = (eventId: string) => {
+    const evt = localEvents.find(e => e.id === eventId) as ExtendedCommunityEvent | undefined;
     if (joinedEvents.includes(eventId)) {
       setJoinedEvents(joinedEvents.filter(id => id !== eventId));
       setLocalEvents(prev => prev.map(e => e.id === eventId ? { ...e, attendeesCount: e.attendeesCount - 1 } : e));
     } else {
+      if (evt?.maxAttendees && evt.attendeesCount >= evt.maxAttendees) {
+        setSuccessMessage('الفعالية ممتلئة — لا توجد أماكن شاغرة حالياً');
+        setTimeout(() => setSuccessMessage(null), 3000);
+        return;
+      }
       setJoinedEvents([...joinedEvents, eventId]);
       setLocalEvents(prev => prev.map(e => e.id === eventId ? { ...e, attendeesCount: e.attendeesCount + 1 } : e));
       setSuccessMessage(lang === 'ar' ? "تم تسجيل اهتمامك بالفعالية! ننتظرك هناك 🤩" : "You're registered! See you there 🤩");
@@ -576,7 +772,7 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
         style={{ height: 160 }}
       >
         {/* Full bleed photo */}
-        <img src={comm.image} className="absolute inset-0 w-full h-full object-cover" alt={comm.name} />
+        <img src={comm.image} className="absolute inset-0 w-full h-full object-cover" alt={comm.name} loading="lazy" />
         {/* Gradient overlay */}
         <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-transparent" />
 
@@ -621,6 +817,7 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
                     className="w-7 h-7 rounded-full border-2 border-white/60 bg-white object-cover"
                     style={{ marginLeft: i > 0 ? -10 : 0 }}
                     alt=""
+                    loading="lazy"
                   />
                 ))}
               </div>
@@ -679,7 +876,7 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
     return (
       <div className="h-full flex flex-col bg-slate-50 animate-in slide-in-from-bottom duration-300">
         <div className="relative h-44 shrink-0">
-          <img src={selectedCommunity.image} className="w-full h-full object-cover" />
+          <img src={selectedCommunity.image} className="w-full h-full object-cover" loading="lazy" />
           <div className="absolute inset-0 bg-black/50 backdrop-blur-[1px]"></div>
           <button onClick={() => { setSelectedCommunity(null); setSelectedThread(null); setShowCreateThread(false); setThreadSearch(''); }} className="absolute top-6 left-6 w-10 h-10 bg-white/20 backdrop-blur-md rounded-full flex items-center justify-center text-white z-10 rtl:right-6 rtl:left-auto">
             <ChevronRight className="w-6 h-6 rotate-180 rtl:rotate-0" />
@@ -750,7 +947,7 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
                       <h3 className="font-black text-slate-900 text-base mb-3 leading-snug">{selectedThread.title}</h3>
                       {/* Feature 4: Thread image */}
                       {selectedThread.imageUrl && (
-                        <img src={selectedThread.imageUrl} className="w-full rounded-2xl object-cover max-h-64 mb-3" alt="" />
+                        <img src={selectedThread.imageUrl} className="w-full rounded-2xl object-cover max-h-64 mb-3" alt="" loading="lazy" />
                       )}
                       {selectedThread.body ? (
                         <p className="text-sm text-slate-700 leading-relaxed mb-4">{selectedThread.body}</p>
@@ -845,7 +1042,7 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
                           )}
                           {/* Feature 4: Reply image */}
                           {reply.imageUrl && (
-                            <img src={reply.imageUrl} className="w-full rounded-xl object-cover max-h-40 mb-2" alt="" />
+                            <img src={reply.imageUrl} className="w-full rounded-xl object-cover max-h-40 mb-2" alt="" loading="lazy" />
                           )}
                           <p className="text-sm">{reply.text}</p>
                           <p className={`text-[9px] mt-1 ${reply.authorName === userProfile.name ? 'opacity-60 text-right' : 'text-slate-400'}`}>
@@ -1069,7 +1266,7 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
                         <div className="flex gap-3 overflow-x-auto no-scrollbar">
                           {suggestions.map(p => (
                             <div key={p._id || p.id} className="min-w-[100px] text-center">
-                              <img src={p.photos?.[0] || p.image || 'https://images.unsplash.com/photo-1557683311-eac922347aa1?w=200'} className="w-full h-14 rounded-xl object-cover mb-1 border border-slate-100" />
+                              <img src={p.photos?.[0] || p.image || 'https://images.unsplash.com/photo-1557683311-eac922347aa1?w=200'} className="w-full h-14 rounded-xl object-cover mb-1 border border-slate-100" loading="lazy" />
                               <p className="text-[8px] font-bold text-slate-800 line-clamp-1">{p.name}</p>
                             </div>
                           ))}
@@ -1112,7 +1309,7 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
                           )}
                           {/* Feature 4: Thread thumbnail image */}
                           {thread.imageUrl && (
-                            <img src={thread.imageUrl} className="w-full h-28 rounded-xl object-cover mb-2" alt="" />
+                            <img src={thread.imageUrl} className="w-full h-28 rounded-xl object-cover mb-2" alt="" loading="lazy" />
                           )}
                           {/* Title */}
                           <h4 className="font-black text-slate-900 text-sm leading-snug mb-2">{thread.title}</h4>
@@ -1200,49 +1397,155 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
                     <Calendar className="w-12 h-12 mx-auto mb-2 opacity-20" />
                     <p className="text-sm font-bold">لا توجد فعاليات مجدولة لهذا المجتمع حالياً</p>
                   </div>
-                ) : communityEvents.map(event => (
-                  <div key={event.id} className="bg-white rounded-3xl overflow-hidden shadow-sm border border-slate-100">
+                ) : communityEvents.map(event => {
+                  const ext = event as ExtendedCommunityEvent;
+                  const catInfo = EVENT_CATEGORIES.find(c => c.id === ext.category);
+                  const cover   = ext.coverPreset !== undefined ? COVER_PRESETS[ext.coverPreset] : null;
+                  const isFull  = !!ext.maxAttendees && event.attendeesCount >= ext.maxAttendees;
+                  const spotsLeft = ext.maxAttendees ? ext.maxAttendees - event.attendeesCount : null;
+                  const needsMore = ext.minAttendees ? Math.max(0, ext.minAttendees - event.attendeesCount) : 0;
+                  const isDraft   = ext.status === 'draft';
+                  return (
+                  <div key={event.id} className={`bg-white rounded-3xl overflow-hidden shadow-sm border ${isDraft ? 'border-amber-200' : 'border-slate-100'}`}>
+                    {/* Cover */}
                     <div className="h-32 relative">
-                      <img src={event.image} className="w-full h-full object-cover" />
-                      <div className="absolute top-3 left-3 bg-white/90 px-2 py-1 rounded-lg text-xs font-bold text-emerald-600 flex items-center gap-1 rtl:right-3 rtl:left-auto">
-                        <Calendar className="w-3 h-3" /> {event.date}
+                      {cover ? (
+                        <div className="w-full h-full flex items-center justify-center text-5xl" style={{ background: cover.bg }}>{cover.emoji}</div>
+                      ) : (
+                        <img src={event.image} className="w-full h-full object-cover" loading="lazy" />
+                      )}
+                      {/* Badges overlay */}
+                      <div className="absolute top-3 left-3 flex gap-1.5 flex-wrap rtl:right-3 rtl:left-auto">
+                        <div className="bg-white/90 px-2 py-1 rounded-lg text-xs font-bold text-emerald-600 flex items-center gap-1">
+                          <Calendar className="w-3 h-3" /> {event.date}
+                        </div>
+                        {catInfo && (
+                          <div className="bg-white/90 px-2 py-1 rounded-lg text-xs font-bold text-slate-700">
+                            {catInfo.emoji} {catInfo.label}
+                          </div>
+                        )}
+                        {isDraft && (
+                          <div className="bg-amber-400/90 px-2 py-1 rounded-lg text-xs font-bold text-amber-900">مسودة</div>
+                        )}
                       </div>
-                      <div className="absolute bottom-3 right-3 bg-black/60 px-2 py-1 rounded-lg text-[10px] text-white font-bold flex items-center gap-1 rtl:left-3 rtl:right-auto">
-                        <Users className="w-3 h-3" /> {event.attendeesCount} خوي بيمشي
+                      <div className="absolute bottom-3 right-3 flex gap-1.5 rtl:left-3 rtl:right-auto">
+                        <div className="bg-black/60 px-2 py-1 rounded-lg text-[10px] text-white font-bold flex items-center gap-1">
+                          <Users className="w-3 h-3" /> {event.attendeesCount}{ext.maxAttendees ? `/${ext.maxAttendees}` : ''} خوي
+                        </div>
+                        {ext.isFree === false && ext.fee ? (
+                          <div className="bg-black/60 px-2 py-1 rounded-lg text-[10px] text-yellow-300 font-bold">{ext.fee} ر.س</div>
+                        ) : ext.isFree !== false ? (
+                          <div className="bg-black/60 px-2 py-1 rounded-lg text-[10px] text-emerald-300 font-bold">مجاني</div>
+                        ) : null}
                       </div>
                     </div>
+
                     <div className="p-4">
+                      {/* Recurrence badge */}
+                      {ext.recurrence && ext.recurrence !== 'once' && (
+                        <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded-full mb-2">
+                          🔁 {ext.recurrence === 'weekly' ? 'أسبوعياً' : 'شهرياً'}
+                        </span>
+                      )}
+
                       <h4 className="font-black text-slate-900 mb-1">{event.title}</h4>
-                      <p className="text-xs text-slate-500 mb-4 leading-relaxed">{event.description}</p>
-                      <div className="flex items-center gap-4 text-[10px] text-slate-400 font-bold mb-4">
-                        <span className="flex items-center gap-1"><Clock className="w-3 h-3" /> {event.time}</span>
+                      <p className="text-xs text-slate-500 mb-3 leading-relaxed">{event.description}</p>
+
+                      {/* Requirements */}
+                      {ext.requirements && ext.requirements.length > 0 && (
+                        <div className="mb-3 space-y-1">
+                          {ext.requirements.map((r, i) => (
+                            <p key={i} className="text-[10px] text-slate-500 flex items-center gap-1">
+                              <span className="text-emerald-500 font-bold">•</span> {r}
+                            </p>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Time + Location */}
+                      <div className="flex items-center gap-4 text-[10px] text-slate-400 font-bold mb-3 flex-wrap">
+                        <span className="flex items-center gap-1">
+                          <Clock className="w-3 h-3" /> {event.time}{ext.endTime ? ` – ${ext.endTime}` : ''}
+                        </span>
                         <span className="flex items-center gap-1"><MapPin className="w-3 h-3" /> {event.locationName}</span>
                       </div>
+
+                      {/* Map link */}
+                      {ext.mapUrl && (
+                        <a href={ext.mapUrl} target="_blank" rel="noopener noreferrer"
+                          className="flex items-center gap-1 text-[10px] text-blue-500 font-bold mb-3 hover:underline"
+                          onClick={e => e.stopPropagation()}>
+                          <ExternalLink className="w-3 h-3" /> فتح الخريطة
+                        </a>
+                      )}
+
+                      {/* Organizer note */}
+                      {ext.organizerNote && (
+                        <p className="text-[10px] text-slate-400 italic mb-3">💬 {ext.organizerNote}</p>
+                      )}
+
+                      {/* Min attendees warning */}
+                      {needsMore > 0 && (
+                        <div className="bg-amber-50 border border-amber-100 rounded-xl px-3 py-2 mb-3 text-[10px] text-amber-700 font-bold">
+                          ⚠️ يحتاج {needsMore} مشارك إضافي للتأكيد
+                        </div>
+                      )}
+
+                      {/* Spots remaining */}
+                      {spotsLeft !== null && spotsLeft <= 3 && spotsLeft > 0 && (
+                        <p className="text-[10px] text-red-500 font-bold mb-3">🔴 {spotsLeft} أماكن متبقية فقط!</p>
+                      )}
+
                       <Button
                         onClick={() => toggleJoinEvent(event.id)}
-                        className={`w-full py-2.5 text-xs font-black ${joinedEvents.includes(event.id) ? 'bg-slate-100 text-slate-500 shadow-none' : ''}`}
+                        disabled={isFull && !joinedEvents.includes(event.id)}
+                        className={`w-full py-2.5 text-xs font-black ${
+                          joinedEvents.includes(event.id) ? 'bg-slate-100 text-slate-500 shadow-none' :
+                          isFull ? 'bg-slate-100 text-slate-400 shadow-none cursor-not-allowed' : ''
+                        }`}
                       >
-                        {joinedEvents.includes(event.id) ? 'تم تسجيل الاهتمام ✅' : 'سجل اهتمامك'}
+                        {joinedEvents.includes(event.id) ? 'تم تسجيل الاهتمام ✅' : isFull ? 'الفعالية ممتلئة' : 'سجل اهتمامك'}
                       </Button>
                     </div>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           )}
 
           {activeTab === 'requests' && (
-            <div className="h-full overflow-y-auto p-4 space-y-6 pb-20">
+            <div className="h-full overflow-y-auto p-4 space-y-6 pb-24">
+              {/* Header with "ask" button */}
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="font-black text-slate-900 text-base">الفزعات</h3>
+                  <p className="text-[10px] text-slate-400 mt-0.5">اطلب المساعدة واكسب نقاط الكرم</p>
+                </div>
+                <button
+                  onClick={() => { setShowCreateFazaModal(true); setFazaWizardStep(1); }}
+                  className="flex items-center gap-1.5 bg-emerald-600 text-white text-xs font-black px-4 py-2.5 rounded-2xl shadow-md active:scale-95 transition-transform"
+                >
+                  <Plus className="w-4 h-4" /> طلب فزعة
+                </button>
+              </div>
               <section>
                 {communityFaza.length === 0 ? (
-                  <div className="text-center py-20 text-slate-300">
-                    <ShieldCheck className="w-12 h-12 mx-auto mb-2 opacity-20" />
-                    <p className="text-sm font-bold">كل الفزعات مكتملة حالياً في هذا المجتمع!</p>
+                  <div className="text-center py-16 text-slate-300">
+                    <ShieldCheck className="w-12 h-12 mx-auto mb-3 opacity-20" />
+                    <p className="text-sm font-bold text-slate-400">لا توجد فزعات حالياً</p>
+                    <p className="text-xs text-slate-300 mt-1">كن أول من يطلب مساعدة المجتمع!</p>
+                    <button
+                      onClick={() => { setShowCreateFazaModal(true); setFazaWizardStep(1); }}
+                      className="mt-4 bg-emerald-600 text-white text-xs font-black px-6 py-3 rounded-2xl shadow-md active:scale-95 transition-transform inline-flex items-center gap-2"
+                    >
+                      <Plus className="w-4 h-4" /> اطلب فزعة الآن
+                    </button>
                   </div>
                 ) : communityFaza.map(req => (
                   <div key={req.id} className="bg-white rounded-3xl p-5 shadow-sm border border-slate-100 mb-4">
                     <div className="flex items-center gap-3 mb-4">
-                      <img src={req.userAvatar} className="w-10 h-10 rounded-full border-2 border-emerald-100" />
+                      <img src={req.userAvatar} className="w-10 h-10 rounded-full border-2 border-emerald-100" loading="lazy" />
                       <div>
                         <p className="text-xs font-black text-slate-900">{req.userName}</p>
                         <p className="text-[10px] text-slate-400">منذ ساعة</p>
@@ -1321,27 +1624,761 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
           })()}
         </div>
 
-        {/* Create Event Modal */}
-        {showCreateEventModal && (
-          <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-            <div className="bg-white rounded-[40px] w-full max-sm:max-w-xs p-8 shadow-2xl relative animate-in zoom-in-95">
-              <button onClick={() => setShowCreateEventModal(false)} className="absolute top-6 right-6 p-2 bg-slate-50 rounded-full"><X className="w-5 h-5 text-slate-400" /></button>
-              <h3 className="font-black text-xl mb-4">اقترح فعالية جديدة</h3>
-              <div className="space-y-4">
-                <Input label="اسم الفعالية" placeholder="مثال: تجمع بادل السبت" value={newEvent.title} onChange={(e: any) => setNewEvent({ ...newEvent, title: e.target.value })} />
-                <div className="grid grid-cols-2 gap-3">
-                  <Input label="التاريخ" type="date" value={newEvent.date} onChange={(e: any) => setNewEvent({ ...newEvent, date: e.target.value })} />
-                  <Input label="الوقت" type="time" value={newEvent.time} onChange={(e: any) => setNewEvent({ ...newEvent, time: e.target.value })} />
+        {/* ── Create Event Wizard ─────────────────────────────────────── */}
+        {showCreateEventModal && (() => {
+          const closeModal = () => { setShowCreateEventModal(false); setEventErrors({}); setEventTouched({}); setWizardStep(1); };
+          const selectedCat = EVENT_CATEGORIES.find(c => c.id === newEvent.category);
+          const cover = COVER_PRESETS[newEvent.coverPreset];
+
+          const STEPS = [
+            { num: 1, title: 'الأساسيات',        sub: 'اسم الفعالية ونوعها وشكلها' },
+            { num: 2, title: 'الموعد والمكان',    sub: 'متى وأين تنعقد الفعالية'   },
+            { num: 3, title: 'التفاصيل والنشر',   sub: 'المعلومات الإضافية والنشر'  },
+          ];
+          const current = STEPS[wizardStep - 1];
+
+          return (
+            <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-end">
+              <div className="bg-slate-50 w-full rounded-t-[32px] shadow-2xl flex flex-col" style={{ maxHeight: '93vh' }}>
+
+                {/* ── Fixed header ── */}
+                <div className="flex-shrink-0 bg-white rounded-t-[32px] px-6 pt-5 pb-4 shadow-sm">
+                  {/* Drag handle */}
+                  <div className="w-10 h-1 bg-slate-200 rounded-full mx-auto mb-5" />
+
+                  {/* Step indicator */}
+                  <div className="flex items-center gap-2 mb-5">
+                    {STEPS.map((s, i) => (
+                      <React.Fragment key={s.num}>
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-black transition-all duration-300 ${
+                          wizardStep > s.num ? 'bg-indigo-600 text-white scale-95' :
+                          wizardStep === s.num ? 'bg-indigo-600 text-white ring-4 ring-indigo-100' :
+                          'bg-slate-100 text-slate-400'
+                        }`}>
+                          {wizardStep > s.num ? '✓' : s.num}
+                        </div>
+                        {i < 2 && (
+                          <div className="flex-1 h-1 rounded-full overflow-hidden bg-slate-100">
+                            <div className={`h-full bg-indigo-600 rounded-full transition-all duration-500 ${wizardStep > s.num ? 'w-full' : 'w-0'}`} />
+                          </div>
+                        )}
+                      </React.Fragment>
+                    ))}
+                  </div>
+
+                  {/* Step title row */}
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="font-black text-lg text-slate-900 leading-tight">{current.title}</h3>
+                      <p className="text-xs text-slate-400 mt-0.5">{current.sub}</p>
+                    </div>
+                    <button onClick={closeModal} className="w-9 h-9 bg-slate-100 rounded-full flex items-center justify-center active:scale-90 transition-transform">
+                      <X className="w-4 h-4 text-slate-500" />
+                    </button>
+                  </div>
                 </div>
-                <Input label="الموقع" placeholder="مثال: ملاعب فور بادل" value={newEvent.location} onChange={(e: any) => setNewEvent({ ...newEvent, location: e.target.value })} />
-                <textarea className="w-full h-24 p-4 bg-slate-50 rounded-2xl border border-slate-100 text-sm outline-none focus:ring-2 focus:ring-emerald-500" placeholder="وصف الفعالية..." value={newEvent.description} onChange={(e) => setNewEvent({ ...newEvent, description: e.target.value })} />
-                <Button onClick={handleCreateEvent} disabled={isSubmitting || !newEvent.title || !newEvent.date} className="w-full py-4 font-black">
-                  {isSubmitting ? '...' : 'نشر الفعالية'}
-                </Button>
+
+                {/* ── Scrollable step body ── */}
+                <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
+
+                  {/* ════════════════ STEP 1 ════════════════ */}
+                  {wizardStep === 1 && (
+                    <>
+                      {/* Live card preview */}
+                      <div className="bg-white rounded-3xl p-4 shadow-sm border border-slate-100">
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 text-center">معاينة الفعالية</p>
+                        <div className="rounded-2xl overflow-hidden border border-slate-100 shadow-sm mx-auto" style={{ maxWidth: 240 }}>
+                          <div className="h-20 flex items-center justify-center text-4xl" style={{ background: cover.bg }}>
+                            {cover.emoji}
+                          </div>
+                          <div className="p-3 bg-white">
+                            <p className={`font-black text-sm leading-tight truncate ${newEvent.title ? 'text-slate-900' : 'text-slate-300'}`}>
+                              {newEvent.title || 'اسم الفعالية...'}
+                            </p>
+                            {selectedCat ? (
+                              <span className="text-[10px] text-indigo-500 font-bold">{selectedCat.emoji} {selectedCat.label}</span>
+                            ) : (
+                              <span className="text-[10px] text-slate-300">اختر النوع أدناه</span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Title */}
+                      <div className="bg-white rounded-3xl p-5 shadow-sm border border-slate-100 space-y-1">
+                        <p className="text-sm font-black text-slate-700 mb-2">اسم الفعالية <span className="text-red-400">*</span></p>
+                        <input
+                          className={`w-full bg-slate-50 rounded-2xl px-4 py-3 text-sm font-semibold text-slate-900 focus:outline-none focus:ring-2 transition-all border ${
+                            eventErrors.title && eventTouched.title ? 'border-red-300 focus:ring-red-300' : 'border-slate-100 focus:ring-indigo-300'
+                          }`}
+                          placeholder="مثال: تجمع بادل السبت"
+                          value={newEvent.title}
+                          onChange={e => {
+                            setNewEvent(p => ({ ...p, title: e.target.value }));
+                            if (eventTouched.title) setEventErrors(p => ({ ...p, title: e.target.value.trim().length < 4 && e.target.value.trim() ? 'الاسم قصير جداً' : '' }));
+                          }}
+                          onBlur={() => { setEventTouched(p => ({ ...p, title: true })); const e = validateStep1(); setEventErrors(p => ({ ...p, title: e.title || '' })); }}
+                        />
+                        {eventErrors.title && eventTouched.title && (
+                          <p className="text-red-500 text-xs flex items-center gap-1 pt-1"><span>⚠</span>{eventErrors.title}</p>
+                        )}
+                      </div>
+
+                      {/* Category */}
+                      <div className="bg-white rounded-3xl p-5 shadow-sm border border-slate-100">
+                        <p className="text-sm font-black text-slate-700 mb-3">نوع الفعالية <span className="text-red-400">*</span></p>
+                        <div className="grid grid-cols-4 gap-2">
+                          {EVENT_CATEGORIES.map(cat => (
+                            <button key={cat.id} type="button"
+                              onClick={() => { setNewEvent(p => ({ ...p, category: cat.id })); setEventErrors(p => ({ ...p, category: '' })); }}
+                              className={`flex flex-col items-center gap-1.5 py-3 rounded-2xl border-2 transition-all active:scale-95 ${
+                                newEvent.category === cat.id
+                                  ? 'border-indigo-500 bg-indigo-50 shadow-sm shadow-indigo-100'
+                                  : 'border-slate-100 bg-white hover:border-slate-200'
+                              }`}
+                            >
+                              <span className="text-2xl">{cat.emoji}</span>
+                              <span className={`text-[9px] font-black leading-tight text-center ${newEvent.category === cat.id ? 'text-indigo-700' : 'text-slate-500'}`}>{cat.label}</span>
+                            </button>
+                          ))}
+                        </div>
+                        {eventErrors.category && eventTouched.category && (
+                          <p className="text-red-500 text-xs flex items-center gap-1 mt-2"><span>⚠</span>{eventErrors.category}</p>
+                        )}
+                      </div>
+
+                      {/* Cover */}
+                      <div className="bg-white rounded-3xl p-5 shadow-sm border border-slate-100">
+                        <p className="text-sm font-black text-slate-700 mb-3">غلاف الفعالية</p>
+                        <div className="flex gap-3">
+                          {COVER_PRESETS.map((preset, idx) => (
+                            <button key={idx} type="button"
+                              onClick={() => setNewEvent(p => ({ ...p, coverPreset: idx }))}
+                              className={`flex-1 h-14 rounded-2xl flex items-center justify-center text-2xl transition-all active:scale-95 ${
+                                newEvent.coverPreset === idx ? 'ring-3 ring-indigo-500 ring-offset-2 scale-105 shadow-lg' : 'opacity-60 hover:opacity-90'
+                              }`}
+                              style={{ background: preset.bg }}
+                            >
+                              {preset.emoji}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </>
+                  )}
+
+                  {/* ════════════════ STEP 2 ════════════════ */}
+                  {wizardStep === 2 && (
+                    <>
+                      {/* Date & time */}
+                      <div className="bg-white rounded-3xl p-5 shadow-sm border border-slate-100 space-y-4">
+                        <p className="text-sm font-black text-slate-700">التاريخ والوقت</p>
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <p className="text-xs font-bold text-slate-500 mb-1.5">التاريخ <span className="text-red-400">*</span></p>
+                            <input type="date"
+                              className={`w-full bg-slate-50 rounded-2xl px-3 py-2.5 text-sm font-semibold focus:outline-none focus:ring-2 border transition-all ${
+                                eventErrors.date && eventTouched.date ? 'border-red-300 focus:ring-red-300' : 'border-slate-100 focus:ring-indigo-300'
+                              }`}
+                              value={newEvent.date}
+                              onChange={e => { setNewEvent(p => ({ ...p, date: e.target.value })); if (eventTouched.date) { const er = validateStep2(); setEventErrors(p => ({ ...p, date: er.date || '' })); } }}
+                              onBlur={() => { setEventTouched(p => ({ ...p, date: true })); const er = validateStep2(); setEventErrors(p => ({ ...p, date: er.date || '' })); }}
+                            />
+                            {eventErrors.date && eventTouched.date && <p className="text-red-500 text-xs mt-1">⚠ {eventErrors.date}</p>}
+                          </div>
+                          <div>
+                            <p className="text-xs font-bold text-slate-500 mb-1.5">وقت البداية <span className="text-red-400">*</span></p>
+                            <input type="time"
+                              className={`w-full bg-slate-50 rounded-2xl px-3 py-2.5 text-sm font-semibold focus:outline-none focus:ring-2 border transition-all ${
+                                eventErrors.time && eventTouched.time ? 'border-red-300 focus:ring-red-300' : 'border-slate-100 focus:ring-indigo-300'
+                              }`}
+                              value={newEvent.time}
+                              onChange={e => setNewEvent(p => ({ ...p, time: e.target.value }))}
+                              onBlur={() => { setEventTouched(p => ({ ...p, time: true })); const er = validateStep2(); setEventErrors(p => ({ ...p, time: er.time || '' })); }}
+                            />
+                            {eventErrors.time && eventTouched.time && <p className="text-red-500 text-xs mt-1">⚠ {eventErrors.time}</p>}
+                          </div>
+                        </div>
+
+                        <div>
+                          <p className="text-xs font-bold text-slate-500 mb-1.5">وقت الانتهاء <span className="text-slate-300 font-normal">(اختياري)</span></p>
+                          <input type="time"
+                            className="w-full bg-slate-50 rounded-2xl px-3 py-2.5 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-300 border border-slate-100"
+                            value={newEvent.endTime}
+                            onChange={e => setNewEvent(p => ({ ...p, endTime: e.target.value }))}
+                          />
+                        </div>
+
+                        {/* Recurrence */}
+                        <div>
+                          <p className="text-xs font-bold text-slate-500 mb-2">التكرار</p>
+                          <div className="flex gap-2">
+                            {RECURRENCE_OPTS.map(opt => (
+                              <button key={opt.id} type="button"
+                                onClick={() => setNewEvent(p => ({ ...p, recurrence: opt.id }))}
+                                className={`flex-1 py-2.5 rounded-2xl text-xs font-black border-2 transition-all active:scale-95 ${
+                                  newEvent.recurrence === opt.id ? 'border-indigo-500 bg-indigo-50 text-indigo-700' : 'border-slate-100 text-slate-500 bg-white'
+                                }`}
+                              >{opt.label}</button>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Location */}
+                      <div className="bg-white rounded-3xl p-5 shadow-sm border border-slate-100 space-y-3">
+                        <p className="text-sm font-black text-slate-700">المكان</p>
+                        <div>
+                          <p className="text-xs font-bold text-slate-500 mb-1.5">اسم الموقع</p>
+                          <input
+                            className="w-full bg-slate-50 rounded-2xl px-4 py-3 text-sm font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-300 border border-slate-100"
+                            placeholder="مثال: ملاعب فور بادل، حي النرجس"
+                            value={newEvent.location}
+                            onChange={e => setNewEvent(p => ({ ...p, location: e.target.value }))}
+                          />
+                        </div>
+                        <div>
+                          <p className="text-xs font-bold text-slate-500 mb-1.5">رابط الخريطة <span className="text-slate-300 font-normal">(اختياري)</span></p>
+                          <input
+                            className="w-full bg-slate-50 rounded-2xl px-4 py-3 text-sm font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-300 border border-slate-100"
+                            placeholder="https://maps.google.com/..."
+                            value={newEvent.mapUrl}
+                            onChange={e => setNewEvent(p => ({ ...p, mapUrl: e.target.value }))}
+                          />
+                          <p className="text-[10px] text-slate-400 mt-1.5 flex items-center gap-1">
+                            <ExternalLink className="w-3 h-3" /> الصق رابط Google Maps أو Apple Maps
+                          </p>
+                        </div>
+                      </div>
+                    </>
+                  )}
+
+                  {/* ════════════════ STEP 3 ════════════════ */}
+                  {wizardStep === 3 && (
+                    <>
+                      {/* Description */}
+                      <div className="bg-white rounded-3xl p-5 shadow-sm border border-slate-100">
+                        <p className="text-sm font-black text-slate-700 mb-3">وصف الفعالية <span className="text-slate-300 text-xs font-normal">(اختياري)</span></p>
+                        <textarea
+                          className="w-full h-28 bg-slate-50 rounded-2xl px-4 py-3 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-300 border border-slate-100 resize-none"
+                          placeholder="اكتب وصفاً للفعالية وما يمكن للمشاركين توقعه..."
+                          value={newEvent.description}
+                          onChange={e => setNewEvent(p => ({ ...p, description: e.target.value }))}
+                        />
+                        <p className="text-[10px] text-slate-300 text-left mt-1">{newEvent.description.length}/300</p>
+                      </div>
+
+                      {/* Requirements */}
+                      <div className="bg-white rounded-3xl p-5 shadow-sm border border-slate-100">
+                        <p className="text-sm font-black text-slate-700 mb-1">ماذا يجب أن يحضر المشاركون؟</p>
+                        <p className="text-[10px] text-slate-400 mb-3">اضغط Enter أو + لإضافة كل عنصر</p>
+                        {newEvent.requirements.length > 0 && (
+                          <div className="space-y-2 mb-3">
+                            {newEvent.requirements.map((req, i) => (
+                              <div key={i} className="flex items-center gap-2 bg-indigo-50 rounded-xl px-3 py-2">
+                                <span className="text-indigo-400 font-black text-sm">•</span>
+                                <span className="flex-1 text-sm text-slate-700 font-medium">{req}</span>
+                                <button type="button" onClick={() => setNewEvent(p => ({ ...p, requirements: p.requirements.filter((_, j) => j !== i) }))}
+                                  className="text-slate-300 hover:text-red-400 transition-colors active:scale-90">
+                                  <X className="w-4 h-4" />
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        {newEvent.requirements.length < 6 && (
+                          <div className="flex gap-2">
+                            <input
+                              className="flex-1 bg-slate-50 border border-slate-100 rounded-2xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
+                              placeholder="مثال: أحضر مضربك الخاص"
+                              value={newReqText}
+                              onChange={e => setNewReqText(e.target.value)}
+                              onKeyDown={e => { if (e.key === 'Enter' && newReqText.trim()) { e.preventDefault(); setNewEvent(p => ({ ...p, requirements: [...p.requirements, newReqText.trim()] })); setNewReqText(''); } }}
+                            />
+                            <button type="button" disabled={!newReqText.trim()}
+                              onClick={() => { if (newReqText.trim()) { setNewEvent(p => ({ ...p, requirements: [...p.requirements, newReqText.trim()] })); setNewReqText(''); } }}
+                              className="w-11 h-11 bg-indigo-600 rounded-2xl flex items-center justify-center text-white disabled:opacity-30 active:scale-95 transition-all shadow-sm shadow-indigo-200">
+                              <Plus className="w-5 h-5" />
+                            </button>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Capacity */}
+                      <div className="bg-white rounded-3xl p-5 shadow-sm border border-slate-100">
+                        <p className="text-sm font-black text-slate-700 mb-3">عدد المشاركين</p>
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <p className="text-xs font-bold text-slate-500 mb-1.5">الحد الأقصى</p>
+                            <input type="number" min="1"
+                              className="w-full bg-slate-50 rounded-2xl px-4 py-2.5 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-300 border border-slate-100"
+                              placeholder="بلا حد"
+                              value={newEvent.maxAttendees}
+                              onChange={e => setNewEvent(p => ({ ...p, maxAttendees: e.target.value }))}
+                            />
+                          </div>
+                          <div>
+                            <p className="text-xs font-bold text-slate-500 mb-1.5">الحد الأدنى للانعقاد</p>
+                            <input type="number" min="1"
+                              className={`w-full bg-slate-50 rounded-2xl px-4 py-2.5 text-sm font-semibold focus:outline-none focus:ring-2 border transition-all ${
+                                eventErrors.minAttendees ? 'border-red-300 focus:ring-red-300' : 'border-slate-100 focus:ring-indigo-300'
+                              }`}
+                              placeholder="1"
+                              value={newEvent.minAttendees}
+                              onChange={e => { setNewEvent(p => ({ ...p, minAttendees: e.target.value })); const er = validateStep3(); setEventErrors(p => ({ ...p, minAttendees: er.minAttendees || '' })); }}
+                            />
+                            {eventErrors.minAttendees && <p className="text-red-500 text-xs mt-1">⚠ {eventErrors.minAttendees}</p>}
+                          </div>
+                        </div>
+                        {newEvent.minAttendees && (
+                          <p className="text-[10px] text-slate-400 mt-2">⚠️ ستُلغى الفعالية إذا لم يصل عدد المشاركين إلى {newEvent.minAttendees}</p>
+                        )}
+                      </div>
+
+                      {/* Fee */}
+                      <div className="bg-white rounded-3xl p-5 shadow-sm border border-slate-100">
+                        <p className="text-sm font-black text-slate-700 mb-3">رسوم الدخول</p>
+                        <div className="flex gap-2 mb-3">
+                          <button type="button" onClick={() => setNewEvent(p => ({ ...p, isFree: true, fee: '' }))}
+                            className={`flex-1 py-3 rounded-2xl text-sm font-black border-2 transition-all active:scale-95 ${newEvent.isFree ? 'border-emerald-500 bg-emerald-50 text-emerald-700 shadow-sm' : 'border-slate-100 text-slate-500 bg-white'}`}>
+                            🆓 مجاني
+                          </button>
+                          <button type="button" onClick={() => setNewEvent(p => ({ ...p, isFree: false }))}
+                            className={`flex-1 py-3 rounded-2xl text-sm font-black border-2 transition-all active:scale-95 ${!newEvent.isFree ? 'border-amber-500 bg-amber-50 text-amber-700 shadow-sm' : 'border-slate-100 text-slate-500 bg-white'}`}>
+                            💰 مدفوع
+                          </button>
+                        </div>
+                        {!newEvent.isFree && (
+                          <div>
+                            <p className="text-xs font-bold text-slate-500 mb-1.5">المبلغ (ريال) <span className="text-red-400">*</span></p>
+                            <input type="number" min="0" step="0.5"
+                              className={`w-full bg-slate-50 rounded-2xl px-4 py-3 text-sm font-semibold focus:outline-none focus:ring-2 border transition-all ${
+                                eventErrors.fee && eventTouched.fee ? 'border-red-300 focus:ring-red-300' : 'border-slate-100 focus:ring-indigo-300'
+                              }`}
+                              placeholder="0.00"
+                              value={newEvent.fee}
+                              onChange={e => { setNewEvent(p => ({ ...p, fee: e.target.value })); setEventTouched(p => ({ ...p, fee: true })); if (e.target.value) setEventErrors(p => ({ ...p, fee: '' })); }}
+                            />
+                            {eventErrors.fee && eventTouched.fee && <p className="text-red-500 text-xs mt-1">⚠ {eventErrors.fee}</p>}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Organizer note */}
+                      <div className="bg-white rounded-3xl p-5 shadow-sm border border-slate-100">
+                        <p className="text-sm font-black text-slate-700 mb-1">ملاحظة للمشاركين <span className="text-slate-300 text-xs font-normal">(اختياري)</span></p>
+                        <p className="text-[10px] text-slate-400 mb-3">مثل رقم التواصل أو تعليمات خاصة</p>
+                        <input
+                          className="w-full bg-slate-50 rounded-2xl px-4 py-3 text-sm font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-300 border border-slate-100"
+                          placeholder="مثال: راسلني على واتساب قبل الحضور"
+                          value={newEvent.organizerNote}
+                          onChange={e => setNewEvent(p => ({ ...p, organizerNote: e.target.value }))}
+                        />
+                      </div>
+
+                      {/* Publish toggle */}
+                      <div className="bg-white rounded-3xl p-5 shadow-sm border border-slate-100">
+                        <p className="text-sm font-black text-slate-700 mb-3">طريقة النشر</p>
+                        <div className="flex gap-2">
+                          <button type="button" onClick={() => setNewEvent(p => ({ ...p, status: 'published' }))}
+                            className={`flex-1 flex flex-col items-center gap-1 py-3.5 rounded-2xl border-2 transition-all active:scale-95 ${newEvent.status === 'published' ? 'border-indigo-500 bg-indigo-50 shadow-sm' : 'border-slate-100 bg-white'}`}>
+                            <span className="text-2xl">🚀</span>
+                            <span className={`text-xs font-black ${newEvent.status === 'published' ? 'text-indigo-700' : 'text-slate-500'}`}>نشر الآن</span>
+                            <span className={`text-[9px] text-center leading-tight ${newEvent.status === 'published' ? 'text-indigo-400' : 'text-slate-300'}`}>يراها الأعضاء فوراً</span>
+                          </button>
+                          <button type="button" onClick={() => setNewEvent(p => ({ ...p, status: 'draft' }))}
+                            className={`flex-1 flex flex-col items-center gap-1 py-3.5 rounded-2xl border-2 transition-all active:scale-95 ${newEvent.status === 'draft' ? 'border-amber-400 bg-amber-50 shadow-sm' : 'border-slate-100 bg-white'}`}>
+                            <span className="text-2xl">📝</span>
+                            <span className={`text-xs font-black ${newEvent.status === 'draft' ? 'text-amber-700' : 'text-slate-500'}`}>مسودة</span>
+                            <span className={`text-[9px] text-center leading-tight ${newEvent.status === 'draft' ? 'text-amber-400' : 'text-slate-300'}`}>يمكنك نشرها لاحقاً</span>
+                          </button>
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </div>
+
+                {/* ── Fixed footer ── */}
+                <div className="flex-shrink-0 bg-white border-t border-slate-100 px-6 py-4">
+                  <div className="flex gap-3">
+                    {wizardStep > 1 && (
+                      <button type="button"
+                        onClick={() => { setWizardStep(s => (s - 1) as 1 | 2 | 3); setEventErrors({}); }}
+                        className="flex-1 py-3.5 rounded-2xl border-2 border-slate-200 text-slate-600 font-black text-sm active:scale-95 transition-all">
+                        ← رجوع
+                      </button>
+                    )}
+                    {wizardStep < 3 ? (
+                      <button type="button" onClick={handleNextStep}
+                        className="flex-1 py-3.5 rounded-2xl bg-indigo-600 text-white font-black text-sm active:scale-95 transition-all shadow-lg shadow-indigo-200">
+                        التالي →
+                      </button>
+                    ) : (
+                      <button type="button" onClick={handleCreateEvent} disabled={isSubmitting}
+                        className="flex-1 py-3.5 rounded-2xl bg-indigo-600 text-white font-black text-sm active:scale-95 transition-all shadow-lg shadow-indigo-200 disabled:opacity-60 flex items-center justify-center gap-2">
+                        {isSubmitting ? (
+                          <>
+                            <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                            جاري النشر...
+                          </>
+                        ) : newEvent.status === 'draft' ? '💾 حفظ المسودة' : '🚀 نشر الفعالية'}
+                      </button>
+                    )}
+                  </div>
+                </div>
+
               </div>
             </div>
-          </div>
-        )}
+          );
+        })()}
+
+        {/* ── Create Faza Request Wizard ─────────────────────────────── */}
+        {showCreateFazaModal && (() => {
+          const FAZA_STEPS = [
+            { num: 1, title: 'سؤالك',        sub: 'وصف طلبك بوضوح' },
+            { num: 2, title: 'المكافأة',      sub: 'حدد نقاط الكرم' },
+            { num: 3, title: 'المراجعة',      sub: 'راجع وأرسل' },
+          ];
+          const selectedCat = FAZA_CATEGORIES.find(c => c.id === newFazaForm.category);
+          const urgencyOpt  = FAZA_URGENCY.find(u => u.id === newFazaForm.urgency)!;
+          const rewardLabel = newFazaForm.rewardPoints >= 150 ? '🔥 جذاب جداً' : newFazaForm.rewardPoints >= 75 ? '👍 عادي' : '📉 منخفض';
+          const rewardColor = newFazaForm.rewardPoints >= 150 ? '#10b981' : newFazaForm.rewardPoints >= 75 ? '#f59e0b' : '#ef4444';
+          const walletPts   = userProfile.karamPoints || 0;
+          const similarFaza = localFazaRequests.filter(r =>
+            r.communityId === selectedCommunity!.id &&
+            newFazaForm.question.trim().length > 5 &&
+            r.question.split(' ').some(w => w.length > 3 && newFazaForm.question.includes(w))
+          ).slice(0, 2);
+
+          return (
+            <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-end" onClick={resetFazaWizard}>
+              <div
+                className="bg-slate-50 w-full rounded-t-[32px] shadow-2xl flex flex-col"
+                style={{ maxHeight: '93vh' }}
+                onClick={e => e.stopPropagation()}
+              >
+                {fazaSubmitSuccess ? (
+                  /* ── Success Screen ─────────────────────────────────── */
+                  <div className="flex flex-col items-center justify-center py-16 px-8 text-center gap-4">
+                    <div className="w-20 h-20 rounded-full bg-emerald-100 flex items-center justify-center text-4xl animate-bounce">🎉</div>
+                    <h3 className="font-black text-2xl text-slate-900">تم إرسال فزعتك!</h3>
+                    <p className="text-sm text-slate-500 leading-relaxed">
+                      طلبك وصل لأعضاء <span className="font-black text-slate-700">{selectedCommunity!.name}</span>.<br/>
+                      عادةً يجاوب الأعضاء خلال ساعة ⚡
+                    </p>
+                    <div className="bg-orange-50 border border-orange-100 rounded-2xl px-5 py-3 flex items-center gap-3">
+                      <span className="text-2xl">🏆</span>
+                      <div className="text-right rtl:text-right ltr:text-left">
+                        <p className="text-xs font-black text-slate-900">تم خصم {newFazaForm.rewardPoints} نقطة كرم</p>
+                        <p className="text-[10px] text-slate-400">ستُعاد إذا لم يُجب أحد خلال 48 ساعة</p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => {
+                        if (navigator.share) {
+                          navigator.share({ title: 'فزعتي في تريبو', text: newFazaForm.question });
+                        }
+                      }}
+                      className="flex items-center gap-2 bg-white border border-slate-200 text-slate-700 text-sm font-bold px-6 py-3 rounded-2xl active:scale-95 transition-transform"
+                    >
+                      📤 شارك فزعتك
+                    </button>
+                    <button
+                      onClick={resetFazaWizard}
+                      className="bg-emerald-600 text-white font-black text-sm px-10 py-3.5 rounded-2xl active:scale-95 transition-transform"
+                    >
+                      تمام 👌
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    {/* Fixed Header */}
+                    <div className="px-5 pt-4 pb-3 border-b border-slate-100 bg-white rounded-t-[32px] shrink-0">
+                      {/* Drag handle */}
+                      <div className="w-10 h-1 bg-slate-200 rounded-full mx-auto mb-4" />
+                      {/* Step indicator */}
+                      <div className="flex items-center gap-1 mb-4">
+                        {FAZA_STEPS.map((s, i) => (
+                          <React.Fragment key={s.num}>
+                            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-black shrink-0 transition-all duration-300 ${
+                              fazaWizardStep > s.num ? 'bg-emerald-600 text-white scale-95' :
+                              fazaWizardStep === s.num ? 'bg-emerald-600 text-white ring-4 ring-emerald-100' :
+                              'bg-slate-100 text-slate-400'
+                            }`}>
+                              {fazaWizardStep > s.num ? '✓' : s.num}
+                            </div>
+                            {i < 2 && (
+                              <div className="flex-1 h-1 rounded-full overflow-hidden bg-slate-100">
+                                <div className={`h-full bg-emerald-600 rounded-full transition-all duration-500 ${fazaWizardStep > s.num ? 'w-full' : 'w-0'}`} />
+                              </div>
+                            )}
+                          </React.Fragment>
+                        ))}
+                      </div>
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <h3 className="font-black text-lg text-slate-900">{FAZA_STEPS[fazaWizardStep - 1].title}</h3>
+                          <p className="text-xs text-slate-400">{FAZA_STEPS[fazaWizardStep - 1].sub}</p>
+                        </div>
+                        <button onClick={resetFazaWizard} className="p-2 bg-slate-50 rounded-full active:scale-90 transition-transform">
+                          <X className="w-5 h-5 text-slate-400" />
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Scrollable Body */}
+                    <div className="flex-1 overflow-y-auto px-5 py-4 space-y-5">
+
+                      {/* ── Step 1: The Ask ─────────────────────────── */}
+                      {fazaWizardStep === 1 && (
+                        <>
+                          {/* Quick Templates */}
+                          <div>
+                            <p className="text-xs font-black text-slate-500 mb-2 uppercase tracking-wider">ابدأ من هنا</p>
+                            <div className="flex flex-wrap gap-2">
+                              {FAZA_TEMPLATES.map(tpl => (
+                                <button
+                                  key={tpl}
+                                  onClick={() => setNewFazaForm(p => ({ ...p, question: p.question ? p.question : tpl }))}
+                                  className="px-3 py-1.5 bg-white border border-slate-200 text-slate-600 text-xs font-bold rounded-xl active:scale-95 transition-transform hover:border-emerald-400 hover:text-emerald-600"
+                                >
+                                  {tpl}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+
+                          {/* Question Textarea */}
+                          <div>
+                            <p className="text-xs font-black text-slate-500 mb-2">سؤالك <span className="text-red-400">*</span></p>
+                            <div className="relative">
+                              <textarea
+                                className={`w-full h-32 p-4 bg-white rounded-2xl border text-sm outline-none focus:ring-2 focus:ring-emerald-500 resize-none leading-relaxed ${fazaErrors.question ? 'border-red-300' : 'border-slate-200'}`}
+                                placeholder="اكتب سؤالك بوضوح... كلما كان واضحاً، كلما جاءتك إجابات أفضل"
+                                maxLength={280}
+                                value={newFazaForm.question}
+                                onChange={e => {
+                                  setNewFazaForm(p => ({ ...p, question: e.target.value }));
+                                  if (fazaErrors.question) setFazaErrors(p => ({ ...p, question: '' }));
+                                }}
+                              />
+                              <span className={`absolute bottom-3 left-3 text-[10px] font-bold ${newFazaForm.question.length > 250 ? 'text-red-400' : 'text-slate-300'}`}>
+                                {newFazaForm.question.length}/280
+                              </span>
+                            </div>
+                            {fazaErrors.question && <p className="text-xs text-red-500 mt-1 font-bold">{fazaErrors.question}</p>}
+                          </div>
+
+                          {/* Category */}
+                          <div>
+                            <p className="text-xs font-black text-slate-500 mb-2">نوع المساعدة</p>
+                            <div className="grid grid-cols-4 gap-2">
+                              {FAZA_CATEGORIES.map(cat => (
+                                <button
+                                  key={cat.id}
+                                  onClick={() => setNewFazaForm(p => ({ ...p, category: cat.id }))}
+                                  className={`flex flex-col items-center gap-1 py-3 rounded-2xl border transition-all active:scale-95 ${
+                                    newFazaForm.category === cat.id
+                                      ? 'border-emerald-400 bg-emerald-50'
+                                      : 'border-slate-100 bg-white'
+                                  }`}
+                                >
+                                  <span className="text-xl">{cat.emoji}</span>
+                                  <span className="text-[9px] font-black text-slate-600">{cat.label}</span>
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        </>
+                      )}
+
+                      {/* ── Step 2: Reward & Urgency ─────────────── */}
+                      {fazaWizardStep === 2 && (
+                        <>
+                          {/* Points Slider */}
+                          <div className="bg-white rounded-2xl border border-slate-100 p-5">
+                            <div className="flex items-center justify-between mb-1">
+                              <p className="text-xs font-black text-slate-700">مكافأة الكرم</p>
+                              <span className="text-xs font-black" style={{ color: rewardColor }}>{rewardLabel}</span>
+                            </div>
+                            <div className="flex items-center gap-3 mb-3">
+                              <span className="text-3xl font-black text-slate-900">{newFazaForm.rewardPoints}</span>
+                              <span className="text-xs text-slate-400 font-bold">نقطة كرم</span>
+                            </div>
+                            <input
+                              type="range"
+                              min={10}
+                              max={Math.min(200, walletPts)}
+                              step={10}
+                              value={newFazaForm.rewardPoints}
+                              onChange={e => setNewFazaForm(p => ({ ...p, rewardPoints: parseInt(e.target.value) }))}
+                              className="w-full accent-emerald-600 h-2"
+                            />
+                            <div className="flex justify-between text-[9px] text-slate-300 mt-1 font-bold">
+                              <span>10</span>
+                              <span>رصيدك: {walletPts} نقطة</span>
+                              <span>{Math.min(200, walletPts)}</span>
+                            </div>
+                            {newFazaForm.rewardPoints > walletPts && (
+                              <p className="text-xs text-red-500 font-bold mt-2">⚠️ رصيدك غير كافٍ</p>
+                            )}
+                          </div>
+
+                          {/* Urgency */}
+                          <div>
+                            <p className="text-xs font-black text-slate-500 mb-2">متى تحتاج الإجابة؟</p>
+                            <div className="space-y-2">
+                              {FAZA_URGENCY.map(u => (
+                                <button
+                                  key={u.id}
+                                  onClick={() => setNewFazaForm(p => ({ ...p, urgency: u.id }))}
+                                  className={`w-full flex items-center gap-3 p-4 rounded-2xl border transition-all active:scale-95 text-right ${
+                                    newFazaForm.urgency === u.id
+                                      ? 'border-emerald-400 bg-emerald-50'
+                                      : 'border-slate-100 bg-white'
+                                  }`}
+                                >
+                                  <span className="text-xl">{u.emoji}</span>
+                                  <div className="flex-1">
+                                    <p className="text-sm font-black text-slate-800">{u.label}</p>
+                                    <p className="text-[10px] text-slate-400">{u.desc}</p>
+                                  </div>
+                                  {newFazaForm.urgency === u.id && (
+                                    <div className="w-5 h-5 rounded-full bg-emerald-600 flex items-center justify-center shrink-0">
+                                      <span className="text-white text-[10px]">✓</span>
+                                    </div>
+                                  )}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+
+                          {/* Optional Photo */}
+                          <div>
+                            <p className="text-xs font-black text-slate-500 mb-2">صورة توضيحية (اختياري)</p>
+                            <div className="flex items-center gap-3">
+                              <div className="flex-1">
+                                <input
+                                  type="text"
+                                  className="w-full px-4 py-3 bg-white border border-slate-200 rounded-2xl text-xs outline-none focus:ring-2 focus:ring-emerald-500"
+                                  placeholder="رابط صورة توضيحية..."
+                                  value={newFazaForm.photoUrl}
+                                  onChange={e => setNewFazaForm(p => ({ ...p, photoUrl: e.target.value }))}
+                                />
+                              </div>
+                              {newFazaForm.photoUrl && (
+                                <img src={newFazaForm.photoUrl} className="w-12 h-12 rounded-xl object-cover border border-slate-200" onError={e => (e.currentTarget.style.display = 'none')} loading="lazy" />
+                              )}
+                            </div>
+                          </div>
+                        </>
+                      )}
+
+                      {/* ── Step 3: Preview & Post ───────────────── */}
+                      {fazaWizardStep === 3 && (
+                        <>
+                          {/* Live preview card */}
+                          <div>
+                            <p className="text-xs font-black text-slate-500 mb-2 uppercase tracking-wider">كيف ستظهر فزعتك</p>
+                            <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-5">
+                              <div className="flex items-center gap-3 mb-3">
+                                <img
+                                  src={newFazaForm.anonymous ? 'https://api.dicebear.com/7.x/avataaars/svg?seed=anon' : (userProfile.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${userProfile.id}`)}
+                                  className="w-10 h-10 rounded-full border-2 border-emerald-100"
+                                  loading="lazy"
+                                />
+                                <div className="flex-1">
+                                  <p className="text-xs font-black text-slate-900">{newFazaForm.anonymous ? 'مجهول الهوية' : userProfile.name}</p>
+                                  <p className="text-[10px] text-slate-400 flex items-center gap-1">
+                                    {urgencyOpt.emoji} {urgencyOpt.label}
+                                    {selectedCat && <span className="mx-1">·</span>}
+                                    {selectedCat && <span style={{ color: selectedCat.color }}>{selectedCat.emoji} {selectedCat.label}</span>}
+                                  </p>
+                                </div>
+                                <div className="bg-orange-50 px-3 py-1 rounded-xl text-orange-600 text-xs font-black">
+                                  +{newFazaForm.rewardPoints} كرم
+                                </div>
+                              </div>
+                              <p className="text-sm text-slate-700 leading-relaxed font-medium">
+                                "{newFazaForm.question || 'سؤالك سيظهر هنا...'}"
+                              </p>
+                              {newFazaForm.photoUrl && (
+                                <img src={newFazaForm.photoUrl} className="mt-3 w-full h-28 object-cover rounded-xl" onError={e => (e.currentTarget.style.display = 'none')} loading="lazy" />
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Anonymous toggle */}
+                          <div className="bg-white rounded-2xl border border-slate-100 p-4 flex items-center justify-between">
+                            <div>
+                              <p className="text-sm font-black text-slate-800">🎭 نشر مجهول الهوية</p>
+                              <p className="text-[10px] text-slate-400 mt-0.5">لن يظهر اسمك للأعضاء</p>
+                            </div>
+                            <button
+                              onClick={() => setNewFazaForm(p => ({ ...p, anonymous: !p.anonymous }))}
+                              className={`w-12 h-7 rounded-full transition-all duration-300 relative ${newFazaForm.anonymous ? 'bg-emerald-600' : 'bg-slate-200'}`}
+                            >
+                              <div className={`absolute top-0.5 w-6 h-6 bg-white rounded-full shadow transition-all duration-300 ${newFazaForm.anonymous ? 'right-0.5' : 'left-0.5'}`} />
+                            </button>
+                          </div>
+
+                          {/* Similar faza radar */}
+                          {similarFaza.length > 0 && (
+                            <div className="bg-amber-50 border border-amber-100 rounded-2xl p-4">
+                              <p className="text-xs font-black text-amber-700 mb-2 flex items-center gap-1">
+                                🔍 أسئلة مشابهة موجودة
+                              </p>
+                              {similarFaza.map(sf => (
+                                <div key={sf.id} className="text-xs text-amber-600 leading-relaxed mb-1">
+                                  · "{sf.question.slice(0, 80)}{sf.question.length > 80 ? '...' : ''}"
+                                </div>
+                              ))}
+                              <p className="text-[10px] text-amber-500 mt-1">تأكد أن سؤالك مختلف لتحصل على أفضل إجابة</p>
+                            </div>
+                          )}
+                        </>
+                      )}
+                    </div>
+
+                    {/* Fixed Footer */}
+                    <div className="px-5 py-4 bg-white border-t border-slate-100 shrink-0 flex gap-3">
+                      {fazaWizardStep > 1 && (
+                        <button
+                          onClick={() => setFazaWizardStep(s => (s - 1) as 1 | 2 | 3)}
+                          className="px-5 py-3.5 bg-slate-100 text-slate-600 font-black text-sm rounded-2xl active:scale-95 transition-transform"
+                        >
+                          ← رجوع
+                        </button>
+                      )}
+                      <button
+                        disabled={fazaSubmitting || (fazaWizardStep === 2 && newFazaForm.rewardPoints > walletPts)}
+                        onClick={() => {
+                          if (fazaWizardStep < 3) {
+                            if (fazaWizardStep === 1 && !newFazaForm.question.trim()) {
+                              setFazaErrors({ question: 'اكتب سؤالك أولاً' });
+                              return;
+                            }
+                            setFazaWizardStep(s => (s + 1) as 1 | 2 | 3);
+                          } else {
+                            handleCreateFaza();
+                          }
+                        }}
+                        className="flex-1 flex items-center justify-center gap-2 bg-emerald-600 text-white font-black text-sm py-3.5 rounded-2xl active:scale-95 transition-transform disabled:opacity-50"
+                      >
+                        {fazaSubmitting ? (
+                          <>
+                            <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                            جاري الإرسال...
+                          </>
+                        ) : fazaWizardStep < 3 ? 'التالي →' : '🚀 أرسل الفزعة'}
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+          );
+        })()}
 
         {/* Faza'a Modal */}
         {showFazaModal && (
@@ -1498,7 +2535,7 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
                         className="flex flex-col items-center gap-1 shrink-0 active:scale-95 transition-transform"
                       >
                         <div className="w-14 h-14 rounded-2xl overflow-hidden border-2 border-emerald-400 shadow-sm">
-                          <img src={comm.image} className="w-full h-full object-cover" alt={comm.name} />
+                          <img src={comm.image} className="w-full h-full object-cover" alt={comm.name} loading="lazy" />
                         </div>
                         <span className="text-[9px] font-bold text-slate-700 text-center line-clamp-1 max-w-[60px]">{comm.name.replace(/[^\u0600-\u06FFA-Za-z0-9 ]/g, '').trim() || comm.name}</span>
                       </button>
@@ -1584,7 +2621,7 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
                   <span className="text-xs font-black text-emerald-700">موصى به لك</span>
                 </div>
                 <div className="flex items-center gap-3 mb-2">
-                  <img src={recommended.userAvatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${recommended.userId}`} className="w-9 h-9 rounded-full border-2 border-emerald-200" alt="" />
+                  <img src={recommended.userAvatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${recommended.userId}`} className="w-9 h-9 rounded-full border-2 border-emerald-200" alt="" loading="lazy" />
                   <div className="flex-1 min-w-0">
                     <p className="font-black text-slate-900 text-sm">{recommended.userName}</p>
                     <p className="text-xs text-emerald-700 font-bold truncate">📍 {recommended.placeName}</p>
@@ -1634,6 +2671,7 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
                     src={post.userAvatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${post.userId}`}
                     className="w-10 h-10 rounded-full border-2 border-slate-100"
                     alt={post.userName}
+                    loading="lazy"
                   />
                   <div className="flex-1 min-w-0">
                     <p className="font-black text-slate-900 text-sm">{post.userName}</p>

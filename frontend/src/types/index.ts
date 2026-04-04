@@ -181,6 +181,16 @@ export interface Rental {
   contactName?: string;
   contactPhone?: string;
   contactWhatsapp?: string;
+  // extended fields
+  capacity?: number;
+  bedrooms?: number;
+  amenities?: string[];
+  cleaningFee?: number;
+  serviceFee?: number;
+  verified?: boolean;
+  city?: string;
+  availableFrom?: string;
+  availableTo?: string;
 }
 
 // ==========================================
@@ -341,4 +351,12 @@ export interface Tour {
   itineraryId?: string;
   baseItineraryId?: string;
   bookingsCount?: number;
+  language?: string;
+  spotsRemaining?: number;
+  accessibility?: {
+    minAge?: number;
+    fitnessLevel?: 'Low' | 'Moderate' | 'High';
+    wheelchairFriendly?: boolean;
+    familyFriendly?: boolean;
+  };
 }

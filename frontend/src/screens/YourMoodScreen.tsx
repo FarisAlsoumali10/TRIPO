@@ -1,39 +1,15 @@
-import React, { useState, useEffect } from 'react';
-import { Star, MapPin, Clock, ChevronRight, Pencil, Sparkles, Tent, Compass } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import {
+  Star, MapPin, Clock, ChevronRight, ChevronLeft, Pencil, Sparkles, Compass,
+  Heart, X, RefreshCw, Flame, Zap,
+} from 'lucide-react';
 import { User, Place, Tour, Rental } from '../types/index';
 import { placeAPI, tourAPI, rentalAPI } from '../services/api';
 import { MOCK_PLACES } from './HomeScreen';
 import { MOCK_TOURS } from './ToursScreen';
 import { MOCK_RENTALS, MOCK_SPORT_VENUES } from './RentalsScreen';
 
-// ─── Storage ──────────────────────────────────────────────────────────────────
-
-const MOOD_KEY = 'tripo_mood';
-
-interface MoodPrefs {
-  date: string; // YYYY-MM-DD
-  interests: string[];
-  budget: string;
-  hours: number;
-  vibe: string;
-}
-
-const todayStr = () => new Date().toISOString().split('T')[0];
-
-function loadPrefs(): MoodPrefs | null {
-  try {
-    const raw = localStorage.getItem(MOOD_KEY);
-    if (!raw) return null;
-    const p: MoodPrefs = JSON.parse(raw);
-    return p.date === todayStr() ? p : null; // stale if not today
-  } catch { return null; }
-}
-
-function savePrefs(p: MoodPrefs) {
-  localStorage.setItem(MOOD_KEY, JSON.stringify({ ...p, date: todayStr() }));
-}
-
-// ─── Question data ────────────────────────────────────────────────────────────
+// ─── Constants ────────────────────────────────────────────────────────────────
 
 const INTEREST_OPTIONS = [
   { id: 'Nature',    emoji: '🌿', tKey: 'interestNature'    },
@@ -44,11 +20,12 @@ const INTEREST_OPTIONS = [
   { id: 'Sports',    emoji: '⚽', tKey: 'interestSports'    },
   { id: 'Culture',   emoji: '🎭', tKey: 'interestCulture'   },
   { id: 'Urban',     emoji: '🏙️', tKey: 'interestUrban'     },
+  { id: 'Nightlife', emoji: '🌙', tKey: 'interestNightlife' }, // Feature 3
 ];
 
 const BUDGET_OPTIONS = [
-  { val: 'free',   tKey: 'budgetFree',   descKey: 'budgetFreeDesc',   symbol: '🆓' },
-  { val: 'low',    tKey: 'budgetLow',    descKey: 'budgetLowDesc',    symbol: '＄'  },
+  { val: 'free',   tKey: 'budgetFree',   descKey: 'budgetFreeDesc',   symbol: '🆓'   },
+  { val: 'low',    tKey: 'budgetLow',    descKey: 'budgetLowDesc',    symbol: '＄'   },
   { val: 'medium', tKey: 'budgetMedium', descKey: 'budgetMediumDesc', symbol: '＄＄' },
   { val: 'high',   tKey: 'budgetHigh',   descKey: 'budgetHighDesc',   symbol: '＄＄＄' },
 ];
@@ -60,54 +37,163 @@ const VIBE_OPTIONS = [
   { val: 'social',   tKey: 'vibeSocial',   emoji: '🎉', color: 'from-pink-400 to-rose-400'     },
 ];
 
-// ─── Matching helpers ─────────────────────────────────────────────────────────
+// Feature 2 – group context
+const GROUP_OPTIONS = [
+  { val: 'solo',    emoji: '🧍', label: 'Just Me'  },
+  { val: 'partner', emoji: '💑', label: 'Partner'  },
+  { val: 'friends', emoji: '👫', label: 'Friends'  },
+  { val: 'family',  emoji: '👨‍👩‍👧', label: 'Family'   },
+];
 
-function scoredPlaces(places: Place[], prefs: MoodPrefs): Place[] {
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+interface MoodPrefs {
+  date: string;
+  interests: string[];
+  budget: string;
+  hours: number;
+  vibe: string;
+  group?: string;
+  isSurprise?: boolean;
+}
+
+// ─── Storage ──────────────────────────────────────────────────────────────────
+
+const MOOD_KEY    = 'tripo_mood';
+const STREAK_KEY  = 'tripo_mood_streak_dates';
+
+const todayStr = () => new Date().toISOString().split('T')[0];
+
+function loadPrefs(): MoodPrefs | null {
+  try {
+    const raw = localStorage.getItem(MOOD_KEY);
+    if (!raw) return null;
+    const p: MoodPrefs = JSON.parse(raw);
+    return p.date === todayStr() ? p : null;
+  } catch { return null; }
+}
+
+function savePrefs(p: MoodPrefs) {
+  localStorage.setItem(MOOD_KEY, JSON.stringify({ ...p, date: todayStr() }));
+}
+
+function loadStreakDates(): string[] {
+  try { return JSON.parse(localStorage.getItem(STREAK_KEY) || '[]'); } catch { return []; }
+}
+
+function recordToday() {
+  const today = todayStr();
+  const dates = loadStreakDates();
+  if (!dates.includes(today)) {
+    const updated = [...dates.slice(-29), today];
+    localStorage.setItem(STREAK_KEY, JSON.stringify(updated));
+  }
+}
+
+function computeStreak(dates: string[]): number {
+  let streak = 0;
+  const d = new Date();
+  for (let i = 0; i < 30; i++) {
+    const copy = new Date(d);
+    copy.setDate(copy.getDate() - i);
+    const ds = copy.toISOString().split('T')[0];
+    if (dates.includes(ds)) {
+      streak++;
+    } else {
+      if (i === 0) continue; // today not recorded yet → don't break streak
+      break;
+    }
+  }
+  return streak;
+}
+
+function getLast7Days(): string[] {
+  return Array.from({ length: 7 }, (_, i) => {
+    const d = new Date();
+    d.setDate(d.getDate() - (6 - i));
+    return d.toISOString().split('T')[0];
+  });
+}
+
+// ─── Scoring helpers ──────────────────────────────────────────────────────────
+
+function pct(score: number, max: number): number {
+  if (max === 0) return 0;
+  return Math.min(100, Math.round((score / max) * 90 + (score > 0 ? 10 : 0)));
+}
+
+type ScoredPlace  = { place: Place;  score: number; matchPct: number };
+type ScoredTour   = { tour: Tour;    score: number; matchPct: number };
+type ScoredRental = { rental: Rental; score: number; matchPct: number };
+
+function scoredPlacesAll(places: Place[], prefs: MoodPrefs): ScoredPlace[] {
+  if (prefs.isSurprise) {
+    return [...places]
+      .sort((a, b) => (b.ratingSummary?.avgRating ?? 0) - (a.ratingSummary?.avgRating ?? 0))
+      .slice(0, 12)
+      .map(place => ({ place, score: 3, matchPct: 85 }));
+  }
+  const maxScore = Math.max(prefs.interests.length, 1);
   return [...places]
     .map(p => {
       const tags = [...(p.categoryTags || []), p.category || ''].map(t => t.toLowerCase());
       const score = prefs.interests.filter(i => tags.some(t => t.includes(i.toLowerCase()))).length;
-      return { p, score };
+      return { place: p, score, matchPct: pct(score, maxScore) };
     })
     .filter(x => x.score > 0)
-    .sort((a, b) => b.score - a.score || (b.p.ratingSummary?.avgRating ?? 0) - (a.p.ratingSummary?.avgRating ?? 0))
-    .map(x => x.p)
-    .slice(0, 6);
+    .sort((a, b) => b.score - a.score || (b.place.ratingSummary?.avgRating ?? 0) - (a.place.ratingSummary?.avgRating ?? 0));
 }
 
-function scoredTours(tours: Tour[], prefs: MoodPrefs): Tour[] {
-  const vibeMap: Record<string, string[]> = {
-    chill:    ['heritage', 'culture', 'food', 'urban'],
-    active:   ['adventure', 'nature', 'hiking', 'desert'],
-    cultural: ['heritage', 'history', 'culture', 'traditional'],
-    social:   ['group', 'food', 'community', 'fun'],
-  };
-  const vibeKeywords = vibeMap[prefs.vibe] || [];
+const VIBE_MAP: Record<string, string[]> = {
+  chill:    ['heritage', 'culture', 'food', 'urban'],
+  active:   ['adventure', 'nature', 'hiking', 'desert'],
+  cultural: ['heritage', 'history', 'culture', 'traditional'],
+  social:   ['group', 'food', 'community', 'fun'],
+};
+
+function scoredToursAll(tours: Tour[], prefs: MoodPrefs): ScoredTour[] {
+  const vibeKeywords = VIBE_MAP[prefs.vibe] || [];
+  if (prefs.isSurprise) {
+    return [...tours]
+      .filter(t => prefs.group !== 'family' || t.difficulty !== 'challenging')
+      .sort((a, b) => (Number(b.rating) || 0) - (Number(a.rating) || 0))
+      .slice(0, 8)
+      .map(tour => ({ tour, score: 3, matchPct: 85 }));
+  }
+  const maxScore = Math.max(prefs.interests.length * 2 + vibeKeywords.length, 1);
   return [...tours]
+    .filter(t => prefs.group !== 'family' || t.difficulty !== 'challenging')
     .map(t => {
       const haystack = [t.category || '', t.title || '', ...(t.tags || [])].join(' ').toLowerCase();
-      const interestScore = prefs.interests.filter(i => haystack.includes(i.toLowerCase())).length;
-      const vibeScore = vibeKeywords.filter(k => haystack.includes(k)).length;
-      return { t, score: interestScore * 2 + vibeScore };
+      const iScore = prefs.interests.filter(i => haystack.includes(i.toLowerCase())).length * 2;
+      const vScore = vibeKeywords.filter(k => haystack.includes(k)).length;
+      const score = iScore + vScore;
+      return { tour: t, score, matchPct: pct(score, maxScore) };
     })
     .filter(x => x.score > 0)
-    .sort((a, b) => b.score - a.score || (Number(b.t.rating) || 0) - (Number(a.t.rating) || 0))
-    .map(x => x.t)
-    .slice(0, 4);
+    .sort((a, b) => b.score - a.score || (Number(b.tour.rating) || 0) - (Number(a.tour.rating) || 0));
 }
 
-function scoredRentals(rentals: Rental[], sports: Rental[], prefs: MoodPrefs): Rental[] {
+function scoredRentalsAll(rentals: Rental[], sports: Rental[], prefs: MoodPrefs): ScoredRental[] {
   const wantsSports = prefs.interests.includes('Sports');
+  const wantsNightlife = prefs.interests.includes('Nightlife');
   const pool = wantsSports ? [...sports, ...rentals] : rentals;
   const budgetMax: Record<string, number> = { free: 0, low: 100, medium: 300, high: 99999 };
   const max = budgetMax[prefs.budget] ?? 99999;
   return pool
     .filter(r => prefs.budget === 'free' ? (Number(r.price) || 0) === 0 : (Number(r.price) || 0) <= max || prefs.budget === 'high')
-    .sort((a, b) => (b.rating ?? 0) - (a.rating ?? 0))
-    .slice(0, 4);
+    .map(r => {
+      const haystack = [r.type || '', r.title || ''].join(' ').toLowerCase();
+      const iScore = prefs.interests.filter(i => haystack.includes(i.toLowerCase())).length;
+      const nightBonus = wantsNightlife ? 1 : 0;
+      const score = iScore + nightBonus + 1; // +1 base for budget match
+      const matchPct = Math.min(95, 45 + (iScore * 15) + (r.rating ?? 0) * 5);
+      return { rental: r, score, matchPct: Math.round(matchPct) };
+    })
+    .sort((a, b) => b.score - a.score || (b.rental.rating ?? 0) - (a.rental.rating ?? 0));
 }
 
-// ─── Sub-components ───────────────────────────────────────────────────────────
+// ─── UI helpers ───────────────────────────────────────────────────────────────
 
 const getGreeting = (t?: any) => {
   const h = new Date().getHours();
@@ -115,6 +201,18 @@ const getGreeting = (t?: any) => {
   if (h < 17) return t?.goodAfternoon || 'Good afternoon';
   return t?.goodEvening || 'Good evening';
 };
+
+// Feature 18 – contextual header line
+function getContextualLine(): string {
+  const day = new Date().getDay();
+  const hour = new Date().getHours();
+  if (day === 5) return "It's Friday — perfect for a day trip! 🚗";
+  if (day === 6) return "Weekend energy is here ✨";
+  if (day === 0) return "Make the most of your Sunday 🌟";
+  if (hour < 10) return "Great morning to plan an adventure! ☀️";
+  if (hour >= 20) return "A perfect evening outing awaits 🌙";
+  return "Ready for today's adventure? 🗺️";
+}
 
 const vibeGradient: Record<string, string> = {
   chill:    'from-blue-600 via-cyan-500 to-teal-500',
@@ -124,48 +222,104 @@ const vibeGradient: Record<string, string> = {
   default:  'from-emerald-600 via-teal-500 to-cyan-500',
 };
 
+// ─── Wizard Step labels ───────────────────────────────────────────────────────
+const STEP_LABELS = ['Interests', 'Vibe', 'Group', 'Budget', 'Time'];
+
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export const YourMoodScreen = ({ user, onNavigate, t }: { user: User; onNavigate?: (tab: string, id?: string) => void; t?: any }) => {
-  const [prefs, setPrefs] = useState<MoodPrefs | null>(() => loadPrefs());
+  const [prefs, setPrefs]     = useState<MoodPrefs | null>(() => loadPrefs());
   const [editing, setEditing] = useState(!loadPrefs());
+
+  // Wizard step (Feature 1)
+  const [step, setStep]       = useState(0);
 
   // Form state
   const [interests, setInterests] = useState<string[]>(prefs?.interests || []);
   const [budget, setBudget]       = useState(prefs?.budget || 'medium');
   const [hours, setHours]         = useState(prefs?.hours || 3);
   const [vibe, setVibe]           = useState(prefs?.vibe || '');
+  const [group, setGroup]         = useState(prefs?.group || 'solo'); // Feature 2
 
   // Data
-  const [places, setPlaces]       = useState<Place[]>([]);
-  const [tours, setTours]         = useState<Tour[]>([]);
-  const [rentals, setRentals]     = useState<Rental[]>([]);
-  const [loading, setLoading]     = useState(false);
+  const [places, setPlaces]   = useState<Place[]>([]);
+  const [tours, setTours]     = useState<Tour[]>([]);
+  const [rentals, setRentals] = useState<Rental[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  // Results UX
+  const [activeTab, setActiveTab] = useState<'all' | 'places' | 'tours' | 'rentals'>('all'); // Feature 8
+  const [dismissedPlaceIds,  setDismissedPlaceIds]  = useState<Set<string>>(new Set()); // Feature 9
+  const [dismissedTourIds,   setDismissedTourIds]   = useState<Set<string>>(new Set());
+  const [dismissedRentalIds, setDismissedRentalIds] = useState<Set<string>>(new Set());
+  const [isShuffled, setIsShuffled] = useState(false); // Feature 11
+  const [shuffledPlaces,  setShuffledPlaces]  = useState<ScoredPlace[]>([]);
+  const [shuffledTours,   setShuffledTours]   = useState<ScoredTour[]>([]);
+  const [shuffledRentals, setShuffledRentals] = useState<ScoredRental[]>([]);
+
+  // Feature 10 – saved state (synced with tab screens)
+  const [savedPlaceIds, setSavedPlaceIds] = useState<Set<string>>(() => {
+    try { return new Set<string>(JSON.parse(localStorage.getItem('tripo_saved_places') || '[]') as string[]); } catch { return new Set(); }
+  });
+  const [savedTourIds, setSavedTourIds] = useState<Set<string>>(() => {
+    try { return new Set<string>(JSON.parse(localStorage.getItem('tripo_saved_tours') || '[]') as string[]); } catch { return new Set(); }
+  });
+  const [savedRentalIds, setSavedRentalIds] = useState<Set<string>>(() => {
+    try { return new Set<string>(JSON.parse(localStorage.getItem('tripo_rental_favorites') || '[]') as string[]); } catch { return new Set(); }
+  });
+
+  // Feature 15 – streak tracker
+  const streakDates = useMemo(() => loadStreakDates(), [prefs]);
+  const streakCount = useMemo(() => computeStreak(streakDates), [streakDates]);
+  const last7Days   = useMemo(() => getLast7Days(), []);
 
   useEffect(() => {
     if (prefs) {
       setLoading(true);
-      Promise.allSettled([
-        placeAPI.getPlaces(),
-        tourAPI.getTours(),
-        rentalAPI.getRentals(),
-      ]).then(([p, t, r]) => {
-        setPlaces(p.status === 'fulfilled' && p.value.length ? p.value : MOCK_PLACES);
-        setTours(t.status === 'fulfilled' && t.value.length ? t.value : MOCK_TOURS);
-        setRentals(r.status === 'fulfilled' && r.value.length ? r.value : MOCK_RENTALS);
-      }).finally(() => setLoading(false));
+      Promise.allSettled([placeAPI.getPlaces(), tourAPI.getTours(), rentalAPI.getRentals()])
+        .then(([p, tt, r]) => {
+          setPlaces(p.status  === 'fulfilled' && p.value.length  ? p.value  : MOCK_PLACES);
+          setTours(tt.status  === 'fulfilled' && tt.value.length ? tt.value : MOCK_TOURS);
+          setRentals(r.status === 'fulfilled' && r.value.length  ? r.value  : MOCK_RENTALS);
+        })
+        .finally(() => setLoading(false));
     }
   }, [prefs]);
+
+  // Reset shuffle when prefs/data changes
+  useEffect(() => { setIsShuffled(false); }, [prefs, places, tours, rentals]);
+
+  // ── Scoring ──────────────────────────────────────────────────────────────────
+
+  const allScoredPlaces  = useMemo(() => prefs ? scoredPlacesAll(places, prefs)                  : [], [places,  prefs]);
+  const allScoredTours   = useMemo(() => prefs ? scoredToursAll(tours, prefs)                    : [], [tours,   prefs]);
+  const allScoredRentals = useMemo(() => prefs ? scoredRentalsAll(rentals, MOCK_SPORT_VENUES, prefs) : [], [rentals, prefs]);
+
+  const basePlaces  = isShuffled ? shuffledPlaces  : allScoredPlaces;
+  const baseTours   = isShuffled ? shuffledTours   : allScoredTours;
+  const baseRentals = isShuffled ? shuffledRentals : allScoredRentals;
+
+  const visiblePlaces  = basePlaces.filter(x  => !dismissedPlaceIds.has(x.place._id  || x.place.id  || '')).slice(0, 6);
+  const visibleTours   = baseTours.filter(x   => !dismissedTourIds.has(x.tour.id     || (x.tour as any)._id || '')).slice(0, 4);
+  const visibleRentals = baseRentals.filter(x => !dismissedRentalIds.has(x.rental.id || '')).slice(0, 4);
+
+  // ── Actions ───────────────────────────────────────────────────────────────────
 
   const toggleInterest = (id: string) =>
     setInterests(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
 
   const handleSubmit = () => {
     if (!interests.length || !vibe) return;
-    const newPrefs: MoodPrefs = { date: todayStr(), interests, budget, hours, vibe };
+    const newPrefs: MoodPrefs = { date: todayStr(), interests, budget, hours, vibe, group };
     savePrefs(newPrefs);
+    recordToday();
     setPrefs(newPrefs);
     setEditing(false);
+    setStep(0);
+    setDismissedPlaceIds(new Set());
+    setDismissedTourIds(new Set());
+    setDismissedRentalIds(new Set());
+    setIsShuffled(false);
   };
 
   const handleEdit = () => {
@@ -174,17 +328,88 @@ export const YourMoodScreen = ({ user, onNavigate, t }: { user: User; onNavigate
       setBudget(prefs.budget);
       setHours(prefs.hours);
       setVibe(prefs.vibe);
+      setGroup(prefs.group || 'solo');
     }
+    setStep(0);
     setEditing(true);
+  };
+
+  // Feature 5 – Surprise Me
+  const handleSurpriseMe = () => {
+    const vibeIdx  = Math.floor(Math.random() * VIBE_OPTIONS.length);
+    const groupIdx = Math.floor(Math.random() * GROUP_OPTIONS.length);
+    const surprise: MoodPrefs = {
+      date: todayStr(),
+      interests: ['Nature', 'Heritage', 'Food', 'Culture'],
+      budget: 'medium',
+      hours: 4,
+      vibe: VIBE_OPTIONS[vibeIdx].val,
+      group: GROUP_OPTIONS[groupIdx].val,
+      isSurprise: true,
+    };
+    savePrefs(surprise);
+    recordToday();
+    setPrefs(surprise);
+    setEditing(false);
+    setStep(0);
+    setDismissedPlaceIds(new Set());
+    setDismissedTourIds(new Set());
+    setDismissedRentalIds(new Set());
+    setIsShuffled(false);
+  };
+
+  // Feature 11 – Shuffle
+  const handleShuffle = () => {
+    const shuffle = <T,>(arr: T[]) => [...arr].sort(() => Math.random() - 0.5);
+    setShuffledPlaces(shuffle(allScoredPlaces));
+    setShuffledTours(shuffle(allScoredTours));
+    setShuffledRentals(shuffle(allScoredRentals));
+    setIsShuffled(true);
+    setDismissedPlaceIds(new Set());
+    setDismissedTourIds(new Set());
+    setDismissedRentalIds(new Set());
+  };
+
+  // Feature 10 – Save toggles
+  const toggleSavePlace = (id: string) => {
+    setSavedPlaceIds(prev => {
+      const next = new Set<string>(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      localStorage.setItem('tripo_saved_places', JSON.stringify([...next]));
+      return next;
+    });
+  };
+  const toggleSaveTour = (id: string) => {
+    setSavedTourIds(prev => {
+      const next = new Set<string>(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      localStorage.setItem('tripo_saved_tours', JSON.stringify([...next]));
+      return next;
+    });
+  };
+  const toggleSaveRental = (id: string) => {
+    setSavedRentalIds(prev => {
+      const next = new Set<string>(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      localStorage.setItem('tripo_rental_favorites', JSON.stringify([...next]));
+      return next;
+    });
+  };
+
+
+  const canNext = (s: number) => {
+    if (s === 0) return interests.length > 0;
+    if (s === 1) return vibe !== '';
+    if (s === 2) return group !== '';
+    return true;
   };
 
   const canSubmit = interests.length > 0 && vibe !== '';
 
-  // ── Questions form ──────────────────────────────────────────────────────────
+  // ── Wizard Form ────────────────────────────────────────────────────────────────
   if (editing) {
     return (
       <div className="h-full overflow-y-auto bg-slate-50 pb-24">
-
         {/* Header */}
         <div className="bg-gradient-to-br from-emerald-600 via-teal-500 to-cyan-500 px-6 pt-10 pb-8">
           <div className="flex items-center gap-2 mb-2">
@@ -197,145 +422,227 @@ export const YourMoodScreen = ({ user, onNavigate, t }: { user: User; onNavigate
           <p className="text-emerald-100 text-sm mt-1">
             {t?.moodSubtitle || "Answer a few quick questions and we'll pick the perfect spots for you."}
           </p>
+
+          {/* Progress bar — Feature 1 */}
+          <div className="mt-5">
+            <div className="flex items-center justify-between mb-1.5">
+              <span className="text-emerald-200 text-xs font-bold">{STEP_LABELS[step]}</span>
+              <span className="text-emerald-200 text-xs">Step {step + 1} of {STEP_LABELS.length}</span>
+            </div>
+            <div className="w-full h-1.5 bg-white/20 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-white rounded-full transition-all duration-300"
+                style={{ width: `${((step + 1) / STEP_LABELS.length) * 100}%` }}
+              />
+            </div>
+          </div>
+
+          {/* Feature 5 — Surprise Me (only on step 0) */}
+          {step === 0 && (
+            <button
+              onClick={handleSurpriseMe}
+              className="mt-4 flex items-center gap-2 bg-white/15 hover:bg-white/25 border border-white/30 text-white text-sm font-bold px-4 py-2.5 rounded-xl transition-all active:scale-95"
+            >
+              <Zap className="w-4 h-4 text-yellow-300" />
+              Surprise Me — skip the form!
+            </button>
+          )}
         </div>
 
-        <div className="px-4 py-6 space-y-8">
+        <div className="px-4 py-6">
 
-          {/* Q1 — Interests */}
-          <div>
-            <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">
-              {t?.moodQuestion1 || 'What are you in the mood for?'} <span className="text-red-400">*</span>
-            </p>
-            <div className="flex flex-wrap gap-2">
-              {INTEREST_OPTIONS.map(opt => {
-                const sel = interests.includes(opt.id);
-                return (
-                  <button
-                    key={opt.id}
-                    onClick={() => toggleInterest(opt.id)}
-                    className={`flex items-center gap-2 px-4 py-2.5 rounded-full text-sm font-semibold border-2 transition-all select-none ${
-                      sel
-                        ? 'bg-emerald-600 border-emerald-600 text-white shadow-md scale-105'
-                        : 'bg-white border-slate-200 text-slate-700 hover:border-emerald-400'
-                    }`}
-                  >
-                    <span>{opt.emoji}</span> {t?.[opt.tKey] || opt.id}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Q2 — Vibe */}
-          <div>
-            <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">
-              {t?.moodQuestion2 || "What's your vibe?"} <span className="text-red-400">*</span>
-            </p>
-            <div className="grid grid-cols-2 gap-3">
-              {VIBE_OPTIONS.map(opt => {
-                const sel = vibe === opt.val;
-                return (
-                  <button
-                    key={opt.val}
-                    onClick={() => setVibe(opt.val)}
-                    className={`flex flex-col items-center justify-center p-4 rounded-2xl border-2 transition-all ${
-                      sel
-                        ? 'border-emerald-500 bg-emerald-50 shadow-md scale-[1.03]'
-                        : 'border-slate-200 bg-white hover:border-emerald-300'
-                    }`}
-                  >
-                    <span className="text-2xl mb-1">{opt.emoji}</span>
-                    <span className="text-xs font-bold text-slate-800 text-center leading-tight">{t?.[opt.tKey] || opt.val}</span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Q3 — Budget */}
-          <div>
-            <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">
-              {t?.moodQuestion3 || 'Budget for today'}
-            </p>
-            <div className="grid grid-cols-2 gap-3">
-              {BUDGET_OPTIONS.map(opt => {
-                const sel = budget === opt.val;
-                return (
-                  <button
-                    key={opt.val}
-                    onClick={() => setBudget(opt.val)}
-                    className={`flex flex-col items-center p-4 rounded-2xl border-2 transition-all ${
-                      sel
-                        ? 'border-emerald-500 bg-emerald-50 shadow-md scale-[1.03]'
-                        : 'border-slate-200 bg-white hover:border-emerald-300'
-                    }`}
-                  >
-                    <span className="text-xl mb-1">{opt.symbol}</span>
-                    <span className="text-sm font-bold text-slate-800">{t?.[opt.tKey] || opt.val}</span>
-                    <span className="text-xs text-slate-400 mt-0.5">{t?.[opt.descKey] || ''}</span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Q4 — Time */}
-          <div>
-            <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">
-              {t?.moodQuestion4 || 'How much time do you have?'}
-            </p>
-            <div className="bg-white rounded-2xl border border-slate-200 p-4">
-              <div className="flex items-center gap-4 mb-2">
-                <Clock className="w-5 h-5 text-emerald-500 flex-shrink-0" />
-                <input
-                  type="range"
-                  min={1}
-                  max={8}
-                  step={0.5}
-                  value={hours}
-                  onChange={e => setHours(parseFloat(e.target.value))}
-                  className="flex-1 accent-emerald-500"
-                />
-                <span className="font-extrabold text-slate-900 w-12 text-right">{hours}h</span>
-              </div>
-              <div className="flex justify-between text-xs text-slate-400 mt-1 px-1">
-                <span>1 hr</span>
-                <span>4 hrs</span>
-                <span>8 hrs</span>
+          {/* Step 0 — Interests */}
+          {step === 0 && (
+            <div>
+              <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">
+                {t?.moodQuestion1 || 'What are you in the mood for?'} <span className="text-red-400">*</span>
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {INTEREST_OPTIONS.map(opt => {
+                  const sel = interests.includes(opt.id);
+                  return (
+                    <button
+                      key={opt.id}
+                      onClick={() => toggleInterest(opt.id)}
+                      className={`flex items-center gap-2 px-4 py-2.5 rounded-full text-sm font-semibold border-2 transition-all select-none ${
+                        sel
+                          ? 'bg-emerald-600 border-emerald-600 text-white shadow-md scale-105'
+                          : 'bg-white border-slate-200 text-slate-700 hover:border-emerald-400'
+                      }`}
+                    >
+                      <span>{opt.emoji}</span> {t?.[opt.tKey] || opt.id}
+                    </button>
+                  );
+                })}
               </div>
             </div>
-          </div>
+          )}
 
-          {/* Submit */}
-          <button
-            onClick={handleSubmit}
-            disabled={!canSubmit}
-            className={`w-full py-4 rounded-2xl font-bold text-base flex items-center justify-center gap-2 transition-all ${
-              canSubmit
-                ? 'bg-gradient-to-r from-emerald-600 to-teal-500 text-white shadow-lg shadow-emerald-200 active:scale-[0.98]'
-                : 'bg-slate-100 text-slate-400 cursor-not-allowed'
-            }`}
-          >
-            <Sparkles className="w-5 h-5" />
-            {t?.moodSubmit || 'Show My Recommendations'}
-          </button>
+          {/* Step 1 — Vibe */}
+          {step === 1 && (
+            <div>
+              <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">
+                {t?.moodQuestion2 || "What's your vibe?"} <span className="text-red-400">*</span>
+              </p>
+              <div className="grid grid-cols-2 gap-3">
+                {VIBE_OPTIONS.map(opt => {
+                  const sel = vibe === opt.val;
+                  return (
+                    <button
+                      key={opt.val}
+                      onClick={() => setVibe(opt.val)}
+                      className={`flex flex-col items-center justify-center p-5 rounded-2xl border-2 transition-all ${
+                        sel
+                          ? 'border-emerald-500 bg-emerald-50 shadow-md scale-[1.03]'
+                          : 'border-slate-200 bg-white hover:border-emerald-300'
+                      }`}
+                    >
+                      <span className="text-3xl mb-2">{opt.emoji}</span>
+                      <span className="text-sm font-bold text-slate-800">{t?.[opt.tKey] || opt.val}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Step 2 — Group (Feature 2) */}
+          {step === 2 && (
+            <div>
+              <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">
+                Who are you going with? <span className="text-red-400">*</span>
+              </p>
+              <div className="grid grid-cols-2 gap-3">
+                {GROUP_OPTIONS.map(opt => {
+                  const sel = group === opt.val;
+                  return (
+                    <button
+                      key={opt.val}
+                      onClick={() => setGroup(opt.val)}
+                      className={`flex flex-col items-center justify-center p-5 rounded-2xl border-2 transition-all ${
+                        sel
+                          ? 'border-emerald-500 bg-emerald-50 shadow-md scale-[1.03]'
+                          : 'border-slate-200 bg-white hover:border-emerald-300'
+                      }`}
+                    >
+                      <span className="text-3xl mb-2">{opt.emoji}</span>
+                      <span className="text-sm font-bold text-slate-800">{opt.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Step 3 — Budget */}
+          {step === 3 && (
+            <div>
+              <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">
+                {t?.moodQuestion3 || 'Budget for today'}
+              </p>
+              <div className="grid grid-cols-2 gap-3">
+                {BUDGET_OPTIONS.map(opt => {
+                  const sel = budget === opt.val;
+                  return (
+                    <button
+                      key={opt.val}
+                      onClick={() => setBudget(opt.val)}
+                      className={`flex flex-col items-center p-5 rounded-2xl border-2 transition-all ${
+                        sel
+                          ? 'border-emerald-500 bg-emerald-50 shadow-md scale-[1.03]'
+                          : 'border-slate-200 bg-white hover:border-emerald-300'
+                      }`}
+                    >
+                      <span className="text-2xl mb-1">{opt.symbol}</span>
+                      <span className="text-sm font-bold text-slate-800">{t?.[opt.tKey] || opt.val}</span>
+                      <span className="text-xs text-slate-400 mt-0.5">{t?.[opt.descKey] || ''}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Step 4 — Time */}
+          {step === 4 && (
+            <div>
+              <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">
+                {t?.moodQuestion4 || 'How much time do you have?'}
+              </p>
+              <div className="bg-white rounded-2xl border border-slate-200 p-5">
+                <div className="flex items-center gap-4 mb-2">
+                  <Clock className="w-5 h-5 text-emerald-500 flex-shrink-0" />
+                  <input
+                    type="range"
+                    min={1}
+                    max={8}
+                    step={0.5}
+                    value={hours}
+                    onChange={e => setHours(parseFloat(e.target.value))}
+                    className="flex-1 accent-emerald-500"
+                  />
+                  <span className="font-extrabold text-slate-900 w-12 text-right">{hours}h</span>
+                </div>
+                <div className="flex justify-between text-xs text-slate-400 mt-1 px-1">
+                  <span>1 hr</span><span>4 hrs</span><span>8 hrs</span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Navigation buttons */}
+          <div className="flex gap-3 mt-8">
+            {step > 0 && (
+              <button
+                onClick={() => setStep(s => s - 1)}
+                className="flex items-center gap-1.5 px-5 py-3 border border-slate-300 rounded-2xl font-bold text-slate-600 text-sm hover:bg-slate-50 transition"
+              >
+                <ChevronLeft className="w-4 h-4" /> Back
+              </button>
+            )}
+            {step < STEP_LABELS.length - 1 ? (
+              <button
+                onClick={() => setStep(s => s + 1)}
+                disabled={!canNext(step)}
+                className={`flex-1 py-3 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 transition-all ${
+                  canNext(step)
+                    ? 'bg-emerald-600 text-white hover:bg-emerald-700 active:scale-[0.98]'
+                    : 'bg-slate-100 text-slate-400 cursor-not-allowed'
+                }`}
+              >
+                Next <ChevronRight className="w-4 h-4" />
+              </button>
+            ) : (
+              <button
+                onClick={handleSubmit}
+                disabled={!canSubmit}
+                className={`flex-1 py-3 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 transition-all ${
+                  canSubmit
+                    ? 'bg-gradient-to-r from-emerald-600 to-teal-500 text-white shadow-lg shadow-emerald-200 active:scale-[0.98]'
+                    : 'bg-slate-100 text-slate-400 cursor-not-allowed'
+                }`}
+              >
+                <Sparkles className="w-5 h-5" />
+                {t?.moodSubmit || 'Show My Recommendations'}
+              </button>
+            )}
+          </div>
         </div>
       </div>
     );
   }
 
-  // ── Results view ────────────────────────────────────────────────────────────
+  // ── Results View ──────────────────────────────────────────────────────────────
   if (!prefs) return null;
 
   const vibeOption = VIBE_OPTIONS.find(v => v.val === prefs.vibe);
+  const groupOption = GROUP_OPTIONS.find(g => g.val === prefs.group);
   const gradient = vibeGradient[prefs.vibe] || vibeGradient.default;
 
-  const recPlaces  = scoredPlaces(places, prefs);
-  const recTours   = scoredTours(tours, prefs);
-  const recRentals = scoredRentals(rentals, MOCK_SPORT_VENUES, prefs);
+  const hasAny = visiblePlaces.length > 0 || visibleTours.length > 0 || visibleRentals.length > 0;
 
   return (
-    <div className="h-full overflow-y-auto bg-slate-50 pb-24">
+    <div className="h-full overflow-y-auto bg-slate-50 pb-28">
 
       {/* Hero header */}
       <div className={`bg-gradient-to-br ${gradient} px-6 pt-10 pb-6 relative overflow-hidden`}>
@@ -343,10 +650,33 @@ export const YourMoodScreen = ({ user, onNavigate, t }: { user: User; onNavigate
         <div className="absolute bottom-0 left-1/2 w-24 h-24 rounded-full bg-white/5" />
 
         <div className="relative">
+          {/* Feature 18 – contextual line */}
+          <p className="text-white/80 text-xs font-medium mb-0.5">{getContextualLine()}</p>
           <p className="text-white/80 text-sm font-medium">{getGreeting(t)},</p>
           <h1 className="text-white text-2xl font-extrabold leading-tight mt-0.5">
             {user?.name?.split(' ')[0] || 'Explorer'} — {t?.moodHereYourDay || "here's your day 🎯"}
           </h1>
+
+          {/* Feature 15 – streak tracker */}
+          {streakCount > 0 && (
+            <div className="flex items-center gap-3 mt-3">
+              <div className="flex items-center gap-1.5 bg-white/20 px-3 py-1.5 rounded-full">
+                <Flame className="w-3.5 h-3.5 text-orange-300" />
+                <span className="text-white text-xs font-extrabold">{streakCount}-day streak!</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                {last7Days.map((day, i) => (
+                  <div
+                    key={i}
+                    title={day}
+                    className={`w-2.5 h-2.5 rounded-full transition-all ${
+                      streakDates.includes(day) ? 'bg-white shadow-sm' : 'bg-white/25'
+                    }`}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Prefs summary chips */}
           <div className="flex flex-wrap gap-2 mt-4">
@@ -358,21 +688,42 @@ export const YourMoodScreen = ({ user, onNavigate, t }: { user: User; onNavigate
                 </span>
               );
             })}
-            <span className="bg-white/20 backdrop-blur-sm text-white text-xs font-semibold px-3 py-1 rounded-full border border-white/25">
-              {vibeOption?.emoji} {t?.[vibeOption?.tKey || ''] || vibeOption?.val}
-            </span>
+            {vibeOption && (
+              <span className="bg-white/20 backdrop-blur-sm text-white text-xs font-semibold px-3 py-1 rounded-full border border-white/25">
+                {vibeOption.emoji} {t?.[vibeOption.tKey] || vibeOption.val}
+              </span>
+            )}
+            {groupOption && (
+              <span className="bg-white/20 backdrop-blur-sm text-white text-xs font-semibold px-3 py-1 rounded-full border border-white/25">
+                {groupOption.emoji} {groupOption.label}
+              </span>
+            )}
             <span className="bg-white/20 backdrop-blur-sm text-white text-xs font-semibold px-3 py-1 rounded-full border border-white/25">
               ⏱ {prefs.hours}h
             </span>
+            {prefs.isSurprise && (
+              <span className="bg-yellow-400/30 backdrop-blur-sm text-white text-xs font-semibold px-3 py-1 rounded-full border border-yellow-300/40">
+                🎲 Surprise pick
+              </span>
+            )}
           </div>
 
-          {/* Edit button */}
-          <button
-            onClick={handleEdit}
-            className="mt-4 flex items-center gap-1.5 bg-white/15 hover:bg-white/25 border border-white/30 text-white text-xs font-bold px-3 py-2 rounded-xl transition-all"
-          >
-            <Pencil className="w-3.5 h-3.5" /> {t?.moodChangeMood || "Change Today's Mood"}
-          </button>
+          {/* Action row */}
+          <div className="flex items-center gap-2 mt-4 flex-wrap">
+            <button
+              onClick={handleEdit}
+              className="flex items-center gap-1.5 bg-white/15 hover:bg-white/25 border border-white/30 text-white text-xs font-bold px-3 py-2 rounded-xl transition-all"
+            >
+              <Pencil className="w-3.5 h-3.5" /> {t?.moodChangeMood || "Change Mood"}
+            </button>
+            {/* Feature 11 – Shuffle */}
+            <button
+              onClick={handleShuffle}
+              className="flex items-center gap-1.5 bg-white/15 hover:bg-white/25 border border-white/30 text-white text-xs font-bold px-3 py-2 rounded-xl transition-all"
+            >
+              <RefreshCw className="w-3.5 h-3.5" /> Shuffle picks
+            </button>
+          </div>
         </div>
       </div>
 
@@ -381,149 +732,238 @@ export const YourMoodScreen = ({ user, onNavigate, t }: { user: User; onNavigate
           <div className="w-8 h-8 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin" />
         </div>
       ) : (
-        <div className="px-4 pt-5 space-y-8">
-
-          {/* ── Places ── */}
-          {recPlaces.length > 0 && (
-            <section>
-              <div className="flex items-center justify-between mb-3">
-                <h2 className="text-base font-bold text-slate-900">{t?.moodPlacesSection || '📍 Places for You'}</h2>
-                <span className="text-xs text-slate-400">{recPlaces.length} {t?.moodMatches || 'matches'}</span>
-              </div>
-              <div className="flex gap-3 overflow-x-auto no-scrollbar pb-1">
-                {recPlaces.map(place => {
-                  const img = place.photos?.[0] || place.image;
-                  const rating = place.ratingSummary?.avgRating ?? place.rating;
-                  return (
-                    <button
-                      key={place._id || place.id}
-                      onClick={() => onNavigate?.('places', place._id || place.id)}
-                      className="flex-shrink-0 w-44 bg-white rounded-2xl overflow-hidden shadow-sm border border-slate-100 text-left hover:shadow-md hover:-translate-y-0.5 transition-all"
-                    >
-                      <div className="h-28 bg-slate-200 relative overflow-hidden">
-                        {img && <img src={img} className="w-full h-full object-cover" alt={place.name} />}
-                        {rating && (
-                          <div className="absolute top-2 right-2 flex items-center gap-0.5 bg-white/90 backdrop-blur-sm px-1.5 py-0.5 rounded-full">
-                            <Star className="w-2.5 h-2.5 fill-amber-400 text-amber-400" />
-                            <span className="text-[10px] font-bold text-slate-700">{Number(rating).toFixed(1)}</span>
-                          </div>
-                        )}
-                        {place.categoryTags?.[0] && (
-                          <div className="absolute bottom-2 left-2 bg-black/50 backdrop-blur-sm text-white text-[9px] font-bold px-2 py-0.5 rounded-full uppercase">
-                            {place.categoryTags[0]}
-                          </div>
-                        )}
-                      </div>
-                      <div className="p-2.5">
-                        <p className="font-bold text-slate-900 text-sm truncate">{place.name}</p>
-                        <p className="text-xs text-slate-400 flex items-center gap-1 mt-0.5 truncate">
-                          <MapPin className="w-3 h-3 flex-shrink-0" />
-                          {place.city || 'Saudi Arabia'}
-                        </p>
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-            </section>
-          )}
-
-          {/* ── Tours ── */}
-          {recTours.length > 0 && (
-            <section>
-              <div className="flex items-center justify-between mb-3">
-                <h2 className="text-base font-bold text-slate-900">{t?.moodToursSection || '🧭 Tours for You'}</h2>
-                <span className="text-xs text-slate-400">{recTours.length} {t?.moodMatches || 'matches'}</span>
-              </div>
-              <div className="space-y-3">
-                {recTours.map(tour => (
-                  <button
-                    key={tour.id}
-                    onClick={() => onNavigate?.('tours', tour.id || (tour as any)._id)}
-                    className="w-full bg-white rounded-2xl overflow-hidden shadow-sm border border-slate-100 flex text-left hover:shadow-md hover:-translate-y-0.5 transition-all"
-                  >
-                    <div className="w-24 h-24 flex-shrink-0 bg-slate-200 relative overflow-hidden">
-                      {tour.heroImage && <img src={tour.heroImage} className="w-full h-full object-cover" alt={tour.title} />}
-                      <span className={`absolute bottom-1.5 left-1.5 text-[9px] font-bold px-1.5 py-0.5 rounded-full text-white ${
-                        tour.difficulty === 'easy' ? 'bg-emerald-500' : tour.difficulty === 'moderate' ? 'bg-amber-500' : 'bg-red-500'
-                      }`}>{tour.difficulty}</span>
-                    </div>
-                    <div className="flex-1 p-3 min-w-0">
-                      <p className="font-bold text-slate-900 text-sm leading-tight line-clamp-2">{tour.title}</p>
-                      <p className="text-xs text-slate-400 mt-0.5 truncate">{tour.departureLocation}</p>
-                      <div className="flex items-center gap-3 text-xs text-slate-500 mt-1.5">
-                        <span className="flex items-center gap-1"><Clock className="w-3 h-3 text-emerald-500" />{tour.totalDuration}h</span>
-                        {tour.rating && (
-                          <span className="flex items-center gap-0.5"><Star className="w-3 h-3 fill-amber-400 text-amber-400" />{Number(tour.rating).toFixed(1)}</span>
-                        )}
-                        <span className="font-bold text-emerald-600 ml-auto">{tour.pricePerPerson} SAR</span>
-                      </div>
-                    </div>
-                    <div className="flex items-center pr-3">
-                      <ChevronRight className="w-4 h-4 text-slate-300" />
-                    </div>
-                  </button>
-                ))}
-              </div>
-            </section>
-          )}
-
-          {/* ── Rentals ── */}
-          {recRentals.length > 0 && (
-            <section>
-              <div className="flex items-center justify-between mb-3">
-                <h2 className="text-base font-bold text-slate-900">{t?.moodRentalsSection || '🏕️ Rentals for You'}</h2>
-                <span className="text-xs text-slate-400">{recRentals.length} {t?.moodMatches || 'matches'}</span>
-              </div>
-              <div className="flex gap-3 overflow-x-auto no-scrollbar pb-1">
-                {recRentals.map(rental => {
-                  const img = (rental.images && rental.images[0]) || rental.image;
-                  return (
-                    <button
-                      key={rental.id}
-                      onClick={() => onNavigate?.('rentals', rental.id || (rental as any)._id)}
-                      className="flex-shrink-0 w-48 bg-white rounded-2xl overflow-hidden shadow-sm border border-slate-100 text-left hover:shadow-md hover:-translate-y-0.5 transition-all"
-                    >
-                      <div className="h-32 bg-slate-200 relative overflow-hidden">
-                        {img && <img src={img} className="w-full h-full object-cover" alt={rental.title} />}
-                        {rental.rating && (
-                          <div className="absolute top-2 right-2 flex items-center gap-0.5 bg-white/90 backdrop-blur-sm px-1.5 py-0.5 rounded-full">
-                            <Star className="w-2.5 h-2.5 fill-amber-400 text-amber-400" />
-                            <span className="text-[10px] font-bold text-slate-700">{Number(rental.rating).toFixed(1)}</span>
-                          </div>
-                        )}
-                        <div className="absolute bottom-2 left-2 bg-black/50 backdrop-blur-sm text-white text-[9px] font-bold px-2 py-0.5 rounded-full uppercase">
-                          {rental.type}
-                        </div>
-                      </div>
-                      <div className="p-3">
-                        <p className="font-bold text-slate-900 text-sm truncate">{rental.title}</p>
-                        <p className="text-xs text-slate-400 flex items-center gap-1 mt-0.5 truncate">
-                          <MapPin className="w-3 h-3 flex-shrink-0" />{rental.locationName}
-                        </p>
-                        <p className="text-sm font-extrabold text-emerald-700 mt-1.5">
-                          {rental.price} <span className="text-xs font-normal text-slate-400">SAR/night</span>
-                        </p>
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-            </section>
-          )}
-
-          {/* Empty state */}
-          {recPlaces.length === 0 && recTours.length === 0 && recRentals.length === 0 && (
-            <div className="text-center py-16">
-              <Compass className="w-12 h-12 mx-auto text-slate-200 mb-3" />
-              <p className="font-semibold text-slate-500">{t?.moodNoMatches || 'No exact matches found'}</p>
-              <p className="text-slate-400 text-sm mt-1">{t?.moodAdjustPrefs || 'Try adjusting your preferences'}</p>
-              <button onClick={handleEdit} className="mt-4 px-5 py-2.5 bg-emerald-600 text-white rounded-xl font-bold text-sm hover:bg-emerald-700 transition">
-                {t?.moodUpdatePrefs || 'Update Preferences'}
-              </button>
+        <>
+          {/* Feature 8 – Category tabs */}
+          <div className="bg-white border-b border-slate-100 px-4 pt-3 pb-0 sticky top-0 z-10 shadow-sm">
+            <div className="flex gap-1 overflow-x-auto scrollbar-hide">
+              {(['all', 'places', 'tours', 'rentals'] as const).map(tab => (
+                <button
+                  key={tab}
+                  onClick={() => setActiveTab(tab)}
+                  className={`flex-shrink-0 px-4 py-2.5 text-sm font-bold capitalize border-b-2 transition-all ${
+                    activeTab === tab
+                      ? 'border-emerald-600 text-emerald-700'
+                      : 'border-transparent text-slate-400 hover:text-slate-600'
+                  }`}
+                >
+                  {tab === 'all' ? '✨ All' : tab === 'places' ? '📍 Places' : tab === 'tours' ? '🧭 Tours' : '🏕️ Rentals'}
+                </button>
+              ))}
             </div>
-          )}
-        </div>
+          </div>
+
+          <div className="px-4 pt-5 space-y-8">
+
+            {/* ── Places ── */}
+            {(activeTab === 'all' || activeTab === 'places') && visiblePlaces.length > 0 && (
+              <section>
+                <div className="flex items-center justify-between mb-3">
+                  <h2 className="text-base font-bold text-slate-900">{t?.moodPlacesSection || '📍 Places for You'}</h2>
+                  <span className="text-xs text-slate-400">{visiblePlaces.length} {t?.moodMatches || 'matches'}</span>
+                </div>
+                <div className="flex gap-3 overflow-x-auto no-scrollbar pb-1">
+                  {visiblePlaces.map(({ place, matchPct }) => {
+                    const pid = place._id || place.id || '';
+                    const img = place.photos?.[0] || place.image;
+                    const rating = place.ratingSummary?.avgRating ?? place.rating;
+                    return (
+                      <div key={pid} className="flex-shrink-0 w-44 bg-white rounded-2xl overflow-hidden shadow-sm border border-slate-100 relative">
+                        <button
+                          className="w-full text-left hover:shadow-md hover:-translate-y-0.5 transition-all"
+                          onClick={() => onNavigate?.('places', pid)}
+                        >
+                          <div className="h-28 bg-slate-200 relative overflow-hidden">
+                            {img && <img src={img} className="w-full h-full object-cover" alt={place.name} />}
+                            {/* Feature 7 – match % */}
+                            <span className="absolute top-2 left-2 px-2 py-0.5 bg-emerald-600/90 backdrop-blur-sm text-white text-[9px] font-extrabold rounded-full">
+                              {matchPct}% match
+                            </span>
+                            {rating && (
+                              <div className="absolute top-2 right-2 flex items-center gap-0.5 bg-white/90 backdrop-blur-sm px-1.5 py-0.5 rounded-full">
+                                <Star className="w-2.5 h-2.5 fill-amber-400 text-amber-400" />
+                                <span className="text-[10px] font-bold text-slate-700">{Number(rating).toFixed(1)}</span>
+                              </div>
+                            )}
+                            {place.categoryTags?.[0] && (
+                              <div className="absolute bottom-2 left-2 bg-black/50 backdrop-blur-sm text-white text-[9px] font-bold px-2 py-0.5 rounded-full uppercase">
+                                {place.categoryTags[0]}
+                              </div>
+                            )}
+                          </div>
+                          <div className="p-2.5 pr-8">
+                            <p className="font-bold text-slate-900 text-sm truncate">{place.name}</p>
+                            <p className="text-xs text-slate-400 flex items-center gap-1 mt-0.5 truncate">
+                              <MapPin className="w-3 h-3 flex-shrink-0" />
+                              {place.city || 'Saudi Arabia'}
+                            </p>
+                          </div>
+                        </button>
+                        {/* Feature 10 – save heart */}
+                        <button
+                          onClick={() => toggleSavePlace(pid)}
+                          className="absolute bottom-2.5 right-2.5 w-7 h-7 rounded-full flex items-center justify-center active:scale-90 transition"
+                        >
+                          <Heart className={`w-4 h-4 ${savedPlaceIds.has(pid) ? 'text-rose-500 fill-rose-500' : 'text-slate-300'}`} />
+                        </button>
+                        {/* Feature 9 – dismiss */}
+                        <button
+                          onClick={() => setDismissedPlaceIds(prev => new Set([...prev, pid]))}
+                          className="absolute top-2 right-2 w-5 h-5 bg-black/50 rounded-full flex items-center justify-center text-white hover:bg-black/70 transition z-10"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              </section>
+            )}
+
+            {/* ── Tours ── */}
+            {(activeTab === 'all' || activeTab === 'tours') && visibleTours.length > 0 && (
+              <section>
+                <div className="flex items-center justify-between mb-3">
+                  <h2 className="text-base font-bold text-slate-900">{t?.moodToursSection || '🧭 Tours for You'}</h2>
+                  <span className="text-xs text-slate-400">{visibleTours.length} {t?.moodMatches || 'matches'}</span>
+                </div>
+                <div className="space-y-3">
+                  {visibleTours.map(({ tour, matchPct }) => {
+                    const tid = tour.id || (tour as any)._id || '';
+                    return (
+                      <div key={tid} className="relative bg-white rounded-2xl overflow-hidden shadow-sm border border-slate-100">
+                        <button
+                          onClick={() => onNavigate?.('tours', tid)}
+                          className="w-full flex text-left hover:shadow-md hover:-translate-y-0.5 transition-all"
+                        >
+                          <div className="w-24 h-24 flex-shrink-0 bg-slate-200 relative overflow-hidden">
+                            {tour.heroImage && <img src={tour.heroImage} className="w-full h-full object-cover" alt={tour.title} />}
+                            <span className={`absolute bottom-1.5 left-1.5 text-[9px] font-bold px-1.5 py-0.5 rounded-full text-white ${
+                              tour.difficulty === 'easy' ? 'bg-emerald-500' : tour.difficulty === 'moderate' ? 'bg-amber-500' : 'bg-red-500'
+                            }`}>{tour.difficulty}</span>
+                          </div>
+                          <div className="flex-1 p-3 min-w-0 pr-10">
+                            {/* Feature 7 – match % */}
+                            <span className="inline-block mb-1 px-2 py-0.5 bg-emerald-50 text-emerald-700 text-[9px] font-extrabold rounded-full">
+                              {matchPct}% match
+                            </span>
+                            <p className="font-bold text-slate-900 text-sm leading-tight line-clamp-2">{tour.title}</p>
+                            <p className="text-xs text-slate-400 mt-0.5 truncate">{tour.departureLocation}</p>
+                            <div className="flex items-center gap-3 text-xs text-slate-500 mt-1.5">
+                              <span className="flex items-center gap-1"><Clock className="w-3 h-3 text-emerald-500" />{tour.totalDuration}h</span>
+                              {tour.rating && (
+                                <span className="flex items-center gap-0.5"><Star className="w-3 h-3 fill-amber-400 text-amber-400" />{Number(tour.rating).toFixed(1)}</span>
+                              )}
+                              <span className="font-bold text-emerald-600 ml-auto">{tour.pricePerPerson} SAR</span>
+                            </div>
+                          </div>
+                          <div className="flex items-center pr-2">
+                            <ChevronRight className="w-4 h-4 text-slate-300" />
+                          </div>
+                        </button>
+                        {/* Feature 10 – save */}
+                        <button
+                          onClick={() => toggleSaveTour(tid)}
+                          className="absolute top-3 right-8 w-7 h-7 flex items-center justify-center active:scale-90 transition"
+                        >
+                          <Heart className={`w-4 h-4 ${savedTourIds.has(tid) ? 'text-rose-500 fill-rose-500' : 'text-slate-300'}`} />
+                        </button>
+                        {/* Feature 9 – dismiss */}
+                        <button
+                          onClick={() => setDismissedTourIds(prev => new Set([...prev, tid]))}
+                          className="absolute top-3 right-2 w-5 h-5 bg-slate-100 rounded-full flex items-center justify-center text-slate-500 hover:bg-slate-200 transition"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              </section>
+            )}
+
+            {/* ── Rentals ── */}
+            {(activeTab === 'all' || activeTab === 'rentals') && visibleRentals.length > 0 && (
+              <section>
+                <div className="flex items-center justify-between mb-3">
+                  <h2 className="text-base font-bold text-slate-900">{t?.moodRentalsSection || '🏕️ Rentals for You'}</h2>
+                  <span className="text-xs text-slate-400">{visibleRentals.length} {t?.moodMatches || 'matches'}</span>
+                </div>
+                <div className="flex gap-3 overflow-x-auto no-scrollbar pb-1">
+                  {visibleRentals.map(({ rental, matchPct }) => {
+                    const rid = rental.id || '';
+                    const img = (rental.images && rental.images[0]) || rental.image;
+                    return (
+                      <div key={rid} className="flex-shrink-0 w-48 bg-white rounded-2xl overflow-hidden shadow-sm border border-slate-100 relative">
+                        <button
+                          className="w-full text-left hover:shadow-md hover:-translate-y-0.5 transition-all"
+                          onClick={() => onNavigate?.('rentals', rid)}
+                        >
+                          <div className="h-32 bg-slate-200 relative overflow-hidden">
+                            {img && <img src={img} className="w-full h-full object-cover" alt={rental.title} />}
+                            {/* Feature 7 – match % */}
+                            <span className="absolute top-2 left-2 px-2 py-0.5 bg-emerald-600/90 backdrop-blur-sm text-white text-[9px] font-extrabold rounded-full">
+                              {matchPct}% match
+                            </span>
+                            {rental.rating && (
+                              <div className="absolute top-2 right-2 flex items-center gap-0.5 bg-white/90 backdrop-blur-sm px-1.5 py-0.5 rounded-full">
+                                <Star className="w-2.5 h-2.5 fill-amber-400 text-amber-400" />
+                                <span className="text-[10px] font-bold text-slate-700">{Number(rental.rating).toFixed(1)}</span>
+                              </div>
+                            )}
+                            <div className="absolute bottom-2 left-2 bg-black/50 backdrop-blur-sm text-white text-[9px] font-bold px-2 py-0.5 rounded-full uppercase">
+                              {rental.type}
+                            </div>
+                          </div>
+                          <div className="p-3 pr-8">
+                            <p className="font-bold text-slate-900 text-sm truncate">{rental.title}</p>
+                            <p className="text-xs text-slate-400 flex items-center gap-1 mt-0.5 truncate">
+                              <MapPin className="w-3 h-3 flex-shrink-0" />{rental.locationName}
+                            </p>
+                            <p className="text-sm font-extrabold text-emerald-700 mt-1.5">
+                              {rental.price} <span className="text-xs font-normal text-slate-400">SAR/night</span>
+                            </p>
+                          </div>
+                        </button>
+                        {/* Feature 10 – save */}
+                        <button
+                          onClick={() => toggleSaveRental(rid)}
+                          className="absolute bottom-3 right-2.5 w-7 h-7 rounded-full flex items-center justify-center active:scale-90 transition"
+                        >
+                          <Heart className={`w-4 h-4 ${savedRentalIds.has(rid) ? 'text-rose-500 fill-rose-500' : 'text-slate-300'}`} />
+                        </button>
+                        {/* Feature 9 – dismiss */}
+                        <button
+                          onClick={() => setDismissedRentalIds(prev => new Set([...prev, rid]))}
+                          className="absolute top-2 right-2 w-5 h-5 bg-black/50 rounded-full flex items-center justify-center text-white hover:bg-black/70 transition z-10"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              </section>
+            )}
+
+            {/* Empty state */}
+            {!hasAny && (
+              <div className="text-center py-16">
+                <Compass className="w-12 h-12 mx-auto text-slate-200 mb-3" />
+                <p className="font-semibold text-slate-500">{t?.moodNoMatches || 'No exact matches found'}</p>
+                <p className="text-slate-400 text-sm mt-1">{t?.moodAdjustPrefs || 'Try shuffling or updating your preferences'}</p>
+                <div className="flex gap-3 justify-center mt-4">
+                  <button onClick={handleShuffle} className="flex items-center gap-1.5 px-4 py-2.5 bg-slate-100 text-slate-700 rounded-xl font-bold text-sm hover:bg-slate-200 transition">
+                    <RefreshCw className="w-4 h-4" /> Shuffle
+                  </button>
+                  <button onClick={handleEdit} className="px-4 py-2.5 bg-emerald-600 text-white rounded-xl font-bold text-sm hover:bg-emerald-700 transition">
+                    {t?.moodUpdatePrefs || 'Update Preferences'}
+                  </button>
+                </div>
+              </div>
+            )}
+
+          </div>
+        </>
       )}
     </div>
   );

@@ -160,6 +160,7 @@ export const WishListModal = ({ onClose, addPlace }: WishListModalProps) => {
           <button
             onClick={onClose}
             className="p-2 rounded-full hover:bg-slate-100 transition-colors"
+            aria-label="Close"
           >
             <X className="w-5 h-5 text-slate-500" />
           </button>
@@ -190,6 +191,7 @@ export const WishListModal = ({ onClose, addPlace }: WishListModalProps) => {
                         ? 'bg-emerald-600 border-emerald-600'
                         : 'border-slate-300 bg-white'
                     }`}
+                    aria-label="Toggle save to list"
                   >
                     {checkedIds.has(list.id) && <Check className="w-3.5 h-3.5 text-white" />}
                   </button>
@@ -214,6 +216,7 @@ export const WishListModal = ({ onClose, addPlace }: WishListModalProps) => {
                     <button
                       onClick={() => toggleExpand(list.id)}
                       className="p-1.5 rounded-full hover:bg-slate-200 transition-colors"
+                      aria-label="Toggle list"
                     >
                       {expandedListId === list.id ? (
                         <ChevronUp className="w-4 h-4 text-slate-400" />
@@ -224,6 +227,7 @@ export const WishListModal = ({ onClose, addPlace }: WishListModalProps) => {
                     <button
                       onClick={() => handleDeleteList(list.id)}
                       className="p-1.5 rounded-full hover:bg-red-50 transition-colors"
+                      aria-label="Delete list"
                     >
                       <Trash2 className="w-4 h-4 text-slate-300 hover:text-red-400 transition-colors" />
                     </button>
@@ -274,6 +278,7 @@ export const WishListModal = ({ onClose, addPlace }: WishListModalProps) => {
               <button
                 onClick={() => { setShowNewInput(false); setNewListName(''); }}
                 className="p-2 rounded-xl hover:bg-slate-200 transition-colors"
+                aria-label="Cancel"
               >
                 <X className="w-4 h-4 text-slate-400" />
               </button>

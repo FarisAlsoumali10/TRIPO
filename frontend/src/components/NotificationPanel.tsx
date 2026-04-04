@@ -65,7 +65,7 @@ export const NotificationPanel = () => {
         <div className="absolute right-0 top-full mt-2 w-80 bg-white rounded-2xl shadow-2xl border border-slate-100 z-[200] overflow-hidden">
           <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100">
             <h3 className="font-bold text-slate-900 text-sm">Notifications</h3>
-            <button onClick={() => setIsOpen(false)} className="p-1 rounded-full hover:bg-slate-100 transition">
+            <button onClick={() => setIsOpen(false)} className="p-1 rounded-full hover:bg-slate-100 transition" aria-label="Close">
               <X className="w-4 h-4 text-slate-400" />
             </button>
           </div>
@@ -88,7 +88,7 @@ export const NotificationPanel = () => {
                       {new Date(n.timestamp).toLocaleDateString()}
                     </p>
                   </div>
-                  <button onClick={() => dismiss(n.id)} className="text-slate-300 hover:text-slate-500 transition flex-shrink-0">
+                  <button onClick={() => dismiss(n.id)} className="text-slate-300 hover:text-slate-500 transition flex-shrink-0" aria-label="Dismiss notification">
                     <X className="w-3.5 h-3.5" />
                   </button>
                 </div>
