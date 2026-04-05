@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { X, Star, MapPin, Sparkles, Send, MessageSquare, Clock, ThumbsUp, Award, Camera, Building2, CheckCircle, ArrowLeft, ChevronLeft, ChevronRight, Bookmark, ExternalLink, FolderPlus, Plus, CheckCheck } from 'lucide-react';
+import { X, Star, MapPin, Sparkles, Send, MessageSquare, Clock, ThumbsUp, Award, Camera, Building2, CheckCircle, ArrowLeft, ChevronLeft, ChevronRight, Bookmark, ExternalLink, FolderPlus, Plus, CheckCheck, Navigation } from 'lucide-react';
 import { GoogleGenAI } from "@google/genai";
 import { Place, Rental, QAItem } from '../types/index';
 import { PhotoLightbox } from './PhotoLightbox';
@@ -227,6 +227,82 @@ export const PlaceDetailModal = ({ place, onClose, t, allPlaces, onSwitchPlace, 
   const isTravellersChoice = avgRating >= 4.5 && reviewCount >= 5;
   const openNow = isOpenNow(asPlace?.openingHours);
   const todayHours = getTodayHours(asPlace?.openingHours);
+
+  // ── Directions state ──────────────────────────────────────────────────────
+  const [userPos, setUserPos] = useState<{ lat: number; lng: number } | null>(null);
+  const [distanceText, setDistanceText] = useState<string | null>(null);
+  const [showMapChoice, setShowMapChoice] = useState(false);
+
+  // Coordinates for this place
+  const placeCoords = useMemo(() => {
+    const p = place as Place;
+    const lat = p.coordinates?.lat ?? p.lat ?? (place as any).y ?? null;
+    const lng = p.coordinates?.lng ?? p.lng ?? (place as any).x ?? null;
+    return (lat !== null && lng !== null) ? { lat: Number(lat), lng: Number(lng) } : null;
+  }, [place]);
+
+  // Haversine distance
+  function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number) {
+    const R = 6371;
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLng = (lng2 - lng1) * Math.PI / 180;
+    const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLng / 2) ** 2;
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  }
+
+  // Auto-detect user position for distance
+  useEffect(() => {
+    if (!navigator.geolocation) return;
+    navigator.geolocation.getCurrentPosition(
+      pos => {
+        const { latitude: lat, longitude: lng } = pos.coords;
+        setUserPos({ lat, lng });
+        if (placeCoords) {
+          const km = haversineKm(lat, lng, placeCoords.lat, placeCoords.lng);
+          setDistanceText(km < 1 ? `${Math.round(km * 1000)} م` : `${km.toFixed(1)} كم`);
+        }
+      },
+      () => {}, // silent fail
+      { timeout: 5000, maximumAge: 60000 }
+    );
+  }, [placeCoords]);
+
+  // Build map URLs
+  const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+
+  function getGoogleMapsUrl() {
+    if (placeCoords) {
+      return `https://www.google.com/maps/dir/?api=1&destination=${placeCoords.lat},${placeCoords.lng}&travelmode=driving`;
+    }
+    return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${placeName} ${placeLocation}`)}`;
+  }
+
+  function getAppleMapsUrl() {
+    if (placeCoords) {
+      return `maps://?daddr=${placeCoords.lat},${placeCoords.lng}&dirflg=d`;
+    }
+    return `maps://?q=${encodeURIComponent(`${placeName} ${placeLocation}`)}`;
+  }
+
+  function getWazeUrl() {
+    if (placeCoords) {
+      return `https://waze.com/ul?ll=${placeCoords.lat},${placeCoords.lng}&navigate=yes`;
+    }
+    return `https://waze.com/ul?q=${encodeURIComponent(`${placeName} ${placeLocation}`)}`;
+  }
+
+  function handleDirectionsClick(e: React.MouseEvent) {
+    e.preventDefault();
+    setShowMapChoice(v => !v);
+  }
+
+  // Close map picker on outside click
+  useEffect(() => {
+    if (!showMapChoice) return;
+    const close = () => setShowMapChoice(false);
+    document.addEventListener('click', close);
+    return () => document.removeEventListener('click', close);
+  }, [showMapChoice]);
   const priceLevel = asPlace ? getPriceRange(asPlace) : null;
   const accessibility = asPlace?.accessibility;
 
@@ -590,16 +666,86 @@ export const PlaceDetailModal = ({ place, onClose, t, allPlaces, onSwitchPlace, 
           </div>
 
           {/* ── ACTION PILL BAR ── */}
-          <div className="flex items-center gap-2.5 px-4 py-3 bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-white/8 shrink-0 overflow-x-auto no-scrollbar">
-            <a
-              href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${placeName} ${placeLocation}`)}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex-shrink-0 flex items-center gap-1.5 bg-emerald-600 text-white px-4 py-2 rounded-full text-sm font-bold hover:bg-emerald-700 transition-colors shadow-sm"
-            >
-              <MapPin className="w-4 h-4" />
-              {t.directions || 'Directions'}
-            </a>
+          <div className="flex items-center gap-2.5 px-4 py-3 bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-white/8 shrink-0 overflow-x-auto no-scrollbar relative">
+            {/* Directions button */}
+            <div className="relative flex-shrink-0">
+              <button
+                onClick={handleDirectionsClick}
+                className="flex items-center gap-1.5 bg-emerald-600 text-white px-4 py-2 rounded-full text-sm font-bold hover:bg-emerald-700 transition-colors shadow-sm"
+              >
+                <Navigation className="w-4 h-4" />
+                {t.directions || 'الاتجاهات'}
+                {distanceText && (
+                  <span className="bg-white/20 px-2 py-0.5 rounded-full text-[11px] font-black ml-1">
+                    {distanceText}
+                  </span>
+                )}
+              </button>
+
+              {/* Map app picker */}
+              {showMapChoice && (
+                <div className="absolute top-full mt-2 left-0 z-50 bg-white dark:bg-slate-800 rounded-2xl shadow-2xl border border-slate-100 dark:border-white/10 overflow-hidden w-52" onClick={e => e.stopPropagation()}>
+                  <p className="text-[10px] font-black text-slate-400 px-4 pt-3 pb-1 uppercase tracking-wider">افتح في</p>
+
+                  {/* Google Maps */}
+                  <a
+                    href={getGoogleMapsUrl()}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={() => setShowMapChoice(false)}
+                    className="flex items-center gap-3 px-4 py-3 hover:bg-slate-50 dark:hover:bg-white/5 transition-colors"
+                  >
+                    <span className="text-xl">🗺️</span>
+                    <div>
+                      <p className="text-sm font-bold text-slate-800 dark:text-white">Google Maps</p>
+                      {placeCoords && <p className="text-[10px] text-slate-400">اتجاهات دقيقة بالإحداثيات</p>}
+                    </div>
+                  </a>
+
+                  {/* Apple Maps — iOS only */}
+                  {isIOS && (
+                    <a
+                      href={getAppleMapsUrl()}
+                      onClick={() => setShowMapChoice(false)}
+                      className="flex items-center gap-3 px-4 py-3 hover:bg-slate-50 dark:hover:bg-white/5 transition-colors"
+                    >
+                      <span className="text-xl">🍎</span>
+                      <div>
+                        <p className="text-sm font-bold text-slate-800 dark:text-white">Apple Maps</p>
+                        <p className="text-[10px] text-slate-400">افتح في خرائط آبل</p>
+                      </div>
+                    </a>
+                  )}
+
+                  {/* Waze */}
+                  <a
+                    href={getWazeUrl()}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={() => setShowMapChoice(false)}
+                    className="flex items-center gap-3 px-4 py-3 hover:bg-slate-50 dark:hover:bg-white/5 transition-colors border-t border-slate-100 dark:border-white/5"
+                  >
+                    <span className="text-xl">🚗</span>
+                    <div>
+                      <p className="text-sm font-bold text-slate-800 dark:text-white">Waze</p>
+                      <p className="text-[10px] text-slate-400">مع تجنب الازدحام</p>
+                    </div>
+                  </a>
+
+                  {/* Distance info */}
+                  {distanceText && userPos && (
+                    <div className="px-4 py-2 bg-emerald-50 dark:bg-emerald-900/20 border-t border-slate-100 dark:border-white/5">
+                      <p className="text-[11px] text-emerald-700 dark:text-emerald-400 font-black flex items-center gap-1">
+                        <MapPin className="w-3 h-3" /> {distanceText} منك
+                        {placeCoords && <span className="text-emerald-500 font-normal mr-1">
+                          (~{Math.round(haversineKm(userPos.lat, userPos.lng, placeCoords.lat, placeCoords.lng) / 50 * 60)} دقيقة)
+                        </span>}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
             {placePhotos.length > 0 && (
               <button
                 onClick={() => setLightboxIdx(0)}

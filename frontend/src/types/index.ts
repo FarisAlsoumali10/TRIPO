@@ -77,11 +77,32 @@ export interface Place {
   createdAt?: string;
   updatedAt?: string;
 
-  // --- New TripAdvisor-inspired fields ---
+  // --- TripAdvisor-inspired fields ---
   priceRange?: 1 | 2 | 3 | 4;
   openingHours?: Record<string, OpeningHoursDay>;
   accessibility?: { wheelchair?: boolean; parking?: boolean; family?: boolean };
   bestSeasons?: ('spring' | 'summer' | 'autumn' | 'winter')[];
+
+  // --- Discovery & filtering ---
+  accessType?: 'free' | 'ticketed' | 'entry_fee';
+  isFamilySuitable?: boolean;
+  isFoodTruck?: boolean;
+  subcategory?: string;
+  cuisineType?: string;
+  seasonalDates?: { openDate?: string; closeDate?: string };
+  isTrending?: boolean;
+  isVerifiedPlace?: boolean;
+  groupOffer?: { available: boolean; description?: string; minGroupSize?: number };
+  lastLocationUpdate?: string;
+  address?: string;
+  phone?: string;
+  website?: string;
+  gender?: 'mixed' | 'women_only' | 'men_only';
+  hasSportsFacilities?: boolean;
+  sportsFacilities?: string[];
+  entryFeeAmount?: number;
+  partnerVenue?: boolean;
+  appDiscount?: number;
 
   // --- legacy ---
   category?: string;
@@ -92,6 +113,82 @@ export interface Place {
   duration?: number;
   rating?: number;
   reviews?: number;
+}
+
+// ==========================================
+// 📓 Trip Journals
+// ==========================================
+
+export interface JournalDay {
+  dayNumber: number;
+  date?: string;
+  title?: string;
+  notes: string;
+  photos: string[];
+  places: string[];
+  mood?: string;
+}
+
+export interface TripJournal {
+  _id?: string;
+  id?: string;
+  userId?: string | { name: string; avatar?: string };
+  title: string;
+  description?: string;
+  tripId?: string;
+  coverPhoto?: string;
+  visibility: 'public' | 'private' | 'friends' | 'link';
+  shareToken?: string;
+  days: JournalDay[];
+  tags: string[];
+  startDate?: string;
+  endDate?: string;
+  city?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+// ==========================================
+// 📋 Personal Lists
+// ==========================================
+
+export type PersonalListType = 'want_to_go' | 'been_there' | 'going_again' | 'avoid' | 'favorites';
+
+export interface PersonalListEntry {
+  placeId: string;
+  placeName?: string;
+  placeImage?: string;
+  placeCity?: string;
+  addedAt: string;
+  privateNote?: string;
+  orderDetails?: string;
+}
+
+export interface PersonalList {
+  id: PersonalListType;
+  label: string;
+  labelAr: string;
+  emoji: string;
+  entries: PersonalListEntry[];
+}
+
+// ==========================================
+// 🎯 Organizer / Tour types (enhanced)
+// ==========================================
+
+export type TripOrganizerType = 'community_outing' | 'organized_tour' | 'guide_led';
+
+export interface TourOrganizer {
+  id: string;
+  name: string;
+  avatar?: string;
+  rating?: number;
+  reviewCount?: number;
+  isVerified?: boolean;
+  isAccredited?: boolean;
+  tripsCount?: number;
+  offerings?: string[];
+  licenseNumber?: string;
 }
 
 export interface PlaceInItinerary {
@@ -359,4 +456,15 @@ export interface Tour {
     wheelchairFriendly?: boolean;
     familyFriendly?: boolean;
   };
+  // --- Enhanced organizer fields ---
+  organizerType?: TripOrganizerType;
+  organizer?: TourOrganizer;
+  isVerifiedOrganizer?: boolean;
+  isCommunityOuting?: boolean;
+  isMonetized?: boolean;
+  currentParticipants?: number;
+  canJoin?: boolean;
+  appPrice?: number;
+  originalPrice?: number;
+  hasAppDiscount?: boolean;
 }

@@ -164,7 +164,7 @@ const SEED_POSTS: TravelPost[] = [
   },
 ];
 
-const COMMUNITY_CATEGORIES = ['الكل', 'Sports', 'Food', 'Nature', 'Cars'];
+const COMMUNITY_CATEGORIES = ['الكل', 'Sports', 'Food', 'Nature', 'Cars', 'Women', 'Men', 'Sea'];
 
 const getTravelPosts = (): TravelPost[] => {
   try {
@@ -192,6 +192,14 @@ export const MOCK_COMMUNITIES: Community[] = [
   { id: 'c21', name: '🏍️ بايكرز', description: 'تجمعات الدراجات النارية، رايدات جماعية، وصيانة.', icon: '🏍️', category: 'Cars', image: 'https://images.unsplash.com/photo-1558981403-c5f9899a28bc?w=800&q=80', memberCount: 990, activeTripsCount: 5 },
   { id: 'c22', name: '🏜️ تطعيس', description: 'تحدي الطعوس، تعديل سيارات البر، وكشتات التطعيس.', icon: '🏜️', category: 'Nature', image: 'https://images.unsplash.com/photo-1541423487523-c9569614b109?w=800&q=80', memberCount: 4210, activeTripsCount: 18 },
   { id: 'c23', name: '🥾 Riyadh Hikers', description: 'Trail runs, sunrise hikes, and weekend treks around Saudi Arabia\'s most scenic landscapes.', icon: '🥾', category: 'Nature', image: 'https://images.unsplash.com/photo-1551632811-561732d1e306?w=800&q=80', memberCount: 1870, activeTripsCount: 14 },
+  // Gender-specific communities
+  { id: 'c24', name: '👩 هايكرز الجوهرة', description: 'مجتمع نسائي متخصص في الرحلات والمشي — نساء فقط.', icon: '👩', category: 'Women', image: 'https://images.unsplash.com/photo-1551632811-561732d1e306?w=800&q=80', memberCount: 940, activeTripsCount: 6 },
+  { id: 'c25', name: '🎾 بادل ليدي', description: 'مجتمع سيدات لعشاق لعبة البادل — تدريب، بطولات، تجمعات.', icon: '🎾', category: 'Women', image: 'https://images.unsplash.com/photo-1554068865-24cecd4e34b8?w=800&q=80', memberCount: 620, activeTripsCount: 4 },
+  { id: 'c26', name: '🏊 سباحات الخليج', description: 'مجتمع سيدات لعشاق البحر والسباحة — شواطئ نسائية ومناطق آمنة.', icon: '🏊', category: 'Women', image: 'https://images.unsplash.com/photo-1519046904884-53103b34b206?w=800&q=80', memberCount: 450, activeTripsCount: 3 },
+  { id: 'c27', name: '🏋️ رجال الصالة', description: 'تحديات رياضية للرجال — بناء الجسم، لياقة، وتبادل الخبرات.', icon: '🏋️', category: 'Men', image: 'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=800&q=80', memberCount: 1800, activeTripsCount: 8 },
+  // Interest communities
+  { id: 'c28', name: '🏄 عشاق الأمواج', description: 'ركوب الأمواج، غطس، وكل أنشطة البحر — الشواطئ السعودية.', icon: '🏄', category: 'Sea', image: 'https://images.unsplash.com/photo-1559128010-7c1ad6e1b6a5?w=800&q=80', memberCount: 780, activeTripsCount: 5 },
+  { id: 'c29', name: '🏒 هوكي الجليد', description: 'مجتمع هوكي الجليد في المملكة — ملاعب وبطولات داخلية.', icon: '🏒', category: 'Sports', image: 'https://images.unsplash.com/photo-1554068865-24cecd4e34b8?w=800&q=80', memberCount: 320, activeTripsCount: 2 },
 ];
 
 // 🟢 مستخدم افتراضي آمن لتجنب انهيار الشاشة (يجب استبداله لاحقاً ببيانات authAPI)
@@ -2563,15 +2571,29 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
 
             {/* Category filter chips */}
             <div className="flex gap-2 overflow-x-auto no-scrollbar pb-3 mb-1">
-              {COMMUNITY_CATEGORIES.map(cat => (
-                <button
-                  key={cat}
-                  onClick={() => setCategoryFilter(cat)}
-                  className={`shrink-0 px-4 py-1.5 rounded-full text-xs font-black border transition-all ${categoryFilter === cat ? 'bg-emerald-600 text-white border-emerald-600 shadow-md' : 'bg-white text-slate-600 border-slate-200 hover:border-emerald-400'}`}
-                >
-                  {cat}
-                </button>
-              ))}
+              {COMMUNITY_CATEGORIES.map(cat => {
+                const label: Record<string, string> = {
+                  'الكل': 'الكل', 'Sports': '⚽ رياضة', 'Food': '🍽️ طعام',
+                  'Nature': '🌿 طبيعة', 'Cars': '🚗 سيارات',
+                  'Women': '👩 نسائي', 'Men': '🧔 رجالي', 'Sea': '🌊 بحر',
+                };
+                const isGender = cat === 'Women' || cat === 'Men';
+                return (
+                  <button
+                    key={cat}
+                    onClick={() => setCategoryFilter(cat)}
+                    className={`shrink-0 px-4 py-1.5 rounded-full text-xs font-black border transition-all ${
+                      categoryFilter === cat
+                        ? isGender
+                          ? (cat === 'Women' ? 'bg-pink-500 text-white border-pink-500' : 'bg-blue-500 text-white border-blue-500')
+                          : 'bg-emerald-600 text-white border-emerald-600 shadow-md'
+                        : 'bg-white text-slate-600 border-slate-200 hover:border-emerald-400'
+                    }`}
+                  >
+                    {label[cat] || cat}
+                  </button>
+                );
+              })}
             </div>
 
             <div className="grid gap-2">

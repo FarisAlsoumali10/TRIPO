@@ -60,7 +60,9 @@
       "Read(//tmp/**)",
       "Bash(sed -i 's/process\\\\.env\\\\.GEMINI_API_KEY/import.meta.env.VITE_GEMINI_API_KEY/g' /c/Users/cd-88/TRIPO_NEW/frontend/src/screens/ARGuideScreen.tsx)",
       "Bash(sed -i 's/process\\\\.env\\\\.API_KEY/import.meta.env.VITE_GEMINI_API_KEY/g' /c/Users/cd-88/TRIPO_NEW/frontend/src/screens/ARGuideScreen.tsx)",
-      "Bash(cat /c/Users/cd-88/TRIPO_NEW/frontend/tailwind.config*)"
+      "Bash(cat /c/Users/cd-88/TRIPO_NEW/frontend/tailwind.config*)",
+      "Bash(xargs ls:*)",
+      "Bash(xargs basename:*)"
     ],
     "deny": [],
     "ask": []

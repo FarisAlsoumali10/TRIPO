@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, Suspense, lazy } from 'react';
-import { Home, Search, Plus, User as UserIcon, Settings, ChevronLeft, LogOut, Globe, Users, Menu, X, Heart, Shield, Users2, Sparkles, Download, Trash2, WifiOff, ChevronDown, ChevronUp, MapPin, Calendar, Star, Store, Tent, Compass, Lock, LayoutGrid, Camera, Sun, Moon, Bell } from 'lucide-react';
+import { Home, Search, Plus, User as UserIcon, Settings, ChevronLeft, LogOut, Globe, Users, Menu, X, Heart, Shield, Users2, Sparkles, Download, Trash2, WifiOff, ChevronDown, ChevronUp, MapPin, Calendar, Star, Store, Tent, Compass, Lock, LayoutGrid, Camera, Sun, Moon, Bell, BookOpen } from 'lucide-react';
 import { User, Itinerary, GroupTrip, SmartProfile, PrivateTrip } from './src/types/index';
 import { TRANSLATIONS } from './translations';
 import { authAPI, itineraryAPI, groupTripAPI } from './src/services/api';
@@ -32,6 +32,8 @@ const ToursScreen       = lazy(() => import('./src/screens/ToursScreen').then(m 
 const PlacesScreen      = lazy(() => import('./src/screens/PlacesScreen').then(m => ({ default: m.PlacesScreen })));
 const AdminScreen       = lazy(() => import('./src/screens/AdminScreen').then(m => ({ default: m.AdminScreen })));
 const HostDashboardScreen = lazy(() => import('./src/screens/HostDashboardScreen').then(m => ({ default: m.HostDashboardScreen })));
+const JournalScreen     = lazy(() => import('./src/screens/JournalScreen').then(m => ({ default: m.default || m.JournalScreen })));
+const PersonalListsScreen = lazy(() => import('./src/screens/PersonalListsScreen').then(m => ({ default: m.default || m.PersonalListsScreen })));
 
 import { WishListModal } from './src/components/WishListModal';
 import { NotificationPanel } from './src/components/NotificationPanel';
@@ -834,6 +836,18 @@ export const App = () => {
 
               {activeTab === 'host' && <Suspense fallback={null}><HostDashboardScreen /></Suspense>}
 
+              {activeTab === 'journal' && (
+                <Suspense fallback={<div className="p-4 space-y-3">{Array.from({length:3}).map((_,i)=><SkeletonCard key={i}/>)}</div>}>
+                  <JournalScreen user={user} t={t} />
+                </Suspense>
+              )}
+
+              {activeTab === 'personal_lists' && (
+                <Suspense fallback={<div className="p-4 space-y-3">{Array.from({length:5}).map((_,i)=><SkeletonCard key={i}/>)}</div>}>
+                  <PersonalListsScreen t={t} />
+                </Suspense>
+              )}
+
               {activeTab === 'profile' && user && (
                 <div className="p-6 pt-10 max-w-3xl mx-auto">
                   <div className="bg-white rounded-3xl p-8 shadow-sm border border-slate-100">
@@ -1151,7 +1165,7 @@ export const App = () => {
             onClick={() => setShowMoreSheet(true)}
             aria-label="More options"
             className={`flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-2xl transition-all min-w-0 ${
-              ['places','tours','my_trips','ar','your_mood','ai_planner','events','rentals','wallet','notifications','booking_history','settings','admin','host'].includes(activeTab)
+              ['places','tours','my_trips','ar','your_mood','ai_planner','events','rentals','wallet','notifications','booking_history','settings','admin','host','journal','personal_lists'].includes(activeTab)
                 ? 'text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/12'
                 : 'text-slate-400 dark:text-slate-500'
             }`}
@@ -1202,6 +1216,8 @@ export const App = () => {
                   { id: 'notifications',   icon: Bell,      label: (t as any).tabNotifs   || (lang === 'ar' ? 'الإشعارات' : 'Notifs'), lightColor: 'bg-purple-50 text-purple-600',   darkColor: 'bg-purple-900/50 text-purple-400' },
                   { id: 'booking_history', icon: Calendar,  label: (t as any).tabBookings || (lang === 'ar' ? 'حجوزاتي' : 'Bookings'), lightColor: 'bg-teal-50 text-teal-600',       darkColor: 'bg-teal-900/50 text-teal-400' },
                   { id: 'settings',        icon: Settings,  label: t.settings,                                                        lightColor: 'bg-slate-100 text-slate-600',    darkColor: 'bg-slate-800 text-slate-300' },
+                  { id: 'journal',        icon: BookOpen,   label: lang === 'ar' ? 'مذكراتي' : 'Journals',   lightColor: 'bg-rose-50 text-rose-600',     darkColor: 'bg-rose-900/50 text-rose-400'   },
+                  { id: 'personal_lists', icon: LayoutGrid, label: lang === 'ar' ? 'قوائمي'  : 'My Lists',   lightColor: 'bg-indigo-50 text-indigo-600', darkColor: 'bg-indigo-900/50 text-indigo-400' },
                   ...(isAdmin       ? [{ id: 'admin', icon: Shield, label: (t as any).tabAdmin || 'Admin', lightColor: 'bg-red-50 text-red-600', darkColor: 'bg-red-900/50 text-red-400' }] : []),
                   ...(hasClaimedPlaces ? [{ id: 'host', icon: Store, label: (t as any).moreHost || 'Host', lightColor: 'bg-emerald-50 text-emerald-600', darkColor: 'bg-emerald-900/50 text-emerald-400' }] : []),
                 ].map(item => (

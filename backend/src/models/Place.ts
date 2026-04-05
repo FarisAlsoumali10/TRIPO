@@ -22,6 +22,27 @@ export interface IPlace extends Document {
   openingHours?: Record<string, { open: string; close: string; closed?: boolean }>;
   accessibility?: { wheelchair?: boolean; parking?: boolean; family?: boolean };
   bestSeasons?: string[];
+
+  // --- خصائص الاكتشاف والفلترة المتقدمة ---
+  accessType?: 'free' | 'ticketed' | 'entry_fee';
+  isFamilySuitable?: boolean;
+  isFoodTruck?: boolean;
+  subcategory?: string;
+  cuisineType?: string;
+  seasonalDates?: { openDate?: string; closeDate?: string };
+  isTrending?: boolean;
+  isVerifiedPlace?: boolean;
+  groupOffer?: { available: boolean; description?: string; minGroupSize?: number };
+  lastLocationUpdate?: Date;
+  address?: string;
+  phone?: string;
+  website?: string;
+  gender?: 'mixed' | 'women_only' | 'men_only';
+  hasSportsFacilities?: boolean;
+  sportsFacilities?: string[];
+  entryFeeAmount?: number;
+  partnerVenue?: boolean;
+  appDiscount?: number;
 }
 
 const placeSchema = new Schema({
@@ -43,7 +64,7 @@ const placeSchema = new Schema({
   categoryTags: {
     type: [String],
     default: [],
-    index: true // ✅ فهرس لتسريع فلترة الأماكن حسب التصنيف (كافيهات، مطاعم..)
+    index: true
   },
   coordinates: {
     lat: { type: Number, required: true },
@@ -54,16 +75,16 @@ const placeSchema = new Schema({
     default: []
   },
   ratingSummary: {
-    avgRating: { type: Number, default: 0, index: true }, // ✅ تسريع ترتيب الأماكن "الأعلى تقييماً"
+    avgRating: { type: Number, default: 0, index: true },
     reviewCount: { type: Number, default: 0 }
   },
   status: {
     type: String,
     enum: ['active', 'deactivated', 'hidden', 'removed'],
     default: 'active',
-    index: true // ✅ لتسريع جلب الأماكن النشطة فقط
+    index: true
   },
-  // --- الخصائص المضافة ---
+  // --- الخصائص الأساسية ---
   avgCost: { type: Number, default: 0 },
   duration: { type: Number, default: 60 },
   category: { type: String, index: true },
@@ -87,7 +108,43 @@ const placeSchema = new Schema({
     type: [String],
     enum: ['spring', 'summer', 'autumn', 'winter'],
     default: []
-  }
+  },
+  // --- خصائص الاكتشاف والفلترة المتقدمة ---
+  accessType: {
+    type: String,
+    enum: ['free', 'ticketed', 'entry_fee'],
+    default: 'free',
+    index: true
+  },
+  isFamilySuitable: { type: Boolean, default: false, index: true },
+  isFoodTruck: { type: Boolean, default: false, index: true },
+  subcategory: { type: String },
+  cuisineType: { type: String },
+  seasonalDates: {
+    openDate:  { type: String },
+    closeDate: { type: String }
+  },
+  isTrending: { type: Boolean, default: false, index: true },
+  isVerifiedPlace: { type: Boolean, default: false },
+  groupOffer: {
+    available:    { type: Boolean, default: false },
+    description:  { type: String },
+    minGroupSize: { type: Number }
+  },
+  lastLocationUpdate: { type: Date },
+  address:  { type: String },
+  phone:    { type: String },
+  website:  { type: String },
+  gender: {
+    type: String,
+    enum: ['mixed', 'women_only', 'men_only'],
+    default: 'mixed'
+  },
+  hasSportsFacilities: { type: Boolean, default: false },
+  sportsFacilities:    { type: [String], default: [] },
+  entryFeeAmount:      { type: Number },
+  partnerVenue:        { type: Boolean, default: false },
+  appDiscount:         { type: Number }
 }, {
   timestamps: true
 });

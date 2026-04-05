@@ -203,6 +203,86 @@ export const MOCK_TOURS: Tour[] = [
     bookingsCount: 131,
     language: 'English',
     accessibility: { minAge: 5, fitnessLevel: 'Low', wheelchairFriendly: true, familyFriendly: true },
+    organizerType: 'guide_led' as const,
+    isVerifiedOrganizer: true,
+    organizer: { id: 'org-1', name: 'Riyadh Food Tours', isVerified: true, isAccredited: true, tripsCount: 420, rating: 4.8, reviewCount: 63 },
+  },
+  {
+    id: 'mock-5',
+    title: 'تجمع لعب بادل — حديقة الملك فهد',
+    description: 'تجمع مجتمعي غير رسمي لمحبي لعبة البادل. الجميع مدعو — مستويات مختلفة مرحب بها!',
+    highlights: ['ملاعب مفتوحة', 'تعرف على لاعبين جدد', 'تحديات ودية', 'مشروبات مجانية'],
+    heroImage: 'https://images.unsplash.com/photo-1554068865-24cecd4e34b8?w=1200&q=80',
+    images: ['https://images.unsplash.com/photo-1554068865-24cecd4e34b8?w=1200&q=80'],
+    pricePerPerson: 0,
+    currency: 'SAR',
+    maxGroupSize: 20,
+    minGroupSize: 4,
+    stops: [{ order: 1, placeName: 'ملاعب بادل الحديقة', duration: 120, description: 'تجمع ودي.' }],
+    departureLocation: 'حديقة الملك فهد، الرياض',
+    departureTime: '5:00 PM',
+    returnTime: '7:00 PM',
+    totalDuration: 2,
+    difficulty: 'easy',
+    included: ['ملاعب مجانية', 'مشروبات', 'منسق المجموعة'],
+    excluded: ['المضارب الشخصية'],
+    guideName: 'خالد المنصور',
+    guideAvatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Khalid',
+    category: 'Sports',
+    tags: ['padel', 'sports', 'community'],
+    rating: 4.6,
+    reviewCount: 31,
+    bookingsCount: 88,
+    currentParticipants: 7,
+    spotsRemaining: 13,
+    organizerType: 'community_outing' as const,
+    isCommunityOuting: true,
+    isMonetized: false,
+    canJoin: true,
+  },
+  {
+    id: 'mock-6',
+    title: 'رحلة العُلا التراثية — 3 أيام',
+    description: 'رحلة منظمة كاملة إلى العُلا تشمل الإقامة والمواصلات والجولات الإرشادية.',
+    highlights: ['الحِجر (مدائن صالح)', 'الخريبة', 'جبل القهر', 'إقامة فندقية فاخرة'],
+    heroImage: 'https://images.unsplash.com/photo-1631217073612-e1f270b45958?w=1200&q=80',
+    images: ['https://images.unsplash.com/photo-1631217073612-e1f270b45958?w=1200&q=80'],
+    pricePerPerson: 1850,
+    currency: 'SAR',
+    maxGroupSize: 12,
+    minGroupSize: 2,
+    stops: [
+      { order: 1, placeName: 'مطار العُلا', duration: 30, description: 'الاستقبال.' },
+      { order: 2, placeName: 'الحِجر', duration: 240, description: 'الجولة الأثرية.' },
+      { order: 3, placeName: 'الخريبة', duration: 180, description: 'الأبراج النبطية.' },
+    ],
+    departureLocation: 'الرياض — مطار الملك خالد',
+    departureTime: '6:00 AM',
+    returnTime: '10:00 PM + 2 أيام',
+    totalDuration: 72,
+    difficulty: 'easy',
+    included: ['الطيران الداخلي', 'الإقامة', 'جميع الجولات', 'الوجبات'],
+    excluded: ['التأشيرة', 'المصاريف الشخصية'],
+    guideName: 'العُلا توورز',
+    guideAvatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=AlUla',
+    guideRating: 4.9,
+    category: 'Heritage',
+    tags: ['alula', 'heritage', 'UNESCO', '3-day'],
+    rating: 4.9,
+    reviewCount: 54,
+    bookingsCount: 96,
+    spotsRemaining: 4,
+    organizerType: 'organized_tour' as const,
+    isVerifiedOrganizer: true,
+    isMonetized: true,
+    appPrice: 1750,
+    originalPrice: 1850,
+    hasAppDiscount: true,
+    organizer: {
+      id: 'org-2', name: 'العُلا توورز', isVerified: true, isAccredited: true,
+      tripsCount: 290, rating: 4.9, reviewCount: 54,
+      licenseNumber: 'SA-T-2024-0891',
+    },
   },
 ];
 
@@ -1048,6 +1128,30 @@ const TourCard: React.FC<TourCardProps> = ({ tour, onSelect, saved, onToggleSave
           <Bookmark className={`w-4 h-4 ${saved ? 'text-rose-500 fill-rose-500' : 'text-slate-600'}`} />
         </button>
 
+        {/* Organizer type + community badges */}
+        <div className="absolute bottom-3 left-3 flex flex-col gap-1">
+          {tour.isCommunityOuting && (
+            <span className="px-2 py-0.5 bg-blue-500/90 text-white text-[9px] font-extrabold rounded-full flex items-center gap-1">
+              👥 تجمع مجتمعي
+            </span>
+          )}
+          {tour.organizerType === 'organized_tour' && (
+            <span className="px-2 py-0.5 bg-purple-500/90 text-white text-[9px] font-extrabold rounded-full">
+              🏢 رحلة منظمة
+            </span>
+          )}
+          {tour.organizerType === 'guide_led' && (
+            <span className="px-2 py-0.5 bg-teal-500/90 text-white text-[9px] font-extrabold rounded-full">
+              🧭 مرشد سياحي
+            </span>
+          )}
+          {tour.hasAppDiscount && tour.appPrice && (
+            <span className="px-2 py-0.5 bg-emerald-500/90 text-white text-[9px] font-extrabold rounded-full">
+              🏷️ سعر التطبيق أوفر!
+            </span>
+          )}
+        </div>
+
         {/* Rating badge — bottom-right */}
         {tour.rating !== undefined && (
           <span className="absolute bottom-3 right-3 flex items-center gap-1 px-2.5 py-1 bg-white/95 rounded-full text-xs font-bold text-slate-800 shadow">
@@ -1107,14 +1211,60 @@ const TourCard: React.FC<TourCardProps> = ({ tour, onSelect, saved, onToggleSave
           </span>
         </div>
 
+        {/* Organizer info */}
+        {tour.organizer && (
+          <div className="flex items-center gap-2 mb-3 px-3 py-2 bg-slate-50 rounded-xl border border-slate-100">
+            <div className="flex-1 min-w-0">
+              <p className="text-[10px] font-black text-slate-700 flex items-center gap-1 truncate">
+                {tour.organizer.name}
+                {tour.organizer.isVerified && (
+                  <span className="inline-flex items-center gap-0.5 text-[9px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded-full font-black shrink-0">
+                    ✓ موثّق
+                  </span>
+                )}
+                {tour.organizer.isAccredited && (
+                  <span className="inline-flex items-center gap-0.5 text-[9px] bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded-full font-black shrink-0">
+                    🏅 معتمد
+                  </span>
+                )}
+              </p>
+              {tour.organizer.tripsCount && (
+                <p className="text-[9px] text-slate-400">{tour.organizer.tripsCount}+ رحلة</p>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Community outing join count */}
+        {tour.isCommunityOuting && tour.currentParticipants != null && (
+          <div className="mb-3 px-3 py-2 bg-blue-50 rounded-xl border border-blue-100 flex items-center justify-between">
+            <p className="text-[10px] text-blue-700 font-black">
+              👥 {tour.currentParticipants} انضموا بالفعل
+            </p>
+            {tour.spotsRemaining != null && (
+              <p className="text-[9px] text-blue-500">{tour.spotsRemaining} مقعد متبقٍّ</p>
+            )}
+          </div>
+        )}
+
         {/* Price + CTA (Feature 10 – distinct price chip) */}
         <div className="flex items-center justify-between">
           <div className="flex flex-col">
             <div className="flex items-baseline gap-1">
-              <span className="text-2xl font-extrabold text-emerald-700">{tour.pricePerPerson.toLocaleString()}</span>
-              <span className="text-xs text-slate-400 font-medium">SAR</span>
+              {tour.hasAppDiscount && tour.appPrice ? (
+                <>
+                  <span className="text-2xl font-extrabold text-emerald-700">{tour.appPrice.toLocaleString()}</span>
+                  <span className="text-xs text-slate-400 line-through ml-1">{tour.pricePerPerson.toLocaleString()}</span>
+                  <span className="text-xs text-slate-400 font-medium">SAR</span>
+                </>
+              ) : (
+                <>
+                  <span className="text-2xl font-extrabold text-emerald-700">{tour.pricePerPerson === 0 ? 'مجاني' : tour.pricePerPerson.toLocaleString()}</span>
+                  {tour.pricePerPerson > 0 && <span className="text-xs text-slate-400 font-medium">SAR</span>}
+                </>
+              )}
             </div>
-            <span className="text-[10px] text-slate-400">per person</span>
+            {tour.pricePerPerson > 0 && <span className="text-[10px] text-slate-400">per person</span>}
           </div>
           <button
             onClick={(e) => { e.stopPropagation(); onSelect(tour); }}

@@ -4,7 +4,14 @@ import { Place } from '../models';
 
 export const getPlaces = async (req: AuthRequest, res: Response) => {
   try {
-    const { city, categoryTags, category, search, minRating, page = 1, limit = 20 } = req.query;
+    const {
+      city, categoryTags, category, search, minRating,
+      page = 1, limit = 50,
+      // advanced filters
+      accessType, isFamilySuitable, isFoodTruck, isTrending,
+      maxPrice, sortBy, gender, subcategory, cuisineType,
+      hasGroupOffer, partnerVenue,
+    } = req.query;
 
     const query: any = { status: 'active' };
 
@@ -22,10 +29,27 @@ export const getPlaces = async (req: AuthRequest, res: Response) => {
     if (minRating) {
       query['ratingSummary.avgRating'] = { $gte: Number(minRating) };
     }
+    if (accessType) query.accessType = accessType;
+    if (isFamilySuitable === 'true') query.isFamilySuitable = true;
+    if (isFoodTruck === 'true') query.isFoodTruck = true;
+    if (isTrending === 'true') query.isTrending = true;
+    if (maxPrice) query.priceRange = { $lte: Number(maxPrice) };
+    if (gender) query.gender = gender;
+    if (subcategory) query.subcategory = { $regex: new RegExp(subcategory as string, 'i') };
+    if (cuisineType) query.cuisineType = { $regex: new RegExp(cuisineType as string, 'i') };
+    if (hasGroupOffer === 'true') query['groupOffer.available'] = true;
+    if (partnerVenue === 'true') query.partnerVenue = true;
+
+    // Sort options
+    let sortOption: any = { 'ratingSummary.avgRating': -1 };
+    if (sortBy === 'price_asc')  sortOption = { priceRange: 1, avgCost: 1 };
+    if (sortBy === 'price_desc') sortOption = { priceRange: -1, avgCost: -1 };
+    if (sortBy === 'trending')   sortOption = { isTrending: -1, 'ratingSummary.avgRating': -1 };
+    if (sortBy === 'newest')     sortOption = { createdAt: -1 };
 
     const skip = (Number(page) - 1) * Number(limit);
     const places = await Place.find(query)
-      .sort({ 'ratingSummary.avgRating': -1 })
+      .sort(sortOption)
       .skip(skip)
       .limit(Number(limit));
 
@@ -39,7 +63,6 @@ export const getPlaces = async (req: AuthRequest, res: Response) => {
     });
   } catch (error: any) {
     console.error('❌ Error in getPlaces:', error);
-    // ✅ منع تعليق شاشة الاستكشاف والواجهة الرئيسية
     res.status(500).json({ error: 'حدث خطأ أثناء جلب قائمة الأماكن' });
   }
 };

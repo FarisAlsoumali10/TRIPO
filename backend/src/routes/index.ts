@@ -13,6 +13,7 @@ import reportRoutes from './reportRoutes';
 import adminRoutes from './adminRoutes';
 import tourRoutes from './tourRoutes';
 import googlePlacesRoutes from './googlePlacesRoutes';
+import journalRoutes from './journals';
 
 const router = Router();
 
@@ -30,5 +31,6 @@ router.use('/', reportRoutes);
 router.use('/', adminRoutes);
 router.use('/tours', tourRoutes);
 router.use('/', googlePlacesRoutes);
+router.use('/journals', journalRoutes);
 
 export default router;
