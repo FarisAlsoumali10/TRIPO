@@ -44,7 +44,7 @@ class AuthErrorBoundary extends (React.Component as any) {
     const { children, onReset } = (this as any).props as { children: React.ReactNode; onReset: () => void };
     if (error) {
       return (
-        <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 p-8 text-center">
+        <div className="h-[100dvh] flex flex-col items-center justify-center bg-slate-50 p-8 text-center">
           <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mb-4">
             <span className="text-red-500 text-xl font-bold">!</span>
           </div>
@@ -63,16 +63,15 @@ class AuthErrorBoundary extends (React.Component as any) {
   }
 }
 
-// Stable layout wrappers — must be defined OUTSIDE App so React doesn't
-// treat them as new component types on every render (which would unmount children).
+// ─── ✅ التعديل الأول: استخدام 100dvh لحل مشكلة متصفح الموبايل ───
 const AppWrapper = ({ children }: { children: React.ReactNode }) => (
-  <div className="h-screen w-full bg-slate-50 dark:bg-slate-950 font-sans overflow-hidden transition-colors duration-300">
+  <div className="h-[100dvh] w-full bg-slate-50 dark:bg-slate-950 font-sans overflow-hidden transition-colors duration-300">
     {children}
   </div>
 );
 
 const ModalWrapper = ({ children }: { children: React.ReactNode }) => (
-  <div className="h-screen w-full max-w-2xl mx-auto bg-white dark:bg-slate-900 shadow-2xl relative overflow-hidden flex flex-col transition-colors duration-300">
+  <div className="h-[100dvh] w-full max-w-2xl mx-auto bg-white dark:bg-slate-900 shadow-2xl relative overflow-hidden flex flex-col transition-colors duration-300">
     {children}
   </div>
 );
@@ -85,17 +84,17 @@ const KARAM_POINTS_KEY = 'tripo_karam_points';
 const KARAM_HISTORY_KEY = 'tripo_karam_history';
 
 const getKaramLevel = (points: number, t?: any): string => {
-  if (points >= 1000) return t?.karamLegend    || 'Legend';
-  if (points >= 500)  return t?.karamPathfinder || 'Pathfinder';
-  if (points >= 200)  return t?.karamAdventurer || 'Adventurer';
+  if (points >= 1000) return t?.karamLegend || 'Legend';
+  if (points >= 500) return t?.karamPathfinder || 'Pathfinder';
+  if (points >= 200) return t?.karamAdventurer || 'Adventurer';
   return t?.karamExplorer || 'Explorer';
 };
 
 const getContributionTier = (count: number, t?: any) => {
-  if (count >= 50) return { label: t?.tierExpert  || 'Expert Explorer',  color: 'text-purple-700',  bg: 'bg-purple-50',  icon: '💎' };
-  if (count >= 20) return { label: t?.tierGuide   || 'Trusted Guide',    color: 'text-blue-700',    bg: 'bg-blue-50',    icon: '🥇' };
-  if (count >= 5)  return { label: t?.tierActive  || 'Active Traveller', color: 'text-emerald-700', bg: 'bg-emerald-50', icon: '🌟' };
-  return           { label: t?.tierNew    || 'New Explorer',            color: 'text-slate-600',   bg: 'bg-slate-50',   icon: '🌱' };
+  if (count >= 50) return { label: t?.tierExpert || 'Expert Explorer', color: 'text-purple-700', bg: 'bg-purple-50', icon: '💎' };
+  if (count >= 20) return { label: t?.tierGuide || 'Trusted Guide', color: 'text-blue-700', bg: 'bg-blue-50', icon: '🥇' };
+  if (count >= 5) return { label: t?.tierActive || 'Active Traveller', color: 'text-emerald-700', bg: 'bg-emerald-50', icon: '🌟' };
+  return { label: t?.tierNew || 'New Explorer', color: 'text-slate-600', bg: 'bg-slate-50', icon: '🌱' };
 };
 
 export const App = () => {
@@ -118,7 +117,7 @@ export const App = () => {
     const stored = localStorage.getItem(KARAM_POINTS_KEY);
     return stored ? parseInt(stored, 10) : 0;
   });
-  const [karamHistory, setKaramHistory] = useState<{id: string; action: string; points: number; label: string; timestamp: number}[]>(() => {
+  const [karamHistory, setKaramHistory] = useState<{ id: string; action: string; points: number; label: string; timestamp: number }[]>(() => {
     try {
       const raw = localStorage.getItem(KARAM_HISTORY_KEY);
       return raw ? JSON.parse(raw) : [];
@@ -190,11 +189,11 @@ export const App = () => {
         const userId = user.id;
         const mine = Array.isArray(itins)
           ? itins.filter((it: any) => {
-              if (typeof it.userId === 'object' && it.userId !== null) {
-                return (it.userId._id || it.userId.id) === userId;
-              }
-              return it.userId === userId || it.authorId === userId;
-            })
+            if (typeof it.userId === 'object' && it.userId !== null) {
+              return (it.userId._id || it.userId.id) === userId;
+            }
+            return it.userId === userId || it.authorId === userId;
+          })
           : [];
         setProfileItineraryCount(mine.length);
       } catch (_) {
@@ -204,7 +203,7 @@ export const App = () => {
       setUserReviewCount(parseInt(localStorage.getItem('tripo_review_count') || '0', 10));
     };
     fetchProfileData();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
 
   // Auto-Login and initial data load
@@ -221,14 +220,14 @@ export const App = () => {
           localStorage.setItem('user', JSON.stringify(profile));
 
           setView('main');
-            // Feature 4: Restore active group trip after successful auth
-            try {
-              const raw = localStorage.getItem(ACTIVE_TRIP_KEY);
-              if (raw) {
-                const trip: GroupTrip = JSON.parse(raw);
-                if (trip?.id && trip?.itinerary) setActiveTrip(trip);
-              }
-            } catch (_) { /* noop */ }
+          // Feature 4: Restore active group trip after successful auth
+          try {
+            const raw = localStorage.getItem(ACTIVE_TRIP_KEY);
+            if (raw) {
+              const trip: GroupTrip = JSON.parse(raw);
+              if (trip?.id && trip?.itinerary) setActiveTrip(trip);
+            }
+          } catch (_) { /* noop */ }
         } catch (e) {
           console.error("Failed to fetch fresh profile, falling back to local storage...", e);
           if (storedUser) {
@@ -356,7 +355,7 @@ export const App = () => {
       localStorage.setItem('tripo_last_login_date', today);
       awardKaramPoints('daily_login', 10, 'First login of the day');
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
 
   // Feature 4: Restore persisted active group trip from localStorage
@@ -446,7 +445,7 @@ export const App = () => {
 
   if (view === 'loading') {
     return (
-      <div className="h-screen w-full flex items-center justify-center bg-slate-50">
+      <div className="h-[100dvh] w-full flex items-center justify-center bg-slate-50">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-600"></div>
       </div>
     );
@@ -523,19 +522,19 @@ export const App = () => {
             {/* Global Search */}
             <div className="px-4 mb-4">
               <GlobalSearch onNavigate={(tab, id) => {
-                  setActiveTab(tab);
-                  setIsSidebarOpen(false);
-                  if (id) {
-                    if (tab === 'places')  setPendingPlaceId(id);
-                    if (tab === 'tours')   setPendingTourId(id);
-                    if (tab === 'rentals') setPendingRentalId(id);
-                    if (tab === 'events')  setPendingEventId(id);
-                  }
-                }} />
+                setActiveTab(tab);
+                setIsSidebarOpen(false);
+                if (id) {
+                  if (tab === 'places') setPendingPlaceId(id);
+                  if (tab === 'tours') setPendingTourId(id);
+                  if (tab === 'rentals') setPendingRentalId(id);
+                  if (tab === 'events') setPendingEventId(id);
+                }
+              }} />
             </div>
 
             {/* Navigation Links */}
-            <nav className="flex-1 px-4 space-y-2">
+            <nav className="flex-1 px-4 space-y-2 overflow-y-auto no-scrollbar">
               {[
                 { id: 'home', icon: Home, label: t.tabHome },
                 { id: 'explore', icon: Search, label: t.tabExplore },
@@ -565,7 +564,7 @@ export const App = () => {
             </nav>
 
             {/* Sidebar Footer User Info */}
-            <div className="mt-auto px-4">
+            <div className="mt-auto px-4 pt-4">
               <div className="p-4 bg-slate-50 rounded-2xl flex items-center gap-3">
                 <div className="w-10 h-10 rounded-full bg-emerald-100 border border-slate-200 flex items-center justify-center text-emerald-700 font-bold text-sm flex-shrink-0">
                   {user?.name?.charAt(0).toUpperCase()}
@@ -610,7 +609,7 @@ export const App = () => {
                 >
                   {isDark
                     ? <Moon className="w-3.5 h-3.5 text-emerald-600" />
-                    : <Sun  className="w-3.5 h-3.5 text-amber-500" />
+                    : <Sun className="w-3.5 h-3.5 text-amber-500" />
                   }
                 </span>
               </button>
@@ -633,16 +632,17 @@ export const App = () => {
               >
                 {isDark
                   ? <Moon className="w-3.5 h-3.5 text-emerald-600" />
-                  : <Sun  className="w-3.5 h-3.5 text-amber-500" />
+                  : <Sun className="w-3.5 h-3.5 text-amber-500" />
                 }
               </span>
             </button>
             <NotificationPanel />
           </div>
 
+          {/* ─── ✅ التعديل الثاني: تحرير منطقة التمرير وإضافة padding سفلي ─── */}
           {/* Scrollable Content View */}
-          <div className="flex-1 overflow-y-auto w-full">
-            <div className="max-w-7xl mx-auto h-full">
+          <div className="flex-1 overflow-y-auto w-full relative no-scrollbar" id="main-scroll-container">
+            <div className="max-w-7xl mx-auto min-h-full pb-32">
               {activeTab === 'home' && user && (
                 <>
                   {/* Feature 4: Resume Trip banner on home screen */}
@@ -715,8 +715,9 @@ export const App = () => {
 
               {activeTab === 'communities' && <CommunitiesScreen t={t} lang={lang} onOpenItinerary={openItinerary} initialCommunityId={pendingCommunityId} onCommunityOpened={() => setPendingCommunityId(undefined)} />}
 
+              {/* ─── ✅ التعديل الثالث: ضبط ارتفاع الـ AI Planner بناءً على الـ Viewport ─── */}
               {activeTab === 'ai_planner' && (
-                <div className="h-full flex flex-col" style={{ height: 'calc(100vh - 120px)' }}>
+                <div className="flex flex-col" style={{ height: 'calc(100dvh - 130px)' }}>
                   <AIPlannerScreen />
                 </div>
               )}
@@ -735,8 +736,8 @@ export const App = () => {
                   user={user}
                   onNavigate={(tab, id) => {
                     setActiveTab(tab);
-                    if (id && tab === 'places')  setPendingPlaceId(id);
-                    if (id && tab === 'tours')   setPendingTourId(id);
+                    if (id && tab === 'places') setPendingPlaceId(id);
+                    if (id && tab === 'tours') setPendingTourId(id);
                     if (id && tab === 'rentals') setPendingRentalId(id);
                   }}
                 />
@@ -966,21 +967,20 @@ export const App = () => {
         {showWishLists && <WishListModal onClose={() => setShowWishLists(false)} />}
 
         {/* Mobile Bottom Nav — 5 tabs */}
-        <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-white/95 dark:bg-slate-950/95 backdrop-blur-xl border-t border-slate-200 dark:border-white/8 px-1 pt-2 pb-safe flex justify-around items-center z-40 shadow-2xl transition-colors duration-300" style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 8px)' }}>
+        <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-white/95 dark:bg-slate-950/95 backdrop-blur-xl border-t border-slate-200 dark:border-white/8 px-1 pt-2 pb-safe flex justify-around items-center z-40 shadow-2xl transition-colors duration-300" style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 12px)' }}>
           {[
-            { id: 'home',        icon: Home,   label: (t as any).navHome      || (lang === 'ar' ? 'الرئيسية' : 'Home') },
-            { id: 'explore',     icon: Search, label: (t as any).navMap       || (lang === 'ar' ? 'الخريطة'  : 'Map') },
-            { id: 'rentals',     icon: Tent,   label: (t as any).navRentals   || (lang === 'ar' ? 'الإيجارات': 'Rentals') },
-            { id: 'communities', icon: Users,  label: (t as any).navCommunity || (lang === 'ar' ? 'المجتمع'  : 'Community') },
+            { id: 'home', icon: Home, label: (t as any).navHome || (lang === 'ar' ? 'الرئيسية' : 'Home') },
+            { id: 'explore', icon: Search, label: (t as any).navMap || (lang === 'ar' ? 'الخريطة' : 'Map') },
+            { id: 'rentals', icon: Tent, label: (t as any).navRentals || (lang === 'ar' ? 'الإيجارات' : 'Rentals') },
+            { id: 'communities', icon: Users, label: (t as any).navCommunity || (lang === 'ar' ? 'المجتمع' : 'Community') },
           ].map(nav => (
             <button
               key={nav.id}
               onClick={() => setActiveTab(nav.id)}
-              className={`flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-2xl transition-all min-w-0 ${
-                activeTab === nav.id
+              className={`flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-2xl transition-all min-w-0 ${activeTab === nav.id
                   ? 'text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/12'
                   : 'text-slate-400 dark:text-slate-500'
-              }`}
+                }`}
             >
               <nav.icon className={`w-5.5 h-5.5 transition-all ${activeTab === nav.id ? 'scale-110' : ''}`} style={{ width: 22, height: 22 }} />
               <span className="text-[10px] font-bold tracking-wide">{nav.label}</span>
@@ -990,11 +990,10 @@ export const App = () => {
           {/* More button */}
           <button
             onClick={() => setShowMoreSheet(true)}
-            className={`flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-2xl transition-all min-w-0 ${
-              ['places','tours','my_trips','ar','your_mood','ai_planner','events','profile','admin','host'].includes(activeTab)
+            className={`flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-2xl transition-all min-w-0 ${['places', 'tours', 'my_trips', 'ar', 'your_mood', 'ai_planner', 'events', 'profile', 'admin', 'host'].includes(activeTab)
                 ? 'text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/12'
                 : 'text-slate-400 dark:text-slate-500'
-            }`}
+              }`}
           >
             <Menu className="w-[22px] h-[22px]" />
             <span className="text-[10px] font-bold tracking-wide">{(t as any).navMore || (lang === 'ar' ? 'المزيد' : 'More')}</span>
@@ -1008,7 +1007,7 @@ export const App = () => {
           style={{
             width: 52,
             height: 52,
-            bottom: 'calc(max(env(safe-area-inset-bottom), 8px) + 56px + 12px)',
+            bottom: 'calc(max(env(safe-area-inset-bottom), 12px) + 56px + 12px)',
             right: lang === 'ar' ? 'auto' : 20,
             left: lang === 'ar' ? 20 : 'auto',
           }}
@@ -1030,24 +1029,23 @@ export const App = () => {
               </div>
               <div className="grid grid-cols-3 gap-3 px-6 pb-8">
                 {[
-                  { id: 'places',     icon: MapPin,    label: (t as any).tabPlaces    || 'Places',     lightColor: 'bg-slate-100 text-slate-600',   darkColor: 'bg-slate-800 text-slate-300' },
-                  { id: 'tours',      icon: Compass,   label: (t as any).tabTours     || 'Tours',      lightColor: 'bg-teal-50 text-teal-600',      darkColor: 'bg-teal-900/50 text-teal-400' },
-                  { id: 'my_trips',   icon: Lock,      label: (t as any).moreMyTrips  || 'My Trips',   lightColor: 'bg-emerald-50 text-emerald-600', darkColor: 'bg-emerald-900/50 text-emerald-400' },
-                  { id: 'ar',         icon: Camera,    label: (t as any).moreARGuide  || 'AR Guide',   lightColor: 'bg-orange-50 text-orange-600',   darkColor: 'bg-orange-900/50 text-orange-400' },
-                  { id: 'ai_planner', icon: Sparkles,  label: (t as any).moreAIPlanner|| 'AI Planner', lightColor: 'bg-purple-50 text-purple-600',   darkColor: 'bg-purple-900/50 text-purple-400' },
-                  { id: 'events',     icon: Calendar,  label: (t as any).tabEvents    || 'Events',     lightColor: 'bg-blue-50 text-blue-600',       darkColor: 'bg-blue-900/50 text-blue-400' },
-                  { id: 'profile',    icon: UserIcon,  label: t.tabProfile,                            lightColor: 'bg-slate-100 text-slate-600',    darkColor: 'bg-slate-800 text-slate-300' },
-                  ...(isAdmin       ? [{ id: 'admin', icon: Shield, label: (t as any).tabAdmin || 'Admin', lightColor: 'bg-red-50 text-red-600', darkColor: 'bg-red-900/50 text-red-400' }] : []),
+                  { id: 'places', icon: MapPin, label: (t as any).tabPlaces || 'Places', lightColor: 'bg-slate-100 text-slate-600', darkColor: 'bg-slate-800 text-slate-300' },
+                  { id: 'tours', icon: Compass, label: (t as any).tabTours || 'Tours', lightColor: 'bg-teal-50 text-teal-600', darkColor: 'bg-teal-900/50 text-teal-400' },
+                  { id: 'my_trips', icon: Lock, label: (t as any).moreMyTrips || 'My Trips', lightColor: 'bg-emerald-50 text-emerald-600', darkColor: 'bg-emerald-900/50 text-emerald-400' },
+                  { id: 'ar', icon: Camera, label: (t as any).moreARGuide || 'AR Guide', lightColor: 'bg-orange-50 text-orange-600', darkColor: 'bg-orange-900/50 text-orange-400' },
+                  { id: 'ai_planner', icon: Sparkles, label: (t as any).moreAIPlanner || 'AI Planner', lightColor: 'bg-purple-50 text-purple-600', darkColor: 'bg-purple-900/50 text-purple-400' },
+                  { id: 'events', icon: Calendar, label: (t as any).tabEvents || 'Events', lightColor: 'bg-blue-50 text-blue-600', darkColor: 'bg-blue-900/50 text-blue-400' },
+                  { id: 'profile', icon: UserIcon, label: t.tabProfile, lightColor: 'bg-slate-100 text-slate-600', darkColor: 'bg-slate-800 text-slate-300' },
+                  ...(isAdmin ? [{ id: 'admin', icon: Shield, label: (t as any).tabAdmin || 'Admin', lightColor: 'bg-red-50 text-red-600', darkColor: 'bg-red-900/50 text-red-400' }] : []),
                   ...(hasClaimedPlaces ? [{ id: 'host', icon: Store, label: (t as any).moreHost || 'Host', lightColor: 'bg-emerald-50 text-emerald-600', darkColor: 'bg-emerald-900/50 text-emerald-400' }] : []),
                 ].map(item => (
                   <button
                     key={item.id}
                     onClick={() => { setActiveTab(item.id); setShowMoreSheet(false); }}
-                    className={`flex flex-col items-center gap-2 p-4 rounded-2xl border transition-all ${
-                      activeTab === item.id
+                    className={`flex flex-col items-center gap-2 p-4 rounded-2xl border transition-all ${activeTab === item.id
                         ? 'border-emerald-400 bg-emerald-50 dark:bg-emerald-900/30 dark:border-emerald-600'
                         : 'border-slate-100 dark:border-white/8 hover:border-slate-200 dark:hover:border-white/20'
-                    }`}
+                      }`}
                   >
                     <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${isDark ? item.darkColor : item.lightColor}`}>
                       <item.icon className="w-5 h-5" />
@@ -1076,10 +1074,10 @@ export const App = () => {
               setActiveTab(tab);
               setShowMobileSearch(false);
               if (id) {
-                if (tab === 'places')  setPendingPlaceId(id);
-                if (tab === 'tours')   setPendingTourId(id);
+                if (tab === 'places') setPendingPlaceId(id);
+                if (tab === 'tours') setPendingTourId(id);
                 if (tab === 'rentals') setPendingRentalId(id);
-                if (tab === 'events')  setPendingEventId(id);
+                if (tab === 'events') setPendingEventId(id);
               }
             }} />
           </div>

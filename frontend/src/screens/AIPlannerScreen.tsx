@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Send, Sparkles, Trash2 } from 'lucide-react';
-import { GoogleGenAI } from '@google/genai';
+import { aiAPI } from '../services/api';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -53,7 +53,7 @@ const TypingIndicator = () => (
 
 // ─── Message Bubble ───────────────────────────────────────────────────────────
 
-const MessageBubble = ({ msg }: { msg: ChatMessage }) => {
+const MessageBubble: React.FC<{ msg: ChatMessage; key?: any }> = ({ msg }) => {
   const isUser = msg.role === 'user';
 
   if (isUser) {
@@ -125,12 +125,8 @@ export const AIPlannerScreen: React.FC = () => {
     setIsTyping(true);
 
     try {
-      const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY });
       const fullPrompt = `${SYSTEM_PROMPT}\n\nUser: ${trimmed}`;
-      const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
-        contents: fullPrompt,
-      });
+      const response = await aiAPI.generateContent(fullPrompt);
       const aiText = response.text || 'Sorry, I could not generate a response. Please try again.';
 
       const aiMsg: ChatMessage = {

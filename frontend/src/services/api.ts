@@ -1,7 +1,8 @@
 import axios from 'axios';
 import type { AuthResponse, LoginCredentials, RegisterData, User } from '../types';
 
-const API_URL = 'http://localhost:3000';
+// ✅ الكود الجديد (استخدام الـ IP الصريح لضمان الاتصال):
+const API_URL = 'http://127.0.0.1:3000';
 
 const api = axios.create({
   baseURL: `${API_URL}/api/v1`,
@@ -428,6 +429,16 @@ export const googlePlacesAPI = {
   },
   // Build the full URL for a photo proxy path
   photoSrc: (proxyPath: string): string => `${API_URL}${proxyPath}`,
+};
+
+// ==========================================
+// AI Proxy API
+// ==========================================
+export const aiAPI = {
+  generateContent: async (prompt: string, systemInstruction?: string, base64Image?: string) => {
+    const { data } = await api.post('/ai/generate', { prompt, systemInstruction, base64Image });
+    return data;
+  }
 };
 
 export default api;

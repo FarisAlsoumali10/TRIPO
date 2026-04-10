@@ -1,9 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { X, Star, MapPin, Sparkles, Send, MessageSquare, Clock, ThumbsUp, Award, Camera, Building2, CheckCircle, ArrowLeft, ChevronLeft, ChevronRight, Bookmark, ExternalLink } from 'lucide-react';
-import { GoogleGenAI } from "@google/genai";
 import { Place, Rental, QAItem } from '../types/index';
 import { PhotoLightbox } from './PhotoLightbox';
-import { reviewAPI, googlePlacesAPI, GooglePlaceDetails } from '../services/api';
+import { reviewAPI, googlePlacesAPI, aiAPI, GooglePlaceDetails } from '../services/api';
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
@@ -189,7 +188,7 @@ export const PlaceDetailModal = ({ place, onClose, t, allPlaces, onSwitchPlace, 
     if (!isPlace || !placeId || !/^[0-9a-fA-F]{24}$/.test(placeId)) return;
     reviewAPI.getReviews({ targetType: 'place', targetId: placeId })
       .then((data: any) => setReviews(Array.isArray(data) ? data : data?.reviews || []))
-      .catch(() => {});
+      .catch(() => { });
   }, [placeId, isPlace]);
 
   useEffect(() => {
@@ -220,21 +219,43 @@ export const PlaceDetailModal = ({ place, onClose, t, allPlaces, onSwitchPlace, 
     setClaimBusinessName(placeName);
   }, [placeName]);
 
+  // ── Fetch AI Summary (With Smart Caching & Fixed Dependencies) ──
   useEffect(() => {
     const fetchSummary = async () => {
+      if (!placeId) return;
+
+      // 1. Check cache first to save API quota
+      const cacheKey = `tripo_ai_summary_${placeId}`;
+      const cachedSummary = localStorage.getItem(cacheKey);
+
+      if (cachedSummary) {
+        setSummary(cachedSummary);
+        setIsSummaryLoading(false);
+        return; // Early exit
+      }
+
       try {
-        const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY });
+        setIsSummaryLoading(true);
         const prompt = `Provide a concise 50-word summary of the "Google Maps" reviews and general public reputation for "${placeName}" in Riyadh. Mention what people love and any common complaints. Tone: Helpful and informative. Language: ${t.aiSummaryTitle?.includes('ملخص') ? 'Arabic' : 'English'}.`;
-        const response = await ai.models.generateContent({ model: 'gemini-2.5-flash', contents: prompt });
-        setSummary(response.text || t.aiSummaryError || 'No summary available.');
+        const response = await aiAPI.generateContent(prompt);
+
+        const resultText = response.text || t.aiSummaryError || 'No summary available.';
+        setSummary(resultText);
+
+        // 2. Save result to cache
+        localStorage.setItem(cacheKey, resultText);
+
       } catch {
         setSummary(t.aiSummaryError || 'AI summary unavailable.');
       } finally {
         setIsSummaryLoading(false);
       }
     };
+
     fetchSummary();
-  }, [place, placeName, t.aiSummaryTitle, t.aiSummaryError]);
+
+    // 3. Fixed dependency array (using placeId instead of the entire place object)
+  }, [placeId, placeName, t.aiSummaryTitle, t.aiSummaryError]);
 
   // ── Fetch Google Places data ─────────────────────────────────────────────
   useEffect(() => {
@@ -258,7 +279,7 @@ export const PlaceDetailModal = ({ place, onClose, t, allPlaces, onSwitchPlace, 
         const reviewId = saved._id || saved.id || Date.now().toString();
         const key = `tripo_review_photos_${placeId}`;
         let existing: { reviewId: string; photos: string[] }[] = [];
-        try { existing = JSON.parse(localStorage.getItem(key) || '[]'); } catch {}
+        try { existing = JSON.parse(localStorage.getItem(key) || '[]'); } catch { }
         existing.push({ reviewId, photos: reviewPhotos });
         localStorage.setItem(key, JSON.stringify(existing));
       }
@@ -266,12 +287,12 @@ export const PlaceDetailModal = ({ place, onClose, t, allPlaces, onSwitchPlace, 
       setReviewComment('');
       setReviewRating(5);
       setReviewPhotos([]);
-    } catch (_) {}
+    } catch (_) { }
     setIsSubmitting(false);
   };
 
   const handlePhotoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files || []);
+    const files = Array.from(e.target.files || []) as File[];
     const remaining = 3 - reviewPhotos.length;
     const toProcess = files.slice(0, remaining);
     toProcess.forEach(file => {
@@ -357,7 +378,7 @@ export const PlaceDetailModal = ({ place, onClose, t, allPlaces, onSwitchPlace, 
     if (!claimBusinessName.trim() || !claimEmail.trim() || !placeId) return;
     const key = 'tripo_claimed_places';
     let existing: ClaimedPlace[] = [];
-    try { existing = JSON.parse(localStorage.getItem(key) || '[]'); } catch {}
+    try { existing = JSON.parse(localStorage.getItem(key) || '[]'); } catch { }
     existing = existing.filter(c => c.placeId !== placeId);
     existing.push({
       placeId,
@@ -382,14 +403,14 @@ export const PlaceDetailModal = ({ place, onClose, t, allPlaces, onSwitchPlace, 
       const updated = saved ? list.filter(id => id !== placeId) : [...list, placeId];
       localStorage.setItem('tripo_saved_places', JSON.stringify(updated));
       setSaved(!saved);
-    } catch {}
+    } catch { }
   };
 
   const handleShare = async () => {
     if (navigator.share) {
-      try { await navigator.share({ title: placeName, text: `Check out ${placeName} on Tripo!` }); } catch {}
+      try { await navigator.share({ title: placeName, text: `Check out ${placeName} on Tripo!` }); } catch { }
     } else {
-      try { await navigator.clipboard.writeText(window.location.href); } catch {}
+      try { await navigator.clipboard.writeText(window.location.href); } catch { }
     }
   };
 
@@ -497,7 +518,7 @@ export const PlaceDetailModal = ({ place, onClose, t, allPlaces, onSwitchPlace, 
           {/* ── ACTION PILL BAR ── */}
           <div className="flex items-center gap-2.5 px-4 py-3 bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-white/8 shrink-0 overflow-x-auto no-scrollbar">
             <a
-              href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${placeName} ${placeLocation}`)}`}
+              href={`https://www.google.com/maps/search/?api=1&query=$${encodeURIComponent(`${placeName} ${placeLocation}`)}`}
               target="_blank"
               rel="noopener noreferrer"
               className="flex-shrink-0 flex items-center gap-1.5 bg-emerald-600 text-white px-4 py-2 rounded-full text-sm font-bold hover:bg-emerald-700 transition-colors shadow-sm"
@@ -646,11 +667,10 @@ export const PlaceDetailModal = ({ place, onClose, t, allPlaces, onSwitchPlace, 
                     <button
                       key={tab}
                       onClick={() => setActiveSection(tab)}
-                      className={`flex-1 py-3 text-xs font-bold transition-all border-b-2 ${
-                        activeSection === tab
+                      className={`flex-1 py-3 text-xs font-bold transition-all border-b-2 ${activeSection === tab
                           ? 'text-emerald-600 dark:text-emerald-400 border-emerald-500'
                           : 'text-slate-400 dark:text-slate-500 border-transparent hover:text-slate-600 dark:hover:text-slate-300'
-                      }`}
+                        }`}
                     >
                       {tab === 'reviews'
                         ? `${t.reviews || 'Reviews'}${reviews.length > 0 ? ` (${reviews.length})` : ''}`
@@ -732,7 +752,7 @@ export const PlaceDetailModal = ({ place, onClose, t, allPlaces, onSwitchPlace, 
                         <span className="text-4xl font-black text-slate-900 dark:text-white">{googleData.rating.toFixed(1)}</span>
                         <div>
                           <div className="flex gap-0.5 mb-1">
-                            {[1,2,3,4,5].map(s => <Star key={s} className={`w-4 h-4 ${s <= Math.round(googleData.rating!) ? 'fill-amber-400 text-amber-400' : 'text-slate-200 dark:text-white/15'}`} />)}
+                            {[1, 2, 3, 4, 5].map(s => <Star key={s} className={`w-4 h-4 ${s <= Math.round(googleData.rating!) ? 'fill-amber-400 text-amber-400' : 'text-slate-200 dark:text-white/15'}`} />)}
                           </div>
                           {googleData.userRatingCount && <span className="text-xs text-slate-400">{googleData.userRatingCount.toLocaleString()} reviews on Google</span>}
                         </div>
@@ -750,7 +770,7 @@ export const PlaceDetailModal = ({ place, onClose, t, allPlaces, onSwitchPlace, 
                     <div className="bg-white dark:bg-slate-900 rounded-2xl p-4 border border-slate-100 dark:border-white/8 shadow-sm">
                       <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-3">{t.writeReview || 'Write a review'}</p>
                       <div className="flex items-center gap-1 mb-3">
-                        {[1,2,3,4,5].map(s => (
+                        {[1, 2, 3, 4, 5].map(s => (
                           <button key={s} onClick={() => setReviewRating(s)} className="transition-transform active:scale-90">
                             <Star className={`w-7 h-7 transition-colors ${s <= reviewRating ? 'fill-amber-400 text-amber-400' : 'text-slate-200 dark:text-white/15'}`} />
                           </button>
@@ -823,7 +843,7 @@ export const PlaceDetailModal = ({ place, onClose, t, allPlaces, onSwitchPlace, 
                                 {r.createdAt && <p className="text-[11px] text-slate-400">{new Date(r.createdAt).toLocaleDateString()}</p>}
                               </div>
                               <div className="flex gap-0.5 flex-shrink-0">
-                                {[1,2,3,4,5].map(s => (
+                                {[1, 2, 3, 4, 5].map(s => (
                                   <Star key={s} className={`w-3.5 h-3.5 ${s <= r.rating ? 'fill-amber-400 text-amber-400' : 'text-slate-200 dark:text-white/15'}`} />
                                 ))}
                               </div>
@@ -906,7 +926,7 @@ export const PlaceDetailModal = ({ place, onClose, t, allPlaces, onSwitchPlace, 
                                     <p className="text-[10px] text-slate-400">{r.relativeTime}</p>
                                   </div>
                                   <div className="flex gap-0.5 flex-shrink-0">
-                                    {[1,2,3,4,5].map(s => <Star key={s} className={`w-3.5 h-3.5 ${s <= r.rating ? 'fill-amber-400 text-amber-400' : 'text-slate-200 dark:text-white/15'}`} />)}
+                                    {[1, 2, 3, 4, 5].map(s => <Star key={s} className={`w-3.5 h-3.5 ${s <= r.rating ? 'fill-amber-400 text-amber-400' : 'text-slate-200 dark:text-white/15'}`} />)}
                                   </div>
                                 </div>
                                 {r.text && <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed line-clamp-4">{r.text}</p>}

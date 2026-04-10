@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Camera, X, MapPin, Navigation, Volume2, VolumeX, Mic, Send, Image as ImageIcon, RefreshCw, ChevronRight } from 'lucide-react';
-import { GoogleGenAI, ThinkingLevel } from "@google/genai";
+import { aiAPI } from '../services/api';
 import { Place, Itinerary, User } from '../types/index';
 import { Button } from '../components/ui';
 
@@ -144,13 +144,11 @@ export const ARGuideScreen: React.FC<ARGuideScreenProps> = ({ onBack, user, t, l
   };
 
   const analyzeImage = async (base64Image: string) => {
-    const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY });
-
     // Mock location for context (Riyadh) if real geolocation isn't available/mocked
     const mockLat = 24.7136;
     const mockLng = 46.6753;
 
-    const prompt = `
+    const promptText = `
       You are an expert AR Tour Guide. The user is pointing their camera at a landmark.
       
       Context:
@@ -182,30 +180,18 @@ export const ARGuideScreen: React.FC<ARGuideScreenProps> = ({ onBack, user, t, l
     `;
 
     try {
-      const response = await ai.models.generateContent({
-        model: 'gemini-3-flash-preview',
-        contents: {
-          parts: [
-            { inlineData: { mimeType: 'image/jpeg', data: base64Image } },
-            { text: prompt }
-          ]
-        },
-        config: {
-          responseMimeType: 'application/json',
-          thinkingConfig: { thinkingLevel: ThinkingLevel.LOW }
-        }
-      });
+      const response = await aiAPI.generateContent(promptText, undefined, base64Image);
 
       if (response.text) {
-        const data = JSON.parse(response.text) as ARResponse;
+        // Find JSON block or parse directly
+        let jsonStr = response.text;
+        const jsonMatch = response.text.match(/```json\n([\s\S]*?)\n```/);
+        if (jsonMatch) jsonStr = jsonMatch[1];
+        
+        const data = JSON.parse(jsonStr) as ARResponse;
         // Only update if we found something or if we previously had nothing
         if (data.identified || !arData) {
           setArData(data);
-          // Only speak if it's a new identification or high confidence update
-          if (data.identified && data.voiceScript && (!arData || arData.name !== data.name)) {
-            // Optional: Auto-speak
-            // speak(data.voiceScript);
-          }
         }
       }
     } catch (err) {
@@ -222,7 +208,6 @@ export const ARGuideScreen: React.FC<ARGuideScreenProps> = ({ onBack, user, t, l
     setInputMessage('');
 
     // Call Gemini for Q&A
-    const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY });
     const prompt = `
       You are an AR Guide discussing "${arData.name}".
       User asked: "${inputMessage}"
@@ -230,10 +215,7 @@ export const ARGuideScreen: React.FC<ARGuideScreenProps> = ({ onBack, user, t, l
     `;
 
     try {
-      const response = await ai.models.generateContent({
-        model: 'gemini-3-flash-preview',
-        contents: prompt
-      });
+      const response = await aiAPI.generateContent(prompt);
 
       if (response.text) {
         setMessages([...newMessages, { role: 'model', text: response.text }]);

@@ -60,7 +60,7 @@ export const SmartProfileScreen = ({ onComplete, t }: { onComplete: (p: SmartPro
     } catch (err: any) {
       const details = err.response?.data?.details;
       if (details) {
-        const errorMsg = Array.isArray(details) 
+        const errorMsg = Array.isArray(details)
           ? details.map((d: any) => `${d.field ? `${d.field}: ` : ''}${d.message}`).join(', ')
           : JSON.stringify(details);
         setError(errorMsg);
