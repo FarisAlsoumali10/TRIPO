@@ -1,38 +1,56 @@
 import 'dotenv/config';
-import express from 'express';
+import express, { Request, Response } from 'express';
 import { createServer } from 'http';
 import { Server, Socket } from 'socket.io';
-import cors from 'cors';
+import cors, { CorsOptions } from 'cors'; // ✅ استيراد نوع CorsOptions صراحةً
 import helmet from 'helmet';
 import morgan from 'morgan';
 import compression from 'compression';
 import rateLimit from 'express-rate-limit';
-import mongoose from 'mongoose'; // ✅ للإغلاق الآمن لقاعدة البيانات
+import mongoose from 'mongoose';
 import { connectDatabase } from './config/database';
 import routes from './routes';
 import itineraryRoutes from './routes/itineraryRoutes';
 import { errorHandler, notFound } from './middleware/errorHandler';
 import { verifyToken } from './utils/jwt';
+import { handleStripeWebhook } from './controllers/paymentController';
 
 const app = express();
 
-// ✅ PRO TIP: ضروري جداً لحساب الـ IP الحقيقي إذا رفعت التطبيق على Render/Heroku/AWS
+// ✅ PRO TIP: ضروري جداً لحساب الـ IP الحقيقي إذا رفعت التطبيق على السحابة (Render/AWS)
 app.set('trust proxy', 1);
 
 const httpServer = createServer(app);
 
-// ✅ توحيد إعدادات الـ CORS
-const corsOptions = {
-  origin: [
-    'http://localhost:5173',
-    'http://localhost:5174',
-    'http://localhost:5175',
-    process.env.FRONTEND_URL,
-  ].filter(Boolean),
+// ==========================================
+// 🛡️ CORS Configuration (TypeScript Proof)
+// ==========================================
+// ✅ النسخة المعتمدة والمفلترة بشكل صارم
+const ALLOWED_ORIGINS = [
+  'http://localhost:5173',
+  'http://127.0.0.1:5173',
+  /^http:\/\/192\.168\.\d{1,3}\.\d{1,3}(:\d+)?$/,  // any LAN IP
+  /^http:\/\/10\.\d{1,3}\.\d{1,3}\.\d{1,3}(:\d+)?$/, // 10.x.x.x subnets
+  process.env.FRONTEND_URL,
+].filter(Boolean);
+
+const corsOptions: CorsOptions = {
+  origin: (origin, callback) => {
+    // Allow requests with no origin (curl, Postman, server-to-server)
+    if (!origin) return callback(null, true);
+    const allowed = ALLOWED_ORIGINS.some(o =>
+      typeof o === 'string' ? o === origin : (o instanceof RegExp ? o.test(origin) : false)
+    );
+    callback(allowed ? null : new Error(`CORS blocked: ${origin}`), allowed);
+  },
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS']
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
 };
 
+// ==========================================
+// 🔌 Socket.IO Initialization
+// ==========================================
 const io = new Server(httpServer, {
   cors: corsOptions
 });
@@ -41,9 +59,17 @@ const io = new Server(httpServer, {
 // 🛡️ Global Middlewares (دروع الحماية)
 // ==========================================
 app.use(helmet());
-app.use(cors(corsOptions));
+app.use(cors(corsOptions)); // استخدام نفس إعدادات CORS للـ Express
+app.options('*', cors(corsOptions)); // FIX: add preflight handler
 app.use(compression());
 app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev'));
+
+// ==========================================
+// 💳 Stripe Webhook — MUST be BEFORE express.json()
+// express.raw preserves the raw Buffer Stripe needs for signature verification
+// ==========================================
+app.post('/api/v1/payments/webhook', express.raw({ type: 'application/json' }), handleStripeWebhook as any);
+
 // ✅ حماية السيرفر من هجمات الـ Payload الضخمة
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
@@ -64,10 +90,10 @@ app.use('/api/', limiter);
 // ==========================================
 // 🩺 Health Check (فحص صحة السيرفر)
 // ==========================================
-app.get('/health', (req, res) => {
+app.get('/health', (req: Request, res: Response) => {
   res.status(200).json({
     status: 'ok',
-    uptime: process.uptime(), // ✅ لمعرفة كم ثانية السيرفر يعمل بدون توقف
+    uptime: process.uptime(),
     timestamp: new Date().toISOString(),
     environment: process.env.NODE_ENV || 'development'
   });
@@ -76,11 +102,11 @@ app.get('/health', (req, res) => {
 // ==========================================
 // 🔀 API Routes (المسارات)
 // ==========================================
-// ✅ جعل الـ Socket متاحاً داخل الـ Controllers لاستخدامه في إرسال الإشعارات
+// ✅ جعل الـ Socket متاحاً داخل الـ Controllers
 app.set('io', io);
 
 app.use('/api/v1', routes);
-app.use('/api/v1/itineraries', itineraryRoutes); // (يفضل مستقبلاً دمجها داخل routes/index.ts)
+app.use('/api/v1/itineraries', itineraryRoutes);
 
 // ==========================================
 // 🚨 Error Handling (معالجة الأخطاء)
@@ -89,10 +115,9 @@ app.use(notFound);
 app.use(errorHandler);
 
 // ==========================================
-// 🔌 Socket.IO Real-time Engine (محرك الوقت الفعلي)
+// 🔌 Socket.IO Real-time Engine
 // ==========================================
 io.use((socket: Socket, next) => {
-  // ✅ دعم التقاط التوكن سواء تم إرساله في الـ auth object أو الـ headers
   const token = socket.handshake.auth?.token || socket.handshake.headers?.authorization?.split(' ')[1];
 
   if (!token) {
@@ -113,7 +138,7 @@ io.on('connection', (socket: Socket) => {
   console.log(`🟢 [Socket] Client connected: ${socket.id} | User: ${userId}`);
 
   if (userId) {
-    socket.join(`user:${userId}`); // غرفة الإشعارات الشخصية
+    socket.join(`user:${userId}`);
   }
 
   socket.on('group:join', (groupTripId: string) => {
@@ -128,7 +153,6 @@ io.on('connection', (socket: Socket) => {
     console.log(`👋 [Socket] User ${userId} left group ${groupTripId}`);
   });
 
-  // ✅ استقبال الرسائل (يفضل أن تمر عبر الـ REST API لحفظها في الداتا بيس، ثم تبثها عبر الـ Socket)
   socket.on('message:send', async (data: { groupTripId: string; content: string }) => {
     if (!data.groupTripId || !data.content) return;
     io.to(`group:${data.groupTripId}`).emit('message:receive', {
@@ -145,7 +169,7 @@ io.on('connection', (socket: Socket) => {
 });
 
 // ==========================================
-// 🚀 Server Bootstrapper & Graceful Shutdown
+//  Server Bootstrapper & Graceful Shutdown
 // ==========================================
 const PORT = process.env.PORT || 3000;
 
@@ -155,7 +179,7 @@ const startServer = async () => {
 
     const server = httpServer.listen(PORT, () => {
       console.log(`\n==================================================`);
-      console.log(`🚀 Tripo Backend is LIVE!`);
+      console.log(` Tripo Backend is LIVE!`);
       console.log(`==================================================`);
       console.log(`📡 API:         http://localhost:${PORT}/api/v1`);
       console.log(`🔌 WebSocket:   ws://localhost:${PORT}`);
@@ -163,7 +187,6 @@ const startServer = async () => {
       console.log(`==================================================\n`);
     });
 
-    // ✅ PRO FEATURE: الإغلاق الآمن للسيرفر (Graceful Shutdown)
     const gracefulShutdown = async (signal: string) => {
       console.log(`\n🛑 Received ${signal}. Shutting down gracefully...`);
       server.close(async () => {
@@ -175,14 +198,12 @@ const startServer = async () => {
         process.exit(0);
       });
 
-      // إغلاق إجباري بعد 10 ثوانٍ إذا طالت العملية
       setTimeout(() => {
         console.error('🚨 Could not close connections in time, forcefully shutting down!');
         process.exit(1);
       }, 10000);
     };
 
-    // الاستماع لأوامر الإغلاق من نظام التشغيل (مثل ضغط Ctrl+C)
     process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
     process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 

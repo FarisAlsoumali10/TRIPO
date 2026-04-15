@@ -4,24 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Tripo - Micro-escapes</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-      tailwind.config = {
-        darkMode: 'class',
-        theme: {
-          extend: {
-            animation: {
-              shimmer: 'shimmer 1.5s infinite',
-            },
-            keyframes: {
-              shimmer: {
-                '100%': { transform: 'translateX(100%)' },
-              },
-            },
-          },
-        },
-      };
-    </script>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <style>
       html { transition: background-color 0.3s, color 0.3s; }
       /* Shimmer keyframe for skeleton loaders */
@@ -36,7 +19,6 @@
         *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
       }
     </style>
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
     <style>
       /* Custom scrollbar hide for horizontal scrolling */
       .no-scrollbar::-webkit-scrollbar {

@@ -8,7 +8,6 @@ import { Button } from '../components/ui';
 import { Itinerary, User, Place } from '../types/index';
 import { itineraryAPI, privateTripAPI, placeAPI } from '../services/api';
 import { showToast } from '../components/Toast';
-import { MOCK_PLACES } from './HomeScreen';
 
 const DRAFT_KEY = 'tripo_create_draft';
 const USER_TOURS_KEY = 'tripo_user_tours';
@@ -18,7 +17,7 @@ function saveUserTour(tour: any) {
     const existing = JSON.parse(localStorage.getItem(USER_TOURS_KEY) || '[]');
     existing.unshift(tour);
     localStorage.setItem(USER_TOURS_KEY, JSON.stringify(existing));
-  } catch {}
+  } catch { }
 }
 
 interface TripStop {
@@ -108,8 +107,6 @@ export const CreateScreen = ({
   // Load places for picker
   useEffect(() => {
     placeAPI.getPlaces()
-      .then(data => setPlaces(Array.isArray(data) && data.length > 0 ? data : MOCK_PLACES))
-      .catch(() => setPlaces(MOCK_PLACES));
   }, []);
 
   const handlePhotoSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -188,7 +185,7 @@ export const CreateScreen = ({
       setIsSearchingFriends(false);
     }, 300);
     return () => clearTimeout(timer);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [friendSearch]);
 
   const addFriend = (u: User) => {
@@ -214,8 +211,8 @@ export const CreateScreen = ({
           setHasDraft(true);
         }
       }
-    } catch {}
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    } catch { }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -380,11 +377,10 @@ export const CreateScreen = ({
                   onClick={() => { if (done) setStep(s as 1 | 2 | 3); }}
                   className="flex flex-col items-center gap-1 shrink-0"
                 >
-                  <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-black transition-all duration-300 ${
-                    done ? 'bg-emerald-500 text-white shadow-md shadow-emerald-200'
-                    : active ? 'bg-emerald-600 text-white ring-4 ring-emerald-100'
-                    : 'bg-slate-100 text-slate-400'
-                  }`}>
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-black transition-all duration-300 ${done ? 'bg-emerald-500 text-white shadow-md shadow-emerald-200'
+                      : active ? 'bg-emerald-600 text-white ring-4 ring-emerald-100'
+                        : 'bg-slate-100 text-slate-400'
+                    }`}>
                     {done ? <Check className="w-4 h-4" /> : s}
                   </div>
                   <span className={`text-[10px] font-black transition-colors ${active ? 'text-emerald-600' : done ? 'text-slate-400' : 'text-slate-300'}`}>
@@ -440,9 +436,8 @@ export const CreateScreen = ({
                       key={opt.val}
                       type="button"
                       onClick={() => setMode(opt.val)}
-                      className={`relative p-4 rounded-3xl border-2 text-left transition-all duration-200 ${
-                        active ? 'border-emerald-500 bg-emerald-50 shadow-md shadow-emerald-100' : 'border-slate-100 bg-white hover:border-slate-200'
-                      }`}
+                      className={`relative p-4 rounded-3xl border-2 text-left transition-all duration-200 ${active ? 'border-emerald-500 bg-emerald-50 shadow-md shadow-emerald-100' : 'border-slate-100 bg-white hover:border-slate-200'
+                        }`}
                     >
                       {active && (
                         <div className="absolute top-3 right-3 w-5 h-5 bg-emerald-500 rounded-full flex items-center justify-center shadow-sm">
@@ -533,11 +528,10 @@ export const CreateScreen = ({
                       key={opt.val}
                       type="button"
                       onClick={() => setVibes(prev => active ? prev.filter(v => v !== opt.val) : [...prev, opt.val])}
-                      className={`flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-black border-2 transition-all duration-200 ${
-                        active
+                      className={`flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-black border-2 transition-all duration-200 ${active
                           ? 'bg-emerald-600 border-emerald-600 text-white shadow-md scale-105'
                           : 'bg-white border-slate-200 text-slate-600 hover:border-emerald-300 hover:text-emerald-700'
-                      }`}
+                        }`}
                     >
                       <span className="text-sm">{opt.emoji}</span> {opt.val}
                     </button>
@@ -825,11 +819,10 @@ export const CreateScreen = ({
           <button
             onClick={handleCreate}
             disabled={!title || stops.length === 0 || isPublishing}
-            className={`flex-1 flex items-center justify-center gap-2 py-3.5 font-black rounded-2xl transition-all shadow-lg active:scale-95 ${
-              publishSuccess
+            className={`flex-1 flex items-center justify-center gap-2 py-3.5 font-black rounded-2xl transition-all shadow-lg active:scale-95 ${publishSuccess
                 ? 'bg-emerald-700 text-white shadow-emerald-300'
                 : 'bg-gradient-to-r from-emerald-600 to-teal-500 text-white shadow-emerald-200 hover:from-emerald-700 hover:to-teal-600 disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100'
-            }`}
+              }`}
           >
             {isPublishing ? (
               <><Loader2 className="w-4 h-4 animate-spin" /> Publishing...</>
@@ -1029,11 +1022,10 @@ export const CreateScreen = ({
                       key={d}
                       type="button"
                       onClick={() => setStopForm(prev => ({ ...prev, duration: d }))}
-                      className={`flex-1 py-2 rounded-xl text-xs font-black border-2 transition-all ${
-                        stopForm.duration === d
+                      className={`flex-1 py-2 rounded-xl text-xs font-black border-2 transition-all ${stopForm.duration === d
                           ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
                           : 'bg-white text-slate-500 border-slate-200 hover:border-emerald-300'
-                      }`}
+                        }`}
                     >
                       {d}m
                     </button>

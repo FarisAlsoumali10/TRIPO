@@ -285,7 +285,7 @@ export const PrivateTripScreen = ({
     });
 
   const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files || []);
+    const files = Array.from(e.target.files ?? []) as File[];
     if (!files.length) return;
     const newPhotos: TripPhoto[] = [];
     for (const file of files.slice(0, 10)) {
@@ -360,7 +360,7 @@ export const PrivateTripScreen = ({
     if (trip.backendId) {
       try {
         const saved = await privateTripAPI.addExpense(trip.backendId, desc, parseFloat(amount), payerId, trip.members.map(m => m.id));
-        onUpdateTrip(prev => ({ ...(prev as any), expenses: (prev as any).expenses.map((e: any) => e.id === optimistic.id ? { ...saved, category } : e) }) as any);
+        onUpdateTrip({ ...trip, expenses: trip.expenses.map((e: any) => e.id === optimistic.id ? { ...saved, category } : e) } as any);
       } catch { showToast('Expense saved locally only', 'warning'); }
     }
   };
@@ -408,7 +408,7 @@ export const PrivateTripScreen = ({
     if (trip.backendId) {
       try {
         const saved = await privateTripAPI.sendMessage(trip.backendId, text);
-        onUpdateTrip(prev => ({ ...(prev as any), chatMessages: (prev as any).chatMessages.map((m: any) => m.id === optimistic.id ? saved : m) }) as any);
+        onUpdateTrip({ ...trip, chatMessages: trip.chatMessages.map((m: any) => m.id === optimistic.id ? saved : m) } as any);
       } catch { /* stays optimistic */ }
     }
   };
@@ -717,8 +717,9 @@ export const PrivateTripScreen = ({
                               {/* Reactions */}
                               {Object.keys(msgReacts).length > 0 && (
                                 <div className="flex flex-wrap gap-1 mt-1 px-1">
-                                  {Object.entries(msgReacts).map(([emoji, voters]) =>
-                                    voters.length > 0 ? (
+                                  {Object.entries(msgReacts).map(([emoji, votersUnknown]) => {
+                                    const voters = votersUnknown as string[];
+                                    return voters.length > 0 ? (
                                       <button key={emoji} type="button" onClick={e => { e.stopPropagation(); handleReact(msg.id, emoji); }}
                                         className={`flex items-center gap-0.5 px-2 py-0.5 rounded-full text-xs border transition-all ${
                                           voters.includes(currentUser.id) ? 'bg-emerald-100 border-emerald-300 text-emerald-700' : 'bg-white border-slate-200 text-slate-700'
@@ -726,8 +727,8 @@ export const PrivateTripScreen = ({
                                       >
                                         {emoji}<span className="text-[10px] font-bold">{voters.length}</span>
                                       </button>
-                                    ) : null,
-                                  )}
+                                    ) : null;
+                                  })}
                                 </div>
                               )}
                             </div>

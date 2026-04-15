@@ -11,7 +11,7 @@ import { createReviewSchema } from '../utils/validation';
 
 const router = Router();
 
-router.get('/reviews', authenticate, getReviews);
+router.get('/reviews', getReviews);          // public read
 router.post('/reviews', authenticate, validate(createReviewSchema), createReview);
 router.patch('/reviews/:reviewId', authenticate, updateReview);
 router.delete('/reviews/:reviewId', authenticate, deleteReview);

@@ -102,7 +102,7 @@ export const GroupTripScreen = ({ trip, currentUser, onBack, onUpdateTrip, t }: 
     if (trip.backendId) {
       try {
         const saved = await groupTripAPI.sendMessage(trip.backendId, sentText);
-        onUpdateTrip(prev => ({ ...prev, chatMessages: prev.chatMessages.map(m => m.id === optimisticMsg.id ? saved : m) }) as any);
+        onUpdateTrip({ ...trip, chatMessages: trip.chatMessages.map(m => m.id === optimisticMsg.id ? saved : m) });
       } catch (e) { console.warn('Message not persisted:', e); }
     }
   };
@@ -117,7 +117,7 @@ export const GroupTripScreen = ({ trip, currentUser, onBack, onUpdateTrip, t }: 
     if (trip.backendId) {
       try {
         const saved = await groupTripAPI.addExpense(trip.backendId, desc, parseFloat(amount), payerId, trip.members.map(m => m.id));
-        onUpdateTrip(prev => ({ ...prev, expenses: prev.expenses.map(e => e.id === optimisticExpense.id ? saved : e) }) as any);
+        onUpdateTrip({ ...trip, expenses: trip.expenses.map(e => e.id === optimisticExpense.id ? saved : e) });
       } catch (e) { console.warn('Expense not persisted:', e); }
     }
   };

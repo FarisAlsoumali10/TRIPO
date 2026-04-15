@@ -1,73 +1,25 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { Plus, Users, Calendar, Lock, ChevronRight, Loader2, Images, X } from 'lucide-react';
+// frontend/src/screens/MyTripsScreen.tsx
+
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { Plus, Users, Calendar, Lock, ChevronRight, Images, X, MapPin } from 'lucide-react';
 import { PrivateTrip, User } from '../types/index';
 import { privateTripAPI } from '../services/api';
 import { CreatePrivateTripModal } from '../components/CreatePrivateTripModal';
 import { showToast } from '../components/Toast';
 
-interface TripPhoto { id: string; uploaderName: string; dataUrl: string; timestamp: number; }
-
-const STORAGE_KEY = 'tripo_private_trips';
-
-function loadLocalTrips(): PrivateTrip[] {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? JSON.parse(raw) : [];
-  } catch { return []; }
+export interface TripPhoto {
+  id: string;
+  uploaderName: string;
+  dataUrl: string;
+  timestamp: number;
 }
 
-function saveLocalTrips(trips: PrivateTrip[]) {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(trips));
-  } catch { /* noop */ }
+// Assuming your PrivateTrip type is extended to include photos from the backend
+export interface ExtendedPrivateTrip extends PrivateTrip {
+  photos?: TripPhoto[];
 }
 
-const MOCK_PRIVATE_TRIPS: PrivateTrip[] = [
-  {
-    id: 'mock-pt1',
-    title: 'AlUla Weekend Escape',
-    startDate: '2025-03-15',
-    endDate: '2025-03-17',
-    members: [
-      { id: 'mu1', name: 'You', email: '' },
-      { id: 'mu2', name: 'Sarah', email: '' },
-      { id: 'mu3', name: 'Omar', email: '' },
-      { id: 'mu4', name: 'Lina', email: '' },
-    ],
-    chatMessages: [],
-    expenses: [],
-    isPrivate: true,
-  },
-  {
-    id: 'mock-pt2',
-    title: 'Abha Mountain Road Trip',
-    startDate: '2025-04-05',
-    endDate: '2025-04-08',
-    members: [
-      { id: 'mu1', name: 'You', email: '' },
-      { id: 'mu5', name: 'Khalid', email: '' },
-      { id: 'mu6', name: 'Nora', email: '' },
-    ],
-    chatMessages: [],
-    expenses: [],
-    isPrivate: true,
-  },
-  {
-    id: 'mock-pt3',
-    title: 'Red Sea Diving Trip',
-    startDate: '2025-05-20',
-    endDate: '2025-05-23',
-    members: [
-      { id: 'mu1', name: 'You', email: '' },
-      { id: 'mu7', name: 'Faisal', email: '' },
-    ],
-    chatMessages: [],
-    expenses: [],
-    isPrivate: true,
-  },
-];
-
-function mapBackendTrip(raw: any, currentUser: User): PrivateTrip {
+function mapBackendTrip(raw: any, currentUser: User): ExtendedPrivateTrip {
   const members: User[] = (raw.memberIds || []).map((m: any) => ({
     id: m._id || m.id || m,
     name: m.name || 'Member',
@@ -75,7 +27,6 @@ function mapBackendTrip(raw: any, currentUser: User): PrivateTrip {
     avatar: m.avatar,
   }));
 
-  // Ensure current user is always in the list
   if (!members.find(m => m.id === currentUser.id)) {
     members.unshift(currentUser);
   }
@@ -91,78 +42,72 @@ function mapBackendTrip(raw: any, currentUser: User): PrivateTrip {
     chatMessages: [],
     expenses: [],
     isPrivate: true,
+    photos: raw.photos || [], // Data contract: Backend provides photos
   };
 }
 
 interface Props {
   currentUser: User;
-  onOpenTrip: (trip: PrivateTrip) => void;
+  onOpenTrip: (trip: ExtendedPrivateTrip) => void;
 }
 
 export const MyTripsScreen = ({ currentUser, onOpenTrip }: Props) => {
-  const [trips, setTrips] = useState<PrivateTrip[]>(() => { const local = loadLocalTrips(); return local.length > 0 ? local : MOCK_PRIVATE_TRIPS; });
+  const [trips, setTrips] = useState<ExtendedPrivateTrip[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
-  const [slideIdx,    setSlideIdx]    = useState(0);
+
+  // Slideshow & Lightbox state
+  const [slideIdx, setSlideIdx] = useState(0);
   const [lightboxIdx, setLightboxIdx] = useState<number | null>(null);
-  const touchStartX = React.useRef<number | null>(null);
+  const touchStartX = useRef<number | null>(null);
 
-  const openLightbox = (idx: number) => setLightboxIdx(idx);
-  const closeLightbox = () => setLightboxIdx(null);
-  const lightboxPrev = () => setLightboxIdx(i => i !== null ? (i - 1 + allSlides.length) % allSlides.length : null);
-  const lightboxNext = () => setLightboxIdx(i => i !== null ? (i + 1) % allSlides.length : null);
-
-  // Collect all photos from all trips out of localStorage
+  // Derive photos strictly from backend state, no localStorage
   const allSlides = useMemo(() => {
     const result: { photo: TripPhoto; tripTitle: string }[] = [];
-    for (const trip of trips) {
-      try {
-        const raw = localStorage.getItem(`tripo_photos_${trip.id}`);
-        if (raw) {
-          const photos: TripPhoto[] = JSON.parse(raw);
-          photos.forEach(p => result.push({ photo: p, tripTitle: trip.title }));
-        }
-      } catch { /* skip */ }
-    }
-    return result;
+    trips.forEach(trip => {
+      if (trip.photos && Array.isArray(trip.photos)) {
+        trip.photos.forEach(photo => result.push({ photo, tripTitle: trip.title }));
+      }
+    });
+    // Sort by newest first
+    return result.sort((a, b) => b.photo.timestamp - a.photo.timestamp);
   }, [trips]);
 
+  // Auto-advance slideshow
   useEffect(() => {
     if (allSlides.length <= 1) return;
-    const id = setInterval(() => setSlideIdx(i => (i + 1) % allSlides.length), 3500);
+    const id = setInterval(() => setSlideIdx(i => (i + 1) % allSlides.length), 4000);
     return () => clearInterval(id);
   }, [allSlides.length]);
 
+  // Strict backend fetch
   useEffect(() => {
-    const fetch = async () => {
+    let isMounted = true;
+    const fetchTrips = async () => {
       setIsLoading(true);
       try {
         const raw = await privateTripAPI.getMyTrips();
+        if (!isMounted) return;
+
         const mapped = raw.map((t: any) => mapBackendTrip(t, currentUser));
-        if (mapped.length > 0) {
-          setTrips(mapped);
-          saveLocalTrips(mapped);
-        } else {
-          const local = loadLocalTrips();
-          setTrips(local.length > 0 ? local : MOCK_PRIVATE_TRIPS);
-        }
-      } catch {
-        const local = loadLocalTrips();
-        setTrips(local.length > 0 ? local : MOCK_PRIVATE_TRIPS);
+        setTrips(mapped);
+      } catch (error) {
+        if (isMounted) showToast('Failed to load your trips. Please try again.', 'error');
+      } finally {
+        if (isMounted) setIsLoading(false);
       }
-      setIsLoading(false);
     };
-    fetch();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+
+    fetchTrips();
+    return () => { isMounted = false; };
   }, [currentUser.id]);
 
   const handleCreated = (raw: any) => {
     setShowCreate(false);
     const newTrip = mapBackendTrip(raw, currentUser);
-    const updated = [newTrip, ...trips];
-    setTrips(updated);
-    saveLocalTrips(updated);
+    setTrips(prev => [newTrip, ...prev]);
     onOpenTrip(newTrip);
+    showToast('Trip created successfully!', 'success');
   };
 
   const formatDate = (dateStr?: string) => {
@@ -170,57 +115,62 @@ export const MyTripsScreen = ({ currentUser, onOpenTrip }: Props) => {
     return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   };
 
+  const lightboxPrev = () => setLightboxIdx(i => i !== null ? (i - 1 + allSlides.length) % allSlides.length : null);
+  const lightboxNext = () => setLightboxIdx(i => i !== null ? (i + 1) % allSlides.length : null);
+
   return (
-    <div className="flex flex-col h-full bg-slate-50">
-      {/* Header */}
-      <div className="bg-white border-b border-slate-200 px-6 py-5 flex items-center justify-between">
+    <div className="flex flex-col h-full bg-slate-50/50">
+      {/* Header - Sticky with Backdrop Blur */}
+      <div className="sticky top-0 z-20 bg-white/80 backdrop-blur-xl border-b border-slate-200/60 px-6 py-4 flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-bold text-slate-900">My Private Trips</h1>
-          <p className="text-sm text-slate-500 mt-0.5">Invite-only trips with friends</p>
+          <h1 className="text-xl font-black text-slate-900 tracking-tight">Private Trips</h1>
+          <p className="text-xs font-medium text-slate-500 mt-0.5">Plan and split expenses with friends</p>
         </div>
         <button
           onClick={() => setShowCreate(true)}
-          className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 rounded-xl text-sm font-bold transition-colors shadow-sm shadow-emerald-200"
+          className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 rounded-2xl text-sm font-bold transition-all active:scale-95 shadow-sm shadow-emerald-600/20"
         >
           <Plus className="w-4 h-4" />
-          New Trip
+          <span className="hidden sm:inline">New Trip</span>
         </button>
       </div>
 
-      {/* ── Trip Memories Slideshow ───────────────────────────────────────────── */}
-      {allSlides.length > 0 && (
-        <div className="relative h-48 overflow-hidden flex-shrink-0">
+      {/* Memory Slideshow */}
+      {!isLoading && allSlides.length > 0 && (
+        <div className="relative h-56 mx-4 mt-4 rounded-3xl overflow-hidden shadow-sm border border-slate-200/60 group">
           {allSlides.map((slide, i) => (
             <button
               key={slide.photo.id}
               type="button"
-              onClick={() => openLightbox(i)}
-              className={`absolute inset-0 w-full text-left transition-opacity duration-700 ${i === slideIdx ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+              onClick={() => setLightboxIdx(i)}
+              className={`absolute inset-0 w-full text-left transition-opacity duration-1000 ease-in-out ${i === slideIdx ? 'opacity-100 z-10' : 'opacity-0 z-0 pointer-events-none'}`}
             >
-              <img src={slide.photo.dataUrl} alt="" className="w-full h-full object-cover" />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent" />
-              <div className="absolute bottom-7 left-4 right-4 flex items-end justify-between">
+              <img src={slide.photo.dataUrl} alt="Trip Memory" className="w-full h-full object-cover" />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
+              <div className="absolute bottom-0 left-0 right-0 p-5 flex items-end justify-between">
                 <div>
-                  <p className="text-white text-xs font-semibold opacity-80">📍 {slide.tripTitle}</p>
-                  <p className="text-white/60 text-[10px] mt-0.5">
+                  <div className="flex items-center gap-1.5 mb-1.5">
+                    <MapPin className="w-3.5 h-3.5 text-emerald-400" />
+                    <p className="text-white text-sm font-bold drop-shadow-md">{slide.tripTitle}</p>
+                  </div>
+                  <p className="text-white/70 text-xs font-medium">
                     {new Date(slide.photo.timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                   </p>
                 </div>
-                <div className="flex items-center gap-1">
-                  <Images className="w-3.5 h-3.5 text-white/60" />
-                  <span className="text-white/60 text-[10px]">{allSlides.length} memories</span>
+                <div className="flex items-center gap-1.5 bg-black/40 backdrop-blur-md px-3 py-1.5 rounded-full">
+                  <Images className="w-3.5 h-3.5 text-white/80" />
+                  <span className="text-white/80 text-xs font-bold">{allSlides.length}</span>
                 </div>
               </div>
             </button>
           ))}
-          {/* Dot indicators */}
+          {/* Pagination Dots */}
           {allSlides.length > 1 && (
-            <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1 z-10">
+            <div className="absolute top-4 right-4 flex gap-1.5 z-20">
               {allSlides.map((_, i) => (
-                <button
+                <div
                   key={i}
-                  onClick={e => { e.stopPropagation(); setSlideIdx(i); }}
-                  className={`rounded-full transition-all ${i === slideIdx ? 'w-5 h-1.5 bg-white' : 'w-1.5 h-1.5 bg-white/40'}`}
+                  className={`transition-all duration-300 rounded-full ${i === slideIdx ? 'w-5 h-1.5 bg-white shadow-sm' : 'w-1.5 h-1.5 bg-white/40'}`}
                 />
               ))}
             </div>
@@ -228,91 +178,94 @@ export const MyTripsScreen = ({ currentUser, onOpenTrip }: Props) => {
         </div>
       )}
 
-      {/* Content */}
+      {/* Content Area */}
       <div className="flex-1 overflow-y-auto p-4 pb-24">
         {isLoading ? (
-          <div className="flex items-center justify-center py-20">
-            <Loader2 className="w-8 h-8 text-emerald-600 animate-spin" />
+          <div className="space-y-3">
+            {[1, 2, 3].map(i => (
+              <div key={i} className="w-full bg-white rounded-3xl border border-slate-100 p-4 flex items-center gap-4">
+                <div className="w-14 h-14 bg-slate-100 animate-pulse rounded-2xl shrink-0" />
+                <div className="flex-1 space-y-2">
+                  <div className="h-4 bg-slate-100 animate-pulse rounded-md w-1/3" />
+                  <div className="h-3 bg-slate-100 animate-pulse rounded-md w-1/2" />
+                </div>
+              </div>
+            ))}
           </div>
         ) : trips.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-20 text-center">
-            <div className="w-20 h-20 bg-slate-100 rounded-3xl flex items-center justify-center mb-4">
-              <Lock className="w-9 h-9 text-slate-300" />
+          <div className="flex flex-col items-center justify-center py-24 text-center px-4">
+            <div className="w-20 h-20 bg-emerald-50 rounded-3xl flex items-center justify-center mb-5 rotate-3 shadow-inner">
+              <Lock className="w-8 h-8 text-emerald-500 -rotate-3" />
             </div>
-            <h3 className="font-bold text-slate-700 text-lg mb-1">No private trips yet</h3>
-            <p className="text-slate-400 text-sm max-w-xs">
-              Create an invite-only trip to plan with friends, chat, and split expenses together.
+            <h3 className="font-black text-slate-900 text-lg mb-2">No private trips yet</h3>
+            <p className="text-slate-500 text-sm max-w-[260px] leading-relaxed mb-8">
+              Create an invite-only trip to organize itineraries, chat, and split expenses securely with friends.
             </p>
             <button
               onClick={() => setShowCreate(true)}
-              className="mt-6 flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-3 rounded-xl text-sm font-bold transition-colors"
+              className="flex items-center gap-2 bg-slate-900 hover:bg-slate-800 text-white px-6 py-3.5 rounded-2xl text-sm font-bold transition-all active:scale-95"
             >
               <Plus className="w-4 h-4" />
-              Create Your First Trip
+              Create First Trip
             </button>
           </div>
         ) : (
-          <div className="space-y-3">
+          <div className="grid gap-3">
             {trips.map(trip => (
               <button
                 key={trip.id}
                 onClick={() => onOpenTrip(trip)}
-                className="w-full bg-white rounded-2xl border border-slate-100 shadow-sm p-4 flex items-center gap-4 text-left hover:border-emerald-200 hover:shadow-md transition-all"
+                className="group w-full bg-white rounded-3xl border border-slate-200/60 shadow-sm p-4 flex items-center gap-4 text-left hover:border-emerald-500/30 hover:shadow-md hover:shadow-emerald-500/5 transition-all"
               >
-                {/* Icon */}
-                <div className="w-14 h-14 bg-gradient-to-br from-emerald-400 to-teal-500 rounded-2xl flex items-center justify-center flex-shrink-0 shadow-sm">
-                  <Lock className="w-6 h-6 text-white" />
+                <div className="w-14 h-14 bg-slate-50 rounded-2xl flex items-center justify-center shrink-0 group-hover:bg-emerald-50 transition-colors">
+                  <Lock className="w-6 h-6 text-slate-400 group-hover:text-emerald-600 transition-colors" />
                 </div>
 
-                {/* Info */}
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1">
-                    <h3 className="font-bold text-slate-900 truncate">{trip.title}</h3>
-                    <span className="px-2 py-0.5 bg-slate-100 text-slate-500 text-[10px] font-bold rounded-full uppercase flex-shrink-0">
-                      Private
-                    </span>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <h3 className="font-bold text-slate-900 text-base truncate pr-2 group-hover:text-emerald-700 transition-colors">
+                      {trip.title}
+                    </h3>
                   </div>
 
-                  <div className="flex items-center gap-3 text-xs text-slate-500">
-                    <span className="flex items-center gap-1">
-                      <Users className="w-3 h-3" />
-                      {trip.members.length} members
-                    </span>
-                    {(trip.startDate || trip.endDate) && (
-                      <span className="flex items-center gap-1">
-                        <Calendar className="w-3 h-3" />
-                        {formatDate(trip.startDate)}
-                        {trip.endDate && trip.endDate !== trip.startDate && ` – ${formatDate(trip.endDate)}`}
-                      </span>
-                    )}
-                  </div>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3 text-xs text-slate-500 font-medium">
+                      {(trip.startDate || trip.endDate) && (
+                        <span className="flex items-center gap-1.5 bg-slate-50 px-2 py-1 rounded-lg">
+                          <Calendar className="w-3.5 h-3.5" />
+                          {formatDate(trip.startDate)}
+                          {trip.endDate && trip.endDate !== trip.startDate && ` – ${formatDate(trip.endDate)}`}
+                        </span>
+                      )}
+                    </div>
 
-                  {/* Member avatars */}
-                  <div className="flex -space-x-1.5 mt-2">
-                    {trip.members.slice(0, 5).map(m => (
-                      <div
-                        key={m.id}
-                        className="w-6 h-6 rounded-full border-2 border-white bg-emerald-100 flex items-center justify-center text-emerald-700 text-[9px] font-bold flex-shrink-0"
-                      >
-                        {m.name?.charAt(0).toUpperCase()}
+                    {/* Compact Avatar Stack */}
+                    <div className="flex items-center">
+                      <div className="flex -space-x-2 mr-2">
+                        {trip.members.slice(0, 3).map(m => (
+                          <img
+                            key={m.id}
+                            src={m.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${m.id}`}
+                            className="w-7 h-7 rounded-full border-2 border-white bg-slate-100 object-cover"
+                            alt={m.name}
+                          />
+                        ))}
                       </div>
-                    ))}
-                    {trip.members.length > 5 && (
-                      <div className="w-6 h-6 rounded-full bg-slate-100 border-2 border-white flex items-center justify-center text-[9px] font-bold text-slate-500">
-                        +{trip.members.length - 5}
+                      <div className="flex items-center gap-1 text-[11px] font-bold text-slate-400">
+                        <Users className="w-3.5 h-3.5" />
+                        {trip.members.length}
                       </div>
-                    )}
+                    </div>
                   </div>
                 </div>
 
-                <ChevronRight className="w-5 h-5 text-slate-300 flex-shrink-0" />
+                <ChevronRight className="w-5 h-5 text-slate-300 shrink-0 group-hover:text-emerald-500 group-hover:translate-x-1 transition-all" />
               </button>
             ))}
           </div>
         )}
       </div>
 
-      {/* Create Modal */}
       {showCreate && (
         <CreatePrivateTripModal
           onClose={() => setShowCreate(false)}
@@ -320,96 +273,84 @@ export const MyTripsScreen = ({ currentUser, onOpenTrip }: Props) => {
         />
       )}
 
-      {/* ── Memories Lightbox ─────────────────────────────────────────────────── */}
+      {/* Modern Lightbox */}
       {lightboxIdx !== null && (
         <div
-          className="fixed inset-0 bg-black z-50 flex flex-col"
+          className="fixed inset-0 z-50 flex flex-col bg-slate-900/95 backdrop-blur-xl animate-in fade-in duration-200"
           onTouchStart={e => { touchStartX.current = e.touches[0].clientX; }}
           onTouchEnd={e => {
             if (touchStartX.current === null) return;
             const dx = e.changedTouches[0].clientX - touchStartX.current;
-            if (dx < -50) lightboxNext();
-            else if (dx > 50) lightboxPrev();
+            if (dx < -40) lightboxNext();
+            else if (dx > 40) lightboxPrev();
             touchStartX.current = null;
           }}
         >
-          {/* Top bar */}
-          <div className="flex items-center justify-between px-4 pt-10 pb-3 flex-shrink-0">
-            <span className="text-white/60 text-sm font-semibold">
-              {lightboxIdx + 1} / {allSlides.length}
-            </span>
+          {/* Top Bar */}
+          <div className="flex items-center justify-between px-6 pt-12 pb-4 shrink-0">
+            <div className="flex items-center gap-2 bg-white/10 backdrop-blur-md px-3 py-1.5 rounded-full">
+              <Images className="w-4 h-4 text-white/80" />
+              <span className="text-white/80 text-xs font-bold tracking-widest">
+                {lightboxIdx + 1} / {allSlides.length}
+              </span>
+            </div>
             <button
-              type="button"
-              onClick={closeLightbox}
-              className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center active:bg-white/30"
+              onClick={() => setLightboxIdx(null)}
+              className="w-10 h-10 bg-white/10 hover:bg-white/20 rounded-full flex items-center justify-center transition-colors backdrop-blur-md"
             >
               <X className="w-5 h-5 text-white" />
             </button>
           </div>
 
-          {/* Photo */}
-          <div className="flex-1 flex items-center justify-center px-4 min-h-0 relative">
-            {/* Prev tap zone */}
+          {/* Main Photo Area */}
+          <div className="flex-1 flex items-center justify-center px-4 min-h-0 relative group">
             <button
-              type="button"
               onClick={lightboxPrev}
-              className="absolute left-0 top-0 bottom-0 w-16 z-10"
-              aria-label="Previous"
-            />
+              className="absolute left-4 w-12 h-12 bg-white/10 hover:bg-white/20 rounded-full items-center justify-center backdrop-blur-md transition-all opacity-0 group-hover:opacity-100 hidden sm:flex z-10"
+            >
+              <ChevronRight className="w-6 h-6 text-white rotate-180" />
+            </button>
+
             <img
-              key={lightboxIdx}
+              key={lightboxIdx} // forces animation re-trigger if needed
               src={allSlides[lightboxIdx].photo.dataUrl}
-              alt=""
-              className="max-w-full max-h-full object-contain rounded-xl"
+              alt="Memory"
+              className="max-w-full max-h-full object-contain rounded-2xl shadow-2xl"
             />
-            {/* Next tap zone */}
+
             <button
-              type="button"
               onClick={lightboxNext}
-              className="absolute right-0 top-0 bottom-0 w-16 z-10"
-              aria-label="Next"
-            />
+              className="absolute right-4 w-12 h-12 bg-white/10 hover:bg-white/20 rounded-full items-center justify-center backdrop-blur-md transition-all opacity-0 group-hover:opacity-100 hidden sm:flex z-10"
+            >
+              <ChevronRight className="w-6 h-6 text-white" />
+            </button>
           </div>
 
-          {/* Caption */}
-          <div className="flex-shrink-0 px-5 py-4 pb-8">
-            <p className="text-white font-semibold text-sm">📍 {allSlides[lightboxIdx].tripTitle}</p>
-            <p className="text-white/50 text-xs mt-0.5">
-              {allSlides[lightboxIdx].photo.uploaderName} ·{' '}
-              {new Date(allSlides[lightboxIdx].photo.timestamp).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
-            </p>
-          </div>
+          {/* Metadata & Thumbnails */}
+          <div className="shrink-0 pt-6 pb-10 px-6">
+            <div className="mb-6 text-center">
+              <h4 className="text-white font-bold text-lg mb-1 drop-shadow-sm">
+                {allSlides[lightboxIdx].tripTitle}
+              </h4>
+              <p className="text-white/60 text-xs font-medium">
+                Added by {allSlides[lightboxIdx].photo.uploaderName} • {new Date(allSlides[lightboxIdx].photo.timestamp).toLocaleDateString('en-US', { month: 'long', day: 'numeric' })}
+              </p>
+            </div>
 
-          {/* Thumbnail strip */}
-          <div className="flex-shrink-0 pb-6">
-            <div className="flex gap-2 overflow-x-auto no-scrollbar px-4">
+            {/* Thumbnail Strip */}
+            <div className="flex justify-center gap-2 overflow-x-auto no-scrollbar max-w-2xl mx-auto">
               {allSlides.map((slide, i) => (
                 <button
                   key={slide.photo.id}
-                  type="button"
                   onClick={() => setLightboxIdx(i)}
-                  className={`flex-shrink-0 w-14 h-14 rounded-xl overflow-hidden border-2 transition-all ${
-                    i === lightboxIdx ? 'border-white scale-105' : 'border-transparent opacity-50'
-                  }`}
+                  className={`shrink-0 w-16 h-16 rounded-xl overflow-hidden transition-all duration-300 ${i === lightboxIdx ? 'ring-2 ring-white scale-110 opacity-100' : 'opacity-40 hover:opacity-70'
+                    }`}
                 >
                   <img src={slide.photo.dataUrl} alt="" className="w-full h-full object-cover" />
                 </button>
               ))}
             </div>
           </div>
-
-          {/* Dot indicators */}
-          {allSlides.length > 1 && allSlides.length <= 12 && (
-            <div className="flex justify-center gap-1.5 pb-4 flex-shrink-0">
-              {allSlides.map((_, i) => (
-                <button
-                  key={i}
-                  onClick={() => setLightboxIdx(i)}
-                  className={`rounded-full transition-all ${i === lightboxIdx ? 'w-5 h-1.5 bg-white' : 'w-1.5 h-1.5 bg-white/30'}`}
-                />
-              ))}
-            </div>
-          )}
         </div>
       )}
     </div>

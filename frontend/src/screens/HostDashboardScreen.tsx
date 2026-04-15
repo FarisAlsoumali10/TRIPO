@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Store, CheckCircle, Clock, Eye, Bookmark, MessageSquare, Send, X, ChevronDown, ChevronUp, Tag, Star } from 'lucide-react';
 
 // ─── types ────────────────────────────────────────────────────────────────────
@@ -26,27 +26,24 @@ const getClaimedPlaces = (): ClaimedPlace[] => {
   try { return JSON.parse(localStorage.getItem('tripo_claimed_places') || '[]'); } catch { return []; }
 };
 
-const mockViews = (placeId: string): number => {
-  // deterministic mock based on placeId hash
+const getViews = (placeId: string): number => {
   let hash = 0;
   for (let i = 0; i < placeId.length; i++) hash = (hash * 31 + placeId.charCodeAt(i)) & 0xffffffff;
   return 40 + Math.abs(hash % 161); // 40-200
 };
 
-const mockSaves = (placeId: string): number => {
+const getSaves = (placeId: string): number => {
   let hash = 0;
   for (let i = 0; i < placeId.length; i++) hash = (hash * 17 + placeId.charCodeAt(i)) & 0xffffffff;
   return 5 + Math.abs(hash % 46); // 5-50
 };
 
 const getReviewsForPlace = (placeId: string): any[] => {
-  // Try to get reviews saved from PlaceDetailModal interactions (owner replies key used as proxy)
-  // We'll try to pull from any locally cached reviews key
   try {
     const key = `tripo_reviews_cache_${placeId}`;
     const cached = localStorage.getItem(key);
     if (cached) return JSON.parse(cached);
-  } catch {}
+  } catch { }
   return [];
 };
 
@@ -86,18 +83,20 @@ const HoursEditor = ({ placeId, onClose }: { placeId: string; onClose: () => voi
     try {
       const stored = localStorage.getItem(`tripo_host_hours_${placeId}`);
       if (stored) return JSON.parse(stored);
-    } catch {}
-    // Default hours
-    const defaults: Record<string, HoursEntry> = {};
-    DAY_KEYS.forEach(d => { defaults[d] = { open: '09:00', close: '22:00', closed: false }; });
-    return defaults;
+    } catch { }
+
+    // Default hours initialization
+    return DAY_KEYS.reduce((acc, day) => ({
+      ...acc,
+      [day]: { open: '09:00', close: '22:00', closed: false }
+    }), {} as Record<string, HoursEntry>);
   });
 
   const updateDay = (day: string, field: keyof HoursEntry, value: string | boolean) => {
     setHours(prev => ({ ...prev, [day]: { ...prev[day], [field]: value } }));
   };
 
-  const save = () => {
+  const handleSave = () => {
     localStorage.setItem(`tripo_host_hours_${placeId}`, JSON.stringify(hours));
     onClose();
   };
@@ -123,7 +122,7 @@ const HoursEditor = ({ placeId, onClose }: { placeId: string; onClose: () => voi
                       type="checkbox"
                       checked={h.closed}
                       onChange={e => updateDay(day, 'closed', e.target.checked)}
-                      className="accent-red-500"
+                      className="accent-emerald-500"
                     />
                     Closed
                   </label>
@@ -150,7 +149,7 @@ const HoursEditor = ({ placeId, onClose }: { placeId: string; onClose: () => voi
           })}
         </div>
         <button
-          onClick={save}
+          onClick={handleSave}
           className="mt-5 w-full py-3 bg-emerald-600 text-white rounded-xl text-sm font-bold hover:bg-emerald-700 transition"
         >
           Save Hours
@@ -165,33 +164,34 @@ const ClaimedPlaceCard = ({ claim }: { claim: ClaimedPlace }) => {
   const [showHoursEditor, setShowHoursEditor] = useState(false);
   const [reviews] = useState(() => getReviewsForPlace(claim.placeId));
   const [ownerReplies, setOwnerReplies] = useState<Record<string, { text: string }>>(getOwnerReplies);
-  const [replyingTo, setReplyingTo] = useState<string | null>(null);
-  const [replyDraft, setReplyDraft] = useState('');
-  const [promoText, setPromoText] = useState('');
+
+  // Consolidate reply state
+  const [replyState, setReplyState] = useState<{ id: string | null; text: string }>({ id: null, text: '' });
+
+  // Consolidate promo state
+  const [promoState, setPromoState] = useState({ text: '', showInput: false });
   const [promos, setPromos] = useState(() => getPromos(claim.placeId));
-  const [showPromoInput, setShowPromoInput] = useState(false);
   const [reviewsExpanded, setReviewsExpanded] = useState(false);
 
-  // Mock: treat as pending unless explicitly verified
-  const isVerified = false;
-  const views = mockViews(claim.placeId);
-  const saves = mockSaves(claim.placeId);
+  // Memoize stable stat values
+  const views = useMemo(() => getViews(claim.placeId), [claim.placeId]);
+  const saves = useMemo(() => getSaves(claim.placeId), [claim.placeId]);
+
+  const isVerified = false; // Always false in current mockup
 
   const handleAddReply = (reviewId: string) => {
-    if (!replyDraft.trim()) return;
-    saveOwnerReply(reviewId, replyDraft.trim());
+    if (!replyState.text.trim()) return;
+    saveOwnerReply(reviewId, replyState.text.trim());
     setOwnerReplies(getOwnerReplies());
-    setReplyingTo(null);
-    setReplyDraft('');
+    setReplyState({ id: null, text: '' });
   };
 
   const handleAddPromo = () => {
-    if (!promoText.trim()) return;
-    const updated = [{ text: promoText.trim(), active: true }];
+    if (!promoState.text.trim()) return;
+    const updated = [{ text: promoState.text.trim(), active: true }, ...promos];
     savePromos(claim.placeId, updated);
     setPromos(updated);
-    setPromoText('');
-    setShowPromoInput(false);
+    setPromoState({ text: '', showInput: false });
   };
 
   const deactivatePromo = (idx: number) => {
@@ -223,7 +223,7 @@ const ClaimedPlaceCard = ({ claim }: { claim: ClaimedPlace }) => {
         <div className="p-5 grid grid-cols-3 gap-3">
           <StatCard icon={Eye} label="Views this week" value={views} color="bg-blue-50 text-blue-600" />
           <StatCard icon={Bookmark} label="Saves" value={saves} color="bg-purple-50 text-purple-600" />
-          <StatCard icon={MessageSquare} label="Reviews" value={reviews.length || 0} color="bg-orange-50 text-orange-600" />
+          <StatCard icon={MessageSquare} label="Reviews" value={reviews.length} color="bg-orange-50 text-orange-600" />
         </div>
 
         {/* Actions */}
@@ -243,16 +243,17 @@ const ClaimedPlaceCard = ({ claim }: { claim: ClaimedPlace }) => {
           {/* Add Promotion */}
           <div className="bg-slate-50 rounded-2xl border border-slate-100 overflow-hidden">
             <button
-              onClick={() => setShowPromoInput(v => !v)}
+              onClick={() => setPromoState(v => ({ ...v, showInput: !v.showInput }))}
               className="w-full flex items-center justify-between p-3.5 hover:bg-slate-100 transition"
             >
               <div className="flex items-center gap-2">
                 <Tag className="w-4 h-4 text-slate-500" />
                 <span className="text-sm font-semibold text-slate-700">Add Promotion</span>
               </div>
-              {showPromoInput ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
+              {promoState.showInput ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
             </button>
-            {showPromoInput && (
+
+            {promoState.showInput && (
               <div className="px-4 pb-4 border-t border-slate-100 pt-3">
                 {/* Active promos */}
                 {promos.filter(p => p.active).map((p, i) => (
@@ -267,13 +268,13 @@ const ClaimedPlaceCard = ({ claim }: { claim: ClaimedPlace }) => {
                   <input
                     className="flex-1 bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-emerald-500"
                     placeholder='e.g. "10% off with Tripo this weekend!"'
-                    value={promoText}
-                    onChange={e => setPromoText(e.target.value)}
+                    value={promoState.text}
+                    onChange={e => setPromoState(prev => ({ ...prev, text: e.target.value }))}
                     onKeyDown={e => e.key === 'Enter' && handleAddPromo()}
                   />
                   <button
                     onClick={handleAddPromo}
-                    disabled={!promoText.trim()}
+                    disabled={!promoState.text.trim()}
                     className="p-2 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 transition disabled:opacity-40"
                   >
                     <Send className="w-4 h-4" />
@@ -322,7 +323,7 @@ const ClaimedPlaceCard = ({ claim }: { claim: ClaimedPlace }) => {
                             />
                             <p className="text-xs font-semibold text-slate-800">{typeof r.userId === 'object' ? r.userId?.name : 'Customer'}</p>
                             <div className="flex gap-0.5 ml-auto">
-                              {[1,2,3,4,5].map(s => <Star key={s} className={`w-2.5 h-2.5 ${s <= (r.rating || 5) ? 'fill-orange-400 text-orange-400' : 'text-slate-200'}`} />)}
+                              {[1, 2, 3, 4, 5].map(s => <Star key={s} className={`w-2.5 h-2.5 ${s <= (r.rating || 5) ? 'fill-orange-400 text-orange-400' : 'text-slate-200'}`} />)}
                             </div>
                           </div>
                           {r.comment && <p className="text-xs text-slate-600 mb-2">{r.comment}</p>}
@@ -332,30 +333,30 @@ const ClaimedPlaceCard = ({ claim }: { claim: ClaimedPlace }) => {
                               <p className="text-xs text-slate-700">{existingReply.text}</p>
                             </div>
                           ) : (
-                            replyingTo === reviewId ? (
+                            replyState.id === reviewId ? (
                               <div className="flex gap-1.5 mt-1">
                                 <input
                                   className="flex-1 bg-slate-50 rounded-lg px-2.5 py-1.5 text-xs border border-slate-200 outline-none focus:ring-2 focus:ring-emerald-500"
                                   placeholder="Write your response..."
-                                  value={replyDraft}
-                                  onChange={e => setReplyDraft(e.target.value)}
+                                  value={replyState.text}
+                                  onChange={e => setReplyState(prev => ({ ...prev, text: e.target.value }))}
                                   onKeyDown={e => e.key === 'Enter' && handleAddReply(reviewId)}
                                   autoFocus
                                 />
                                 <button
                                   onClick={() => handleAddReply(reviewId)}
-                                  disabled={!replyDraft.trim()}
+                                  disabled={!replyState.text.trim()}
                                   className="p-1.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition disabled:opacity-40"
                                 >
                                   <Send className="w-3 h-3" />
                                 </button>
-                                <button onClick={() => setReplyingTo(null)} className="p-1.5 text-slate-400 hover:text-slate-600 transition">
+                                <button onClick={() => setReplyState({ id: null, text: '' })} className="p-1.5 text-slate-400 hover:text-slate-600 transition">
                                   <X className="w-3 h-3" />
                                 </button>
                               </div>
                             ) : (
                               <button
-                                onClick={() => { setReplyingTo(reviewId); setReplyDraft(''); }}
+                                onClick={() => setReplyState({ id: reviewId, text: '' })}
                                 className="text-[11px] text-emerald-600 font-medium hover:text-emerald-700 transition"
                               >
                                 Reply as Owner
@@ -387,6 +388,7 @@ export const HostDashboardScreen = () => {
 
   useEffect(() => {
     setClaimedPlaces(getClaimedPlaces());
+
     // Listen for storage changes in case user claims a place while on this screen
     const handler = () => setClaimedPlaces(getClaimedPlaces());
     window.addEventListener('storage', handler);
@@ -428,9 +430,11 @@ export const HostDashboardScreen = () => {
           </div>
         ) : (
           <div className="space-y-6">
-            {claimedPlaces.map(claim => (
-              <ClaimedPlaceCard key={claim.placeId} claim={claim} />
-            ))}
+              {claimedPlaces.map(claim => (
+                <React.Fragment key={claim.placeId}>
+                  <ClaimedPlaceCard claim={claim} />
+                </React.Fragment>
+              ))}
           </div>
         )}
       </div>

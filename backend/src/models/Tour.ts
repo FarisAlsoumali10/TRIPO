@@ -58,10 +58,10 @@ const tourStopSchema = new Schema<ITourStop>(
 const tourSchema = new Schema<ITour>(
   {
     title: { type: String, required: true, trim: true },
-    slug: { type: String, required: true, unique: true, lowercase: true, trim: true },
+    slug: { type: String, unique: true, sparse: true, lowercase: true, trim: true },
     description: { type: String, required: true, trim: true },
     highlights: { type: [String], default: [] },
-    heroImage: { type: String, required: true },
+    heroImage: { type: String },
     images: { type: [String], default: [] },
     pricePerPerson: { type: Number, required: true, min: 0 },
     currency: { type: String, enum: ['SAR'], default: 'SAR' },
@@ -100,5 +100,17 @@ const tourSchema = new Schema<ITour>(
 );
 
 tourSchema.index({ status: 1, category: 1 });
+
+// Auto-generate slug from title if not provided
+tourSchema.pre('save', function (next) {
+  if (!this.slug && this.title) {
+    this.slug = this.title
+      .toLowerCase()
+      .replace(/[^\w\s-]/g, '')
+      .replace(/\s+/g, '-')
+      .substring(0, 80) + '-' + Date.now();
+  }
+  next();
+});
 
 export const Tour = mongoose.model<ITour>('Tour', tourSchema);

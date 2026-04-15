@@ -4,8 +4,8 @@ import { authenticate } from '../middleware/auth';
 
 const router = Router();
 
-// Details endpoint requires a logged-in user
-router.get('/google-places/details', authenticate, getGooglePlaceDetails);
+// Details endpoint — public read (no auth needed for displaying place info)
+router.get('/google-places/details', getGooglePlaceDetails);
 
 // Photo proxy is intentionally public — <img> tags cannot send Authorization headers
 router.get('/google-places/photo', proxyGooglePhoto);

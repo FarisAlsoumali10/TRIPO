@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { CheckCircle, XCircle, AlertCircle, X } from 'lucide-react';
 
-type ToastType = 'success' | 'error' | 'info';
+type ToastType = 'success' | 'error' | 'info' | 'warning';
 
 interface ToastItem {
   id: string;
@@ -34,12 +34,14 @@ export const ToastContainer: React.FC = () => {
     success: <CheckCircle className="w-4 h-4 text-emerald-500 flex-shrink-0" />,
     error: <XCircle className="w-4 h-4 text-red-500 flex-shrink-0" />,
     info: <AlertCircle className="w-4 h-4 text-blue-500 flex-shrink-0" />,
+    warning: <AlertCircle className="w-4 h-4 text-amber-500 flex-shrink-0" />,
   };
 
   const bg: Record<ToastType, string> = {
     success: 'bg-emerald-50 border-emerald-200',
     error: 'bg-red-50 border-red-200',
     info: 'bg-blue-50 border-blue-200',
+    warning: 'bg-amber-50 border-amber-200',
   };
 
   if (toasts.length === 0) return null;

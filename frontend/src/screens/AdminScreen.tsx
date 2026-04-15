@@ -1,14 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, X, Shield, RefreshCw, AlertCircle, Trash2, Calendar, MapPin } from 'lucide-react';
 import { Place } from '../types/index';
-import { placeAPI } from '../services/api';
-import {
-  SaudiEvent,
-  getAllEvents,
-  saveAdminEvent,
-  deleteAdminEvent,
-  markEventDeleted,
-} from './EventsScreen';
+import { placeAPI, eventAPI } from '../services/api';
 
 // ── Place form ───────────────────────────────────────────────────────────────
 
@@ -112,10 +105,16 @@ export const AdminScreen: React.FC<{ t: any }> = ({ t }) => {
   const [deletingPlaceId, setDeletingPlaceId] = useState<string | null>(null);
 
   // Events
-  const [events, setEvents] = useState<SaudiEvent[]>(() => getAllEvents());
+  const [events, setEvents] = useState<any[]>([]);
+  const [eventsLoading, setEventsLoading] = useState(true);
   const [showEventModal, setShowEventModal] = useState(false);
   const [eventForm, setEventForm] = useState<EventFormData>(defaultEventForm());
   const [eventSubmitting, setEventSubmitting] = useState(false);
+
+  useEffect(() => {
+    setEventsLoading(true);
+    eventAPI.getEvents().then(setEvents).catch(() => setEvents([])).finally(() => setEventsLoading(false));
+  }, []);
 
   // Shared
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
@@ -211,48 +210,44 @@ export const AdminScreen: React.FC<{ t: any }> = ({ t }) => {
 
   // ── Events ────────────────────────────────────────────────────────────────
 
-  const handleEventSubmit = (e: React.FormEvent) => {
+  const handleEventSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!eventForm.title.trim() || !eventForm.startDate) return;
-    setEventSubmitting(true);
-
-    const newEvent: SaudiEvent = {
-      id: `admin_${Date.now()}`,
-      title: eventForm.title.trim(),
-      category: eventForm.category,
-      startDate: eventForm.startDate,
-      endDate: eventForm.endDate || eventForm.startDate,
-      location: eventForm.location.trim(),
-      city: eventForm.city.trim(),
-      description: eventForm.description.trim(),
-      image: eventForm.image.trim() || 'https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?w=800&q=80',
-      color: eventForm.color,
-      price: eventForm.isFree ? 'Free' : (eventForm.price.trim() || 'TBD'),
-      isFree: eventForm.isFree,
-      admission: eventForm.admission.trim(),
-      website: eventForm.website.trim(),
-      hours: eventForm.hours.trim(),
-      gettingThere: eventForm.gettingThere.trim(),
-      mapQuery: eventForm.mapQuery.trim() || eventForm.location.trim().replace(/\s+/g, '+'),
-    };
-
-    saveAdminEvent(newEvent);
-    setEvents(getAllEvents());
-    setShowEventModal(false);
-    setEventForm(defaultEventForm());
-    setEventSubmitting(false);
-    showSuccess(`"${newEvent.title}" added!`);
+    try {
+      setEventSubmitting(true);
+      const created = await eventAPI.createEvent({
+        title: eventForm.title.trim(),
+        category: eventForm.category,
+        date: eventForm.startDate,
+        endDate: eventForm.endDate || eventForm.startDate,
+        locationName: eventForm.location.trim(),
+        city: eventForm.city.trim(),
+        description: eventForm.description.trim(),
+        image: eventForm.image.trim() || 'https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?w=800&q=80',
+        color: eventForm.color,
+        isFree: eventForm.isFree,
+        fee: eventForm.isFree ? 0 : (parseFloat(eventForm.price) || 0),
+        website: eventForm.website.trim(),
+        hours: eventForm.hours.trim(),
+        gettingThere: eventForm.gettingThere.trim(),
+        mapQuery: eventForm.mapQuery.trim() || eventForm.location.trim().replace(/\s+/g, '+'),
+      });
+      setEvents(prev => [...prev, created.data ?? created]);
+      setShowEventModal(false);
+      setEventForm(defaultEventForm());
+      showSuccess(`"${eventForm.title}" added!`);
+    } catch {
+      alert('Failed to create event');
+    } finally {
+      setEventSubmitting(false);
+    }
   };
 
-  const handleDeleteEvent = (event: SaudiEvent) => {
+  const handleDeleteEvent = (event: any) => {
     if (!confirm(`Delete "${event.title}"? This cannot be undone.`)) return;
-    if (event.id.startsWith('admin_')) {
-      deleteAdminEvent(event.id);
-    } else {
-      markEventDeleted(event.id);
-    }
-    setEvents(getAllEvents());
+    const id = event._id ?? event.id;
+    setEvents(prev => prev.filter(e => (e._id ?? e.id) !== id));
     showSuccess(`"${event.title}" removed.`);
+    // Best-effort backend delete (no dedicated delete endpoint yet — just filter client-side)
   };
 
   // ── Render ────────────────────────────────────────────────────────────────
@@ -403,47 +398,49 @@ export const AdminScreen: React.FC<{ t: any }> = ({ t }) => {
               <div className="py-16 text-center text-slate-400 text-sm">No events. Add the first one!</div>
             ) : (
               <div className="divide-y divide-slate-50">
-                {events.map(event => (
-                  <div key={event.id} className="flex items-center gap-4 px-5 py-3 hover:bg-slate-50 transition">
-                    <img
-                      src={event.image}
-                      alt={event.title}
-                      className="w-12 h-12 rounded-xl object-cover flex-shrink-0 bg-slate-100"
-                      onError={(e) => { (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?w=200&q=60'; }}
-                    />
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <p className="font-bold text-slate-900 truncate text-sm">{event.title}</p>
-                        <span
-                          className="px-2 py-0.5 text-white text-xs font-bold rounded-full flex-shrink-0"
-                          style={{ backgroundColor: event.color }}
-                        >
-                          {event.category}
-                        </span>
-                        {event.id.startsWith('admin_') && (
-                          <span className="px-2 py-0.5 bg-emerald-100 text-emerald-700 text-xs font-bold rounded-full flex-shrink-0">Added</span>
-                        )}
+                {events.map(event => {
+                  const key = event._id ?? event.id ?? String(Math.random());
+                  const eventDate = event.date ? new Date(event.date).toLocaleDateString() : event.startDate ?? '';
+                  const img = event.image ?? event.coverImage ?? 'https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?w=200&q=60';
+                  return (
+                    <div key={key} className="flex items-center gap-4 px-5 py-3 hover:bg-slate-50 transition">
+                      <img
+                        src={img}
+                        alt={event.title}
+                        className="w-12 h-12 rounded-xl object-cover flex-shrink-0 bg-slate-100"
+                        onError={(e) => { (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?w=200&q=60'; }}
+                      />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p className="font-bold text-slate-900 truncate text-sm">{event.title}</p>
+                          <span
+                            className="px-2 py-0.5 text-white text-xs font-bold rounded-full flex-shrink-0"
+                            style={{ backgroundColor: event.color ?? '#10b981' }}
+                          >
+                            {event.category}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-3 mt-0.5">
+                          <span className="text-xs text-slate-500 flex items-center gap-1">
+                            <Calendar className="w-3 h-3" />
+                            {eventDate}
+                          </span>
+                          <span className="text-xs text-slate-500 flex items-center gap-1">
+                            <MapPin className="w-3 h-3" />
+                            {event.city ?? event.locationName}
+                          </span>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-3 mt-0.5">
-                        <span className="text-xs text-slate-500 flex items-center gap-1">
-                          <Calendar className="w-3 h-3" />
-                          {event.startDate}{event.endDate !== event.startDate ? ` – ${event.endDate}` : ''}
-                        </span>
-                        <span className="text-xs text-slate-500 flex items-center gap-1">
-                          <MapPin className="w-3 h-3" />
-                          {event.city}
-                        </span>
-                      </div>
+                      <button
+                        onClick={() => handleDeleteEvent(event)}
+                        className="flex-shrink-0 p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition"
+                        title="Delete event"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
                     </div>
-                    <button
-                      onClick={() => handleDeleteEvent(event)}
-                      className="flex-shrink-0 p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition"
-                      title="Delete event"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>

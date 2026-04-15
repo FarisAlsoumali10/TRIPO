@@ -44,7 +44,7 @@ export interface RegisterData {
   password: string;
   name: string;
   language: Language;
-  smartProfile: SmartProfile;
+  smartProfile?: SmartProfile;
 }
 
 export interface Coordinates {

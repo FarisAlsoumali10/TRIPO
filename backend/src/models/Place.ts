@@ -101,8 +101,8 @@ const placeSchema = new Schema({
   },
   accessibility: {
     wheelchair: { type: Boolean, default: false },
-    parking:    { type: Boolean, default: false },
-    family:     { type: Boolean, default: false }
+    parking: { type: Boolean, default: false },
+    family: { type: Boolean, default: false }
   },
   bestSeasons: {
     type: [String],
@@ -121,36 +121,36 @@ const placeSchema = new Schema({
   subcategory: { type: String },
   cuisineType: { type: String },
   seasonalDates: {
-    openDate:  { type: String },
+    openDate: { type: String },
     closeDate: { type: String }
   },
   isTrending: { type: Boolean, default: false, index: true },
   isVerifiedPlace: { type: Boolean, default: false },
   groupOffer: {
-    available:    { type: Boolean, default: false },
-    description:  { type: String },
+    available: { type: Boolean, default: false },
+    description: { type: String },
     minGroupSize: { type: Number }
   },
   lastLocationUpdate: { type: Date },
-  address:  { type: String },
-  phone:    { type: String },
-  website:  { type: String },
+  address: { type: String },
+  phone: { type: String },
+  website: { type: String },
   gender: {
     type: String,
     enum: ['mixed', 'women_only', 'men_only'],
     default: 'mixed'
   },
   hasSportsFacilities: { type: Boolean, default: false },
-  sportsFacilities:    { type: [String], default: [] },
-  entryFeeAmount:      { type: Number },
-  partnerVenue:        { type: Boolean, default: false },
-  appDiscount:         { type: Number }
+  sportsFacilities: { type: [String], default: [] },
+  entryFeeAmount: { type: Number },
+  partnerVenue: { type: Boolean, default: false },
+  appDiscount: { type: Number }
 }, {
   timestamps: true
 });
 
 // ==========================================
-// 🚀 فهارس الأداء العالي (High-Performance Indexes)
+//  فهارس الأداء العالي (High-Performance Indexes)
 // ==========================================
 
 // 1. فهرس البحث الجغرافي (لمعرفة الأماكن القريبة)

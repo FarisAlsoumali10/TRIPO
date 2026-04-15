@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Send, Sparkles, Trash2, Mic, MicOff, Copy, ThumbsUp, ThumbsDown, Bookmark, RefreshCw, Check, X, RotateCcw, BookOpen } from 'lucide-react';
-import { GoogleGenAI } from '@google/genai';
+import { aiAPI } from '../services/api';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -18,15 +18,15 @@ interface ChatMessage {
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const CHAT_HISTORY_KEY = 'tripo_ai_planner_history';
-const SAVED_PLANS_KEY  = 'tripo_saved_plans';
+const SAVED_PLANS_KEY = 'tripo_saved_plans';
 
 const PLANNER_MODES = [
-  { id: 'micro',   label: '⚡ Micro',   hint: 'Quick 2–4h outing',     color: 'bg-violet-600' },
-  { id: 'budget',  label: '🪙 Budget',  hint: 'Under 100 SAR',         color: 'bg-amber-500'  },
-  { id: 'family',  label: '👨‍👩‍👧 Family',  hint: 'Kid-friendly',         color: 'bg-blue-600'   },
-  { id: 'date',    label: '🌙 Date',    hint: 'Romantic evening',       color: 'bg-rose-600'   },
-  { id: 'solo',    label: '🎒 Solo',    hint: 'Solo adventure',         color: 'bg-orange-500' },
-  { id: 'weekend', label: '🏕 Weekend', hint: 'Full weekend getaway',   color: 'bg-teal-600'   },
+  { id: 'micro', label: '⚡ Micro', hint: 'Quick 2–4h outing', color: 'bg-violet-600' },
+  { id: 'budget', label: '🪙 Budget', hint: 'Under 100 SAR', color: 'bg-amber-500' },
+  { id: 'family', label: '👨‍👩‍👧 Family', hint: 'Kid-friendly', color: 'bg-blue-600' },
+  { id: 'date', label: '🌙 Date', hint: 'Romantic evening', color: 'bg-rose-600' },
+  { id: 'solo', label: '🎒 Solo', hint: 'Solo adventure', color: 'bg-orange-500' },
+  { id: 'weekend', label: '🏕 Weekend', hint: 'Full weekend getaway', color: 'bg-teal-600' },
 ] as const;
 
 type PlannerModeId = typeof PLANNER_MODES[number]['id'];
@@ -34,37 +34,37 @@ type PlannerModeId = typeof PLANNER_MODES[number]['id'];
 const CITIES = ['Riyadh', 'Jeddah', 'Mecca', 'Medina', 'AlUla', 'Abha', 'Dammam', 'Taif'];
 
 const BUDGETS = [
-  { id: 'free',    label: 'Free'       },
-  { id: 'low',     label: '< 50 SAR'  },
-  { id: 'medium',  label: '50–200 SAR'},
-  { id: 'high',    label: '200+ SAR'  },
+  { id: 'free', label: 'Free' },
+  { id: 'low', label: '< 50 SAR' },
+  { id: 'medium', label: '50–200 SAR' },
+  { id: 'high', label: '200+ SAR' },
 ];
 
 const FOLLOW_UP_CHIPS: Record<PlannerModeId, string[]> = {
-  micro:   ['Make it even shorter', 'Under 50 SAR', 'More outdoor options', 'Add a coffee stop'],
-  budget:  ['Completely free version', 'Add one splurge spot', 'Best value pick only', 'Under 30 SAR'],
-  family:  ['Ages 5–10 friendly', 'Add a food stop', 'Shorter version', 'More active options'],
-  date:    ['More romantic atmosphere', 'Earlier in the day', 'Add a dinner spot', 'Outdoor version'],
-  solo:    ['Off the beaten path', 'Good for meeting people', 'Best photo spots', 'Add a café'],
+  micro: ['Make it even shorter', 'Under 50 SAR', 'More outdoor options', 'Add a coffee stop'],
+  budget: ['Completely free version', 'Add one splurge spot', 'Best value pick only', 'Under 30 SAR'],
+  family: ['Ages 5–10 friendly', 'Add a food stop', 'Shorter version', 'More active options'],
+  date: ['More romantic atmosphere', 'Earlier in the day', 'Add a dinner spot', 'Outdoor version'],
+  solo: ['Off the beaten path', 'Good for meeting people', 'Best photo spots', 'Add a café'],
   weekend: ['Friday only version', 'Include hotel suggestion', 'Budget weekend', 'More adventure'],
 };
 
 const SUGGESTED_PROMPTS: Record<PlannerModeId, string[]> = {
-  micro:   ['Free Saturday under 100 SAR for 2', 'Best outdoor spots this weekend', 'Quick morning escape in the city'],
-  budget:  ['Best free spots in the city', 'Full day under 50 SAR', 'Free family activities nearby'],
-  family:  ['Family day out with kids under 10', 'Weekend fun for the whole family', 'Kid-friendly outdoor activities'],
-  date:    ['Romantic evening for two', 'Sunset date ideas', 'Unique date night under 200 SAR'],
-  solo:    ['Best solo day out in the city', 'Hidden gems for a solo explorer', 'Where to go alone on a Friday'],
+  micro: ['Free Saturday under 100 SAR for 2', 'Best outdoor spots this weekend', 'Quick morning escape in the city'],
+  budget: ['Best free spots in the city', 'Full day under 50 SAR', 'Free family activities nearby'],
+  family: ['Family day out with kids under 10', 'Weekend fun for the whole family', 'Kid-friendly outdoor activities'],
+  date: ['Romantic evening for two', 'Sunset date ideas', 'Unique date night under 200 SAR'],
+  solo: ['Best solo day out in the city', 'Hidden gems for a solo explorer', 'Where to go alone on a Friday'],
   weekend: ['Full weekend getaway plan', 'Best spots for a 2-day trip', 'Weekend escape from the city'],
 };
 
 function buildSystemPrompt(mode: PlannerModeId, city: string, budget: string): string {
   const modeHints: Record<PlannerModeId, string> = {
-    micro:   'Focus on quick 2–4 hour outings. Minimise travel time between spots.',
-    budget:  `Keep total costs within the user's budget. Prioritise free or low-cost options.`,
-    family:  'Suggest family-friendly activities suitable for children. Include facilities notes.',
-    date:    'Suggest romantic, atmospheric spots. Consider ambiance, timing, and intimacy.',
-    solo:    'Tailor for a solo traveller. Include social venues, self-paced activities, and safety notes.',
+    micro: 'Focus on quick 2–4 hour outings. Minimise travel time between spots.',
+    budget: `Keep total costs within the user's budget. Prioritise free or low-cost options.`,
+    family: 'Suggest family-friendly activities suitable for children. Include facilities notes.',
+    date: 'Suggest romantic, atmospheric spots. Consider ambiance, timing, and intimacy.',
+    solo: 'Tailor for a solo traveller. Include social venues, self-paced activities, and safety notes.',
     weekend: 'Plan a full 1–2 day itinerary. Include meals and, where relevant, accommodation tips.',
   };
   return `You are Tripo AI, an expert travel planning assistant for Saudi Arabia.
@@ -120,21 +120,21 @@ function renderMarkdown(text: string): React.ReactNode {
     output.push(
       type === 'ul'
         ? <ul key={k} className="space-y-1 my-1.5">
-            {items.map((it, j) => (
-              <li key={j} className="flex items-start gap-2 text-sm text-slate-700 leading-relaxed">
-                <span className="text-emerald-500 mt-0.5 flex-shrink-0 font-bold">•</span>
-                <span>{renderInline(it.content)}</span>
-              </li>
-            ))}
-          </ul>
+          {items.map((it, j) => (
+            <li key={j} className="flex items-start gap-2 text-sm text-slate-700 leading-relaxed">
+              <span className="text-emerald-500 mt-0.5 flex-shrink-0 font-bold">•</span>
+              <span>{renderInline(it.content)}</span>
+            </li>
+          ))}
+        </ul>
         : <ol key={k} className="space-y-1 my-1.5">
-            {items.map((it, j) => (
-              <li key={j} className="flex items-start gap-2 text-sm text-slate-700 leading-relaxed">
-                <span className="text-emerald-600 font-bold flex-shrink-0 w-4">{j + 1}.</span>
-                <span>{renderInline(it.content)}</span>
-              </li>
-            ))}
-          </ol>
+          {items.map((it, j) => (
+            <li key={j} className="flex items-start gap-2 text-sm text-slate-700 leading-relaxed">
+              <span className="text-emerald-600 font-bold flex-shrink-0 w-4">{j + 1}.</span>
+              <span>{renderInline(it.content)}</span>
+            </li>
+          ))}
+        </ol>
     );
   };
 
@@ -145,13 +145,13 @@ function renderMarkdown(text: string): React.ReactNode {
     const ul = line.match(/^[-*]\s(.+)/);
     const ol = line.match(/^\d+\.\s(.+)/);
 
-    if (h3)       { flushList(`l${i}`); output.push(<p key={i} className="font-bold text-slate-800 text-sm mt-2.5 mb-0.5">{renderInline(h3[1])}</p>); }
-    else if (h2)  { flushList(`l${i}`); output.push(<p key={i} className="font-bold text-slate-900 text-base mt-3 mb-1">{renderInline(h2[1])}</p>); }
-    else if (h1)  { flushList(`l${i}`); output.push(<p key={i} className="font-extrabold text-slate-900 text-lg mt-3 mb-1">{renderInline(h1[1])}</p>); }
-    else if (ul)  { pending.push({ type: 'ul', content: ul[1] }); }
-    else if (ol)  { pending.push({ type: 'ol', content: ol[1] }); }
+    if (h3) { flushList(`l${i}`); output.push(<p key={i} className="font-bold text-slate-800 text-sm mt-2.5 mb-0.5">{renderInline(h3[1])}</p>); }
+    else if (h2) { flushList(`l${i}`); output.push(<p key={i} className="font-bold text-slate-900 text-base mt-3 mb-1">{renderInline(h2[1])}</p>); }
+    else if (h1) { flushList(`l${i}`); output.push(<p key={i} className="font-extrabold text-slate-900 text-lg mt-3 mb-1">{renderInline(h1[1])}</p>); }
+    else if (ul) { pending.push({ type: 'ul', content: ul[1] }); }
+    else if (ol) { pending.push({ type: 'ol', content: ol[1] }); }
     else if (line.trim() === '') { flushList(`l${i}`); if (output.length) output.push(<div key={`sp${i}`} className="h-1" />); }
-    else          { flushList(`l${i}`); output.push(<p key={i} className="text-sm text-slate-700 leading-relaxed">{renderInline(line)}</p>); }
+    else { flushList(`l${i}`); output.push(<p key={i} className="text-sm text-slate-700 leading-relaxed">{renderInline(line)}</p>); }
   });
   flushList('end');
 
@@ -192,7 +192,7 @@ interface BubbleProps {
   onCopy: (id: string, text: string) => any;
 }
 
-const MessageBubble = ({ msg, isLast, plannerMode, onRate, onSave, onRetry, onRegenerate, onFollowUp, copiedId, onCopy }: BubbleProps) => {
+const MessageBubble: React.FC<BubbleProps> = ({ msg, isLast, plannerMode, onRate, onSave, onRetry, onRegenerate, onFollowUp, copiedId, onCopy }) => {
   const isUser = msg.role === 'user';
   const chips = FOLLOW_UP_CHIPS[plannerMode];
 
@@ -365,27 +365,27 @@ export const AIPlannerScreen: React.FC = () => {
   const [messages, setMessages] = useState<ChatMessage[]>(() => {
     try { const raw = localStorage.getItem(CHAT_HISTORY_KEY); return raw ? JSON.parse(raw) : []; } catch { return []; }
   });
-  const [inputValue, setInputValue]   = useState('');
-  const [isTyping, setIsTyping]       = useState(false);
+  const [inputValue, setInputValue] = useState('');
+  const [isTyping, setIsTyping] = useState(false);
   const [plannerMode, setPlannerMode] = useState<PlannerModeId>('micro');
-  const [city, setCity]               = useState('Riyadh');
-  const [budget, setBudget]           = useState('medium');
+  const [city, setCity] = useState('Riyadh');
+  const [budget, setBudget] = useState('medium');
   const [isListening, setIsListening] = useState(false);
-  const [showSaved, setShowSaved]     = useState(false);
-  const [showContext, setShowContext]  = useState(false);
-  const [copiedId, setCopiedId]       = useState<string | null>(null);
-  const [savedCount, setSavedCount]   = useState(() => {
+  const [showSaved, setShowSaved] = useState(false);
+  const [showContext, setShowContext] = useState(false);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [savedCount, setSavedCount] = useState(() => {
     try { return (JSON.parse(localStorage.getItem(SAVED_PLANS_KEY) || '[]') as ChatMessage[]).length; } catch { return 0; }
   });
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const inputRef       = useRef<HTMLInputElement>(null);
-  const chatRef        = useRef<any>(null);
-  const voiceRef       = useRef<any>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const chatRef = useRef<any>(null);
+  const voiceRef = useRef<any>(null);
   const lastUserMsgRef = useRef<string>('');
 
-  // Reset chat session when context changes (new session gets updated system prompt)
-  useEffect(() => { chatRef.current = null; }, [plannerMode, city, budget]);
+  // Clear context reference on changes
+  useEffect(() => { /* handled statelessly by passing prompt context */ }, [plannerMode, city, budget]);
 
   // Persist history (last 60 messages)
   useEffect(() => {
@@ -398,14 +398,6 @@ export const AIPlannerScreen: React.FC = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isTyping]);
 
-  const initChat = useCallback(() => {
-    const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY });
-    chatRef.current = ai.chats.create({
-      model: 'gemini-2.5-flash',
-      config: { systemInstruction: buildSystemPrompt(plannerMode, city, budget) },
-    });
-  }, [plannerMode, city, budget]);
-
   const sendMessage = async (text: string) => {
     const trimmed = text.trim();
     if (!trimmed || isTyping) return;
@@ -413,35 +405,28 @@ export const AIPlannerScreen: React.FC = () => {
     lastUserMsgRef.current = trimmed;
 
     const userMsg: ChatMessage = { id: Date.now().toString(), role: 'user', text: trimmed, timestamp: Date.now() };
-    setMessages(prev => [...prev, userMsg]);
+    const newContext = [...messages, userMsg];
+
+    setMessages(newContext);
     setInputValue('');
     setIsTyping(true);
 
     const streamId = (Date.now() + 1).toString();
 
     try {
-      if (!chatRef.current) initChat();
+      const historyContext = newContext.map(m => `${m.role === 'user' ? 'User' : 'AI'}: ${m.text}`).join('\n\n');
+      const promptText = `Chat History:\n${historyContext}\n\nPlease respond to the final User constraint.`;
 
-      // Try streaming first
-      try {
-        const stream = await chatRef.current.sendMessageStream(trimmed);
-        setIsTyping(false);
+      const systemInstruction = buildSystemPrompt(plannerMode, city, budget);
 
-        const placeholder: ChatMessage = { id: streamId, role: 'ai', text: '', timestamp: Date.now(), isStreaming: true };
-        setMessages(prev => [...prev, placeholder]);
+      const result = await aiAPI.generateContent(promptText, systemInstruction);
 
-        let accumulated = '';
-        for await (const chunk of stream) {
-          accumulated += chunk.text || '';
-          setMessages(prev => prev.map(m => m.id === streamId ? { ...m, text: accumulated } : m));
-        }
-        setMessages(prev => prev.map(m => m.id === streamId ? { ...m, isStreaming: false } : m));
-      } catch {
-        // Fallback to non-streaming
-        const result = await chatRef.current.sendMessage(trimmed);
-        setIsTyping(false);
-        setMessages(prev => [...prev, { id: streamId, role: 'ai', text: result.text || '', timestamp: Date.now() }]);
-      }
+      setIsTyping(false);
+
+      // The backend proxy might return a text string directly, or an object containing .text
+      const aiResponseText = typeof result === 'string' ? result : (result?.text || '');
+
+      setMessages(prev => [...prev, { id: streamId, role: 'ai', text: aiResponseText, timestamp: Date.now() }]);
     } catch {
       setIsTyping(false);
       setMessages(prev => [...prev, {
@@ -456,13 +441,13 @@ export const AIPlannerScreen: React.FC = () => {
     // Remove last AI message and resend last user message
     const lastUserText = lastUserMsgRef.current;
     if (!lastUserText) return;
-    chatRef.current = null; // fresh session for regeneration
+
     setMessages(prev => {
-      // remove trailing AI messages until we hit the last user message
       let i = prev.length - 1;
       while (i >= 0 && prev[i].role === 'ai') i--;
       return prev.slice(0, i + 1);
     });
+
     setTimeout(() => sendMessage(lastUserText), 50);
   };
 
@@ -493,7 +478,7 @@ export const AIPlannerScreen: React.FC = () => {
   };
 
   const handleCopy = async (id: string, text: string) => {
-    try { await navigator.clipboard.writeText(text); setCopiedId(id); setTimeout(() => setCopiedId(null), 2000); } catch {}
+    try { await navigator.clipboard.writeText(text); setCopiedId(id); setTimeout(() => setCopiedId(null), 2000); } catch { }
   };
 
   const handleRetry = () => {
@@ -508,10 +493,10 @@ export const AIPlannerScreen: React.FC = () => {
     const rec = new SR();
     rec.lang = 'en-US';
     rec.continuous = false;
-    rec.onstart  = () => setIsListening(true);
+    rec.onstart = () => setIsListening(true);
     rec.onresult = (e: any) => { setInputValue(e.results[0][0].transcript); setIsListening(false); };
-    rec.onend    = () => setIsListening(false);
-    rec.onerror  = () => setIsListening(false);
+    rec.onend = () => setIsListening(false);
+    rec.onerror = () => setIsListening(false);
     rec.start();
     voiceRef.current = rec;
   };
@@ -584,11 +569,10 @@ export const AIPlannerScreen: React.FC = () => {
             <button key={mode.id}
               onClick={() => setPlannerMode(mode.id)}
               title={mode.hint}
-              className={`flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold border transition-all ${
-                plannerMode === mode.id
-                  ? `${mode.color} text-white border-transparent shadow-sm`
-                  : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300'
-              }`}>
+              className={`flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold border transition-all ${plannerMode === mode.id
+                ? `${mode.color} text-white border-transparent shadow-sm`
+                : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300'
+                }`}>
               {mode.label}
             </button>
           ))}
@@ -701,11 +685,10 @@ export const AIPlannerScreen: React.FC = () => {
       <div className="bg-white border-t border-slate-200 px-4 py-3 flex items-center gap-2 flex-shrink-0">
         {/* Voice button */}
         <button onClick={handleVoice}
-          className={`w-10 h-10 rounded-full flex items-center justify-center transition-all flex-shrink-0 ${
-            isListening
-              ? 'bg-red-100 text-red-600 animate-pulse'
-              : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
-          }`}
+          className={`w-10 h-10 rounded-full flex items-center justify-center transition-all flex-shrink-0 ${isListening
+            ? 'bg-red-100 text-red-600 animate-pulse'
+            : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+            }`}
           title={isListening ? 'Stop recording' : 'Voice input'}>
           {isListening ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
         </button>

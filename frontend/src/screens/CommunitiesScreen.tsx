@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Users, ChevronRight, Trophy, Star, MessageSquare, Plus, Crown, Flame, CheckCircle2, Send, X, ShieldCheck, Heart, Calendar, Clock, MapPin, Wallet as WalletIcon, TrendingUp, Award, Search, Tag, ArrowLeft, Hash, MessageCircle, Handshake, UserPlus, Bell, Globe, ExternalLink, Info, Image } from 'lucide-react';
 import { Community, Itinerary, FazaRequest, ChatMessage, CommunityEvent, User, Place, MajlisThread } from '../types/index';
+import { Button, Input, Badge } from '../components/ui';
+import { placeAPI, communityAPI, authAPI, threadAPI, eventAPI, fazaAPI } from '../services/api';
 
 // ── Feature 10 helpers ──────────────────────────────────────────────────────
 function extractFirstUrl(text: string): string | null {
@@ -36,14 +38,14 @@ interface ExtendedCommunityEvent extends CommunityEvent {
 }
 
 const EVENT_CATEGORIES = [
-  { id: 'sports',   label: 'رياضة',    emoji: '⚽' },
-  { id: 'food',     label: 'أكل وشرب', emoji: '🍽️' },
-  { id: 'hiking',   label: 'رحلات',    emoji: '🏔️' },
-  { id: 'cultural', label: 'ثقافي',    emoji: '🎭' },
-  { id: 'social',   label: 'تجمع',     emoji: '👥' },
-  { id: 'gaming',   label: 'ألعاب',    emoji: '🎮' },
-  { id: 'art',      label: 'فن',       emoji: '🎨' },
-  { id: 'other',    label: 'أخرى',     emoji: '✨' },
+  { id: 'sports', label: 'رياضة', emoji: '⚽' },
+  { id: 'food', label: 'أكل وشرب', emoji: '🍽️' },
+  { id: 'hiking', label: 'رحلات', emoji: '🏔️' },
+  { id: 'cultural', label: 'ثقافي', emoji: '🎭' },
+  { id: 'social', label: 'تجمع', emoji: '👥' },
+  { id: 'gaming', label: 'ألعاب', emoji: '🎮' },
+  { id: 'art', label: 'فن', emoji: '🎨' },
+  { id: 'other', label: 'أخرى', emoji: '✨' },
 ] as const;
 
 const COVER_PRESETS = [
@@ -56,21 +58,20 @@ const COVER_PRESETS = [
 ];
 
 const RECURRENCE_OPTS = [
-  { id: 'once',    label: 'مرة واحدة' },
-  { id: 'weekly',  label: 'أسبوعياً'  },
-  { id: 'monthly', label: 'شهرياً'    },
+  { id: 'once', label: 'مرة واحدة' },
+  { id: 'weekly', label: 'أسبوعياً' },
+  { id: 'monthly', label: 'شهرياً' },
 ] as const;
 
-// ── Faza Request creation constants ──────────────────────────────────────────
 const FAZA_CATEGORIES = [
-  { id: 'recommendation', label: 'توصية',   emoji: '📍', color: '#6366f1' },
-  { id: 'advice',         label: 'نصيحة',   emoji: '💡', color: '#f59e0b' },
-  { id: 'planning',       label: 'تخطيط',   emoji: '🗺️', color: '#10b981' },
-  { id: 'emergency',      label: 'طارئ',    emoji: '🚨', color: '#ef4444' },
-  { id: 'general',        label: 'استفسار', emoji: '💬', color: '#8b5cf6' },
-  { id: 'transport',      label: 'مواصلات', emoji: '🚗', color: '#0ea5e9' },
-  { id: 'food',           label: 'أكل',     emoji: '🍽️', color: '#f97316' },
-  { id: 'gear',           label: 'معدات',   emoji: '🎒', color: '#64748b' },
+  { id: 'recommendation', label: 'توصية', emoji: '📍', color: '#6366f1' },
+  { id: 'advice', label: 'نصيحة', emoji: '💡', color: '#f59e0b' },
+  { id: 'planning', label: 'تخطيط', emoji: '🗺️', color: '#10b981' },
+  { id: 'emergency', label: 'طارئ', emoji: '🚨', color: '#ef4444' },
+  { id: 'general', label: 'استفسار', emoji: '💬', color: '#8b5cf6' },
+  { id: 'transport', label: 'مواصلات', emoji: '🚗', color: '#0ea5e9' },
+  { id: 'food', label: 'أكل', emoji: '🍽️', color: '#f97316' },
+  { id: 'gear', label: 'معدات', emoji: '🎒', color: '#64748b' },
 ] as const;
 
 const FAZA_TEMPLATES = [
@@ -83,15 +84,10 @@ const FAZA_TEMPLATES = [
 ];
 
 const FAZA_URGENCY = [
-  { id: 'today',   label: 'اليوم',       emoji: '🔴', desc: 'أحتاج رد سريع' },
-  { id: 'week',    label: 'هذا الأسبوع', emoji: '🟡', desc: 'ما في ضغط كبير' },
-  { id: 'anytime', label: 'في أي وقت',   emoji: '🟢', desc: 'مو مستعجل' },
+  { id: 'today', label: 'اليوم', emoji: '🔴', desc: 'أحتاج رد سريع' },
+  { id: 'week', label: 'هذا الأسبوع', emoji: '🟡', desc: 'ما في ضغط كبير' },
+  { id: 'anytime', label: 'في أي وقت', emoji: '🟢', desc: 'مو مستعجل' },
 ] as const;
-
-import { Button, Input, Badge } from '../components/ui';
-import { placeAPI, communityAPI } from '../services/api';
-
-// ── Traveling Together types & constants ──────────────────────────────────────
 
 interface TravelPost {
   id: string;
@@ -100,7 +96,7 @@ interface TravelPost {
   userAvatar?: string;
   placeName: string;
   placeId?: string;
-  date: string; // ISO date
+  date: string;
   groupSize: number;
   maxSize: number;
   description: string;
@@ -122,118 +118,27 @@ const INTEREST_KEYS = [
   { val: 'Culture', tKey: 'ttInterestCulture' },
 ];
 
-const SEED_POSTS: TravelPost[] = [
-  {
-    id: 'seed-1',
-    userId: 'user-ahmad',
-    userName: 'Ahmad Al-Rashid',
-    userAvatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=ahmad',
-    placeName: 'Al Bujairi Heritage Park',
-    date: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-    groupSize: 2,
-    maxSize: 5,
-    description: "Planning a chill afternoon at Al Bujairi, would love to meet fellow history enthusiasts!",
-    interests: ['History', 'Photography'],
-    timestamp: Date.now() - 3600000,
-  },
-  {
-    id: 'seed-2',
-    userId: 'user-sara',
-    userName: 'Sara Khalid',
-    userAvatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=sara',
-    placeName: 'Kingdom Centre Tower',
-    date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-    groupSize: 1,
-    maxSize: 4,
-    description: "Weekend visit to Kingdom Centre, looking for travel buddies. We can grab coffee afterwards!",
-    interests: ['Photography', 'Foodie'],
-    timestamp: Date.now() - 7200000,
-  },
-  {
-    id: 'seed-3',
-    userId: 'user-khalid',
-    userName: 'Khalid Bin Turki',
-    userAvatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=khalid',
-    placeName: 'Edge of the World',
-    date: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-    groupSize: 3,
-    maxSize: 8,
-    description: "Epic hiking trip to Edge of the World (Jebel Fihrayn). Need adventurers! Bringing camping gear.",
-    interests: ['Hiking', 'Adventure', 'Photography'],
-    timestamp: Date.now() - 1800000,
-  },
-];
-
 const COMMUNITY_CATEGORIES = ['الكل', 'Sports', 'Food', 'Nature', 'Cars', 'Women', 'Men', 'Sea'];
 
-const getTravelPosts = (): TravelPost[] => {
-  try {
-    const raw = localStorage.getItem(TRAVEL_POSTS_KEY);
-    if (!raw) {
-      localStorage.setItem(TRAVEL_POSTS_KEY, JSON.stringify(SEED_POSTS));
-      return SEED_POSTS;
-    }
-    const posts: TravelPost[] = JSON.parse(raw);
-    // Filter out past dates
-    const today = new Date().toISOString().split('T')[0];
-    return posts.filter(p => p.date >= today);
-  } catch { return SEED_POSTS; }
-};
-
-export const MOCK_COMMUNITIES: Community[] = [
-  { id: 'c13', name: '⚽ دوري الحواري', description: 'مباريات، تحديات، ونقاشات الدوري السعودي والعالمي.', icon: '⚽', category: 'Sports', image: 'https://images.unsplash.com/photo-1579952363873-27f3bade9f55?w=800&q=80', memberCount: 3420, activeTripsCount: 12 },
-  { id: 'c14', name: '🍔 ذواقة الرياض', description: 'تجارب المطاعم، الفود ترك، وألذ الأطباق في المدينة.', icon: '🍔', category: 'Food', image: 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=800&q=80', memberCount: 2875, activeTripsCount: 9 },
-  { id: 'c15', name: '💪 أبطال اللياقة', description: 'تمارين، تغذية صحية، وتحديات اللياقة البدنية.', icon: '💪', category: 'Sports', image: 'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=800&q=80', memberCount: 1980, activeTripsCount: 7 },
-  { id: 'c16', name: '🎣 محترفي الصيد', description: 'أماكن الصيد، المعدات، وأفضل الأوقات للصيد.', icon: '🎣', category: 'Nature', image: 'https://images.unsplash.com/photo-1535591273668-578e31182c4f?w=800&q=80', memberCount: 1240, activeTripsCount: 5 },
-  { id: 'c17', name: '🚤 عشاق البحر', description: 'قوارب، دبابات بحرية، وكل الأنشطة المائية.', icon: '🚤', category: 'Sports', image: 'https://images.unsplash.com/photo-1544551763-46a013bb70d5?w=800&q=80', memberCount: 870, activeTripsCount: 4 },
-  { id: 'c18', name: '🏎️ حلبة السرعة', description: 'كارتينج، دبابات برية، وسباقات السرعة.', icon: '🏎️', category: 'Cars', image: 'https://images.unsplash.com/photo-1568605117036-5fe5e7bab0b7?w=800&q=80', memberCount: 1560, activeTripsCount: 6 },
-  { id: 'c19', name: '🏀 سلة المحترفين', description: 'تحديات كرة سلة، حجز ملاعب، ودوريات 3x3.', icon: '🏀', category: 'Sports', image: 'https://images.unsplash.com/photo-1546519638-68e109498ffc?w=800&q=80', memberCount: 2100, activeTripsCount: 11 },
-  { id: 'c20', name: '🚴 دراجي الرياض', description: 'مسارات الدراجات، تجمعات صباحية، وسباقات الهواة.', icon: '🚴', category: 'Sports', image: 'https://images.unsplash.com/photo-1541625602330-2277a4c46182?w=800&q=80', memberCount: 1350, activeTripsCount: 8 },
-  { id: 'c21', name: '🏍️ بايكرز', description: 'تجمعات الدراجات النارية، رايدات جماعية، وصيانة.', icon: '🏍️', category: 'Cars', image: 'https://images.unsplash.com/photo-1558981403-c5f9899a28bc?w=800&q=80', memberCount: 990, activeTripsCount: 5 },
-  { id: 'c22', name: '🏜️ تطعيس', description: 'تحدي الطعوس، تعديل سيارات البر، وكشتات التطعيس.', icon: '🏜️', category: 'Nature', image: 'https://images.unsplash.com/photo-1541423487523-c9569614b109?w=800&q=80', memberCount: 4210, activeTripsCount: 18 },
-  { id: 'c23', name: '🥾 Riyadh Hikers', description: 'Trail runs, sunrise hikes, and weekend treks around Saudi Arabia\'s most scenic landscapes.', icon: '🥾', category: 'Nature', image: 'https://images.unsplash.com/photo-1551632811-561732d1e306?w=800&q=80', memberCount: 1870, activeTripsCount: 14 },
-  // Gender-specific communities
-  { id: 'c24', name: '👩 هايكرز الجوهرة', description: 'مجتمع نسائي متخصص في الرحلات والمشي — نساء فقط.', icon: '👩', category: 'Women', image: 'https://images.unsplash.com/photo-1551632811-561732d1e306?w=800&q=80', memberCount: 940, activeTripsCount: 6 },
-  { id: 'c25', name: '🎾 بادل ليدي', description: 'مجتمع سيدات لعشاق لعبة البادل — تدريب، بطولات، تجمعات.', icon: '🎾', category: 'Women', image: 'https://images.unsplash.com/photo-1554068865-24cecd4e34b8?w=800&q=80', memberCount: 620, activeTripsCount: 4 },
-  { id: 'c26', name: '🏊 سباحات الخليج', description: 'مجتمع سيدات لعشاق البحر والسباحة — شواطئ نسائية ومناطق آمنة.', icon: '🏊', category: 'Women', image: 'https://images.unsplash.com/photo-1519046904884-53103b34b206?w=800&q=80', memberCount: 450, activeTripsCount: 3 },
-  { id: 'c27', name: '🏋️ رجال الصالة', description: 'تحديات رياضية للرجال — بناء الجسم، لياقة، وتبادل الخبرات.', icon: '🏋️', category: 'Men', image: 'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=800&q=80', memberCount: 1800, activeTripsCount: 8 },
-  // Interest communities
-  { id: 'c28', name: '🏄 عشاق الأمواج', description: 'ركوب الأمواج، غطس، وكل أنشطة البحر — الشواطئ السعودية.', icon: '🏄', category: 'Sea', image: 'https://images.unsplash.com/photo-1559128010-7c1ad6e1b6a5?w=800&q=80', memberCount: 780, activeTripsCount: 5 },
-  { id: 'c29', name: '🏒 هوكي الجليد', description: 'مجتمع هوكي الجليد في المملكة — ملاعب وبطولات داخلية.', icon: '🏒', category: 'Sports', image: 'https://images.unsplash.com/photo-1554068865-24cecd4e34b8?w=800&q=80', memberCount: 320, activeTripsCount: 2 },
-];
-
-// 🟢 مستخدم افتراضي آمن لتجنب انهيار الشاشة (يجب استبداله لاحقاً ببيانات authAPI)
-const SAFE_DEFAULT_USER: User = {
-  id: 'current-user',
-  name: 'بطل تريبو',
-  email: 'user@tripo.com',
-  role: 'user',
-  language: 'ar',
-  karamPoints: 120,
-  walletBalance: 50.0,
-  fazaCount: 2,
-  rank: 'مستكشف',
-  smartProfile: { interests: [], preferredBudget: 'medium', activityStyles: [], typicalFreeTimeWindow: 0, city: 'الرياض' }
-};
-
 export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId, onCommunityOpened }: { t: any, lang: string, onOpenItinerary: (it: Itinerary) => void, initialCommunityId?: string, onCommunityOpened?: () => void }) => {
-  const [selectedCommunity, setSelectedCommunity] = useState<Community | null>(() => {
-    if (!initialCommunityId) return null;
-    return MOCK_COMMUNITIES.find(c => c.id === initialCommunityId) ?? null;
-  });
+  // ── Anti-Gravity State (Real Data) ──────────────────────────────────────
+  const [userProfile, setUserProfile] = useState<User | null>(null);
+  const [communities, setCommunities] = useState<Community[]>([]);
+  const [allPlaces, setAllPlaces] = useState<Place[]>([]);
+  const [localEvents, setLocalEvents] = useState<CommunityEvent[]>([]);
+  const [localFazaRequests, setLocalFazaRequests] = useState<FazaRequest[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  const [selectedCommunity, setSelectedCommunity] = useState<Community | null>(null);
   const [activeTab, setActiveTab] = useState<'majlis' | 'requests' | 'events' | 'about'>('majlis');
 
-  // ── Traveling Together state ──────────────────────────────────────────────
   const [mainTab, setMainTab] = useState<'communities' | 'traveling'>('communities');
-  const [travelPosts, setTravelPosts] = useState<TravelPost[]>(getTravelPosts);
-  const [showPostTripModal, setShowPostTripModal] = useState(false);
-  const [newTripPost, setNewTripPost] = useState({
-    placeName: '',
-    date: '',
-    maxSize: 4,
-    description: '',
-    interests: [] as string[],
+  const [travelPosts, setTravelPosts] = useState<TravelPost[]>(() => {
+    try { return JSON.parse(localStorage.getItem(TRAVEL_POSTS_KEY) || '[]'); } catch { return []; }
   });
+
+  const [showPostTripModal, setShowPostTripModal] = useState(false);
+  const [newTripPost, setNewTripPost] = useState({ placeName: '', date: '', maxSize: 4, description: '', interests: [] as string[] });
   const [showFazaModal, setShowFazaModal] = useState<FazaRequest | null>(null);
   const [showCreateEventModal, setShowCreateEventModal] = useState(false);
   const [fazaAnswer, setFazaAnswer] = useState('');
@@ -241,212 +146,143 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const [communities, setCommunities] = useState<Community[]>(MOCK_COMMUNITIES);
-  const [localEvents, setLocalEvents] = useState<CommunityEvent[]>(() => {
-    try { return JSON.parse(localStorage.getItem('tripo_events') || '[]'); } catch { return []; }
-  });
-  const [localFazaRequests, setLocalFazaRequests] = useState<FazaRequest[]>(() => {
-    try { return JSON.parse(localStorage.getItem('tripo_faza') || '[]'); } catch { return []; }
-  });
   const [joinedEvents, setJoinedEvents] = useState<string[]>(() => {
     try { return JSON.parse(localStorage.getItem('tripo_joined_events') || '[]'); } catch { return []; }
   });
-  const [userProfile, setUserProfile] = useState<User>(SAFE_DEFAULT_USER);
-  const [allPlaces, setAllPlaces] = useState<Place[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
 
-  // ── New feature state ─────────────────────────────────────────────────────
   const [categoryFilter, setCategoryFilter] = useState('الكل');
-  const [threadReactions, setThreadReactions] = useState<Record<string, Record<string, string[]>>>(() => {
-    try { return JSON.parse(localStorage.getItem('tripo_thread_reactions') || '{}'); } catch { return {}; }
-  });
-  const [unreadCount, setUnreadCount] = useState(() => {
-    const lastVisit = parseInt(localStorage.getItem('tripo_communities_last_visit') || '0');
-    let count = 0;
-    try {
-      const savedThreads: Record<string, MajlisThread[]> = JSON.parse(localStorage.getItem('tripo_threads') || '{}');
-      Object.values(savedThreads).forEach(cThreads => {
-        (cThreads as MajlisThread[]).forEach((th: MajlisThread) => {
-          if (new Date(th.createdAt).getTime() > lastVisit) count++;
-        });
-      });
-      const savedPosts: TravelPost[] = JSON.parse(localStorage.getItem(TRAVEL_POSTS_KEY) || '[]');
-      savedPosts.forEach(p => { if (p.timestamp > lastVisit && p.userId !== 'current-user') count++; });
-    } catch {}
-    localStorage.setItem('tripo_communities_last_visit', Date.now().toString());
-    return count;
-  });
+
+  const [unreadCount, setUnreadCount] = useState(0);
   const [chatDmPost, setChatDmPost] = useState<string | null>(null);
   const [dmInputs, setDmInputs] = useState<Record<string, string>>({});
 
-  // Thread state
-  const [threads, setThreads] = useState<Record<string, MajlisThread[]>>(() => {
-    try { return JSON.parse(localStorage.getItem('tripo_threads') || '{}'); } catch { return {}; }
-  });
+  // ── NEW SERVER STATE ──
+  const [serverThreads, setServerThreads] = useState<MajlisThread[]>([]);
+  const [isLoadingThreads, setIsLoadingThreads] = useState(false);
+
+  useEffect(() => {
+    if (selectedCommunity && activeTab === 'majlis') {
+      const fetchThreads = async () => {
+        setIsLoadingThreads(true);
+        try {
+          const data = await threadAPI.getThreads((selectedCommunity as any).id || (selectedCommunity as any)._id);
+          setServerThreads(data as MajlisThread[]);
+        } catch (err) {
+          console.error("Failed to load threads", err);
+        } finally {
+          setIsLoadingThreads(false);
+        }
+      };
+      fetchThreads();
+    }
+  }, [selectedCommunity, activeTab]);
   const [threadSearch, setThreadSearch] = useState('');
   const [selectedThread, setSelectedThread] = useState<MajlisThread | null>(null);
   const [showCreateThread, setShowCreateThread] = useState(false);
   const [newThread, setNewThread] = useState({ title: '', body: '', tags: '' });
   const [replyText, setReplyText] = useState('');
-
-  // Feature 2: Thread sort + pin
   const [threadSort, setThreadSort] = useState<'latest' | 'replies' | 'reactions' | 'trending'>('latest');
-
-  // Feature 3: Community notification subscriptions
   const [subscribedCommunities, setSubscribedCommunities] = useState<string[]>(() => {
     try { return JSON.parse(localStorage.getItem('tripo_subscribed_communities') || '[]'); } catch { return []; }
   });
-
-  // Feature 4: Image attachments
   const [newThreadImageUrl, setNewThreadImageUrl] = useState('');
   const [replyImageUrl, setReplyImageUrl] = useState('');
   const [showReplyImageInput, setShowReplyImageInput] = useState(false);
-
-  // Feature 6: Community search
   const [communitySearch, setCommunitySearch] = useState('');
-
-  // Feature 7: My Communities (joined)
   const [joinedCommunities, setJoinedCommunities] = useState<string[]>(() => {
     try { return JSON.parse(localStorage.getItem('tripo_joined_communities') || '[]'); } catch { return []; }
   });
-
-  // Feature 8: Faza history
-  const [completedFaza, setCompletedFaza] = useState<Array<{id: string; question: string; pointsEarned: number; answeredAt: string; helperName: string}>>(() => {
+  const [completedFaza, setCompletedFaza] = useState<Array<{ id: string; question: string; pointsEarned: number; answeredAt: string; helperName: string }>>(() => {
     try { return JSON.parse(localStorage.getItem('tripo_completed_faza') || '[]'); } catch { return []; }
   });
-
-  // Feature 13: Poll state for create thread
   const [newPoll, setNewPoll] = useState({ enabled: false, question: '', options: ['', ''] });
 
-  // Persist events, faza requests, joined events, and threads to localStorage on every change
+  //جلب البيانات من السيرفر
   useEffect(() => {
-    if (initialCommunityId) onCommunityOpened?.();
-  }, []);
+    const fetchRealData = async () => {
+      try {
+        setIsLoading(true);
+        const token = localStorage.getItem('token');
+        const [
+          userRes,
+          placesRes,
+          communitiesRes,
+          eventsRes,
+          fazaRes
+        ] = await Promise.allSettled([
+          token ? authAPI.getMe() : Promise.reject('no token'),
+          placeAPI.getPlaces(),
+          communityAPI.getCommunities(),
+          eventAPI.getEvents(),
+          fazaAPI.getRequests()
+        ]);
 
-  useEffect(() => {
-    localStorage.setItem('tripo_events', JSON.stringify(localEvents));
-  }, [localEvents]);
+        if (userRes.status === 'fulfilled') setUserProfile(userRes.value);
+        if (placesRes.status === 'fulfilled') setAllPlaces(Array.isArray(placesRes.value) ? placesRes.value : []);
 
-  useEffect(() => {
-    localStorage.setItem('tripo_faza', JSON.stringify(localFazaRequests));
-  }, [localFazaRequests]);
+        if (communitiesRes.status === 'fulfilled') {
+          const fetchedCommunities = Array.isArray(communitiesRes.value) ? communitiesRes.value : [];
+          setCommunities(fetchedCommunities);
+          if (initialCommunityId) {
+            const target = fetchedCommunities.find(c => c.id === initialCommunityId || (c as any)._id === initialCommunityId);
+            if (target) {
+              setSelectedCommunity(target);
+              onCommunityOpened?.();
+            }
+          }
+        }
+        if (eventsRes.status === 'fulfilled') setLocalEvents(Array.isArray(eventsRes.value) ? eventsRes.value : []);
+        if (fazaRes.status === 'fulfilled') setLocalFazaRequests(Array.isArray(fazaRes.value) ? fazaRes.value : []);
 
-  useEffect(() => {
-    localStorage.setItem('tripo_joined_events', JSON.stringify(joinedEvents));
-  }, [joinedEvents]);
+      } catch (error) {
+        console.error("Antigravity engine failed to load some data:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchRealData();
+  }, [initialCommunityId]);
 
-  useEffect(() => {
-    localStorage.setItem('tripo_threads', JSON.stringify(threads));
-  }, [threads]);
+  // Persist Local States
+  useEffect(() => { localStorage.setItem('tripo_joined_events', JSON.stringify(joinedEvents)); }, [joinedEvents]);
 
+  useEffect(() => { localStorage.setItem('tripo_subscribed_communities', JSON.stringify(subscribedCommunities)); }, [subscribedCommunities]);
+  useEffect(() => { localStorage.setItem('tripo_joined_communities', JSON.stringify(joinedCommunities)); }, [joinedCommunities]);
+  useEffect(() => { localStorage.setItem('tripo_completed_faza', JSON.stringify(completedFaza)); }, [completedFaza]);
   useEffect(() => {
-    localStorage.setItem('tripo_thread_reactions', JSON.stringify(threadReactions));
-  }, [threadReactions]);
-
-  // Feature 3 persist
-  useEffect(() => {
-    localStorage.setItem('tripo_subscribed_communities', JSON.stringify(subscribedCommunities));
-  }, [subscribedCommunities]);
-
-  // Feature 7 persist
-  useEffect(() => {
-    localStorage.setItem('tripo_joined_communities', JSON.stringify(joinedCommunities));
-  }, [joinedCommunities]);
-
-  // Feature 8 persist
-  useEffect(() => {
-    localStorage.setItem('tripo_completed_faza', JSON.stringify(completedFaza));
-  }, [completedFaza]);
-
-  useEffect(() => {
-    // Persist travel posts (filter out past dates on save)
     const today = new Date().toISOString().split('T')[0];
     const valid = travelPosts.filter(p => p.date >= today);
     localStorage.setItem(TRAVEL_POSTS_KEY, JSON.stringify(valid));
   }, [travelPosts]);
 
-  useEffect(() => {
-    const fetchInitialData = async () => {
-      try {
-        setIsLoading(true);
-        const [placesData, communitiesData] = await Promise.allSettled([
-          placeAPI.getPlaces(),
-          communityAPI.getCommunities(),
-        ]);
-
-        if (placesData.status === 'fulfilled') {
-          const formatted = Array.isArray(placesData.value) ? placesData.value : (placesData.value.data || placesData.value.places || []);
-          setAllPlaces(formatted);
-        }
-
-        if (communitiesData.status === 'fulfilled' && communitiesData.value.length > 0) {
-          setCommunities(communitiesData.value);
-        }
-        // If API has no communities yet, MOCK_COMMUNITIES stays as the default
-      } catch (error) {
-        console.error("Failed to load community data:", error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    fetchInitialData();
-  }, []);
-
-  // Create Event Form State
-  const [newEvent, setNewEvent] = useState({
-    title: '',
-    description: '',
-    date: '',
-    time: '',
-    endTime: '',
-    location: '',
-    mapUrl: '',
-    category: '',
-    coverPreset: 0,
-    maxAttendees: '',
-    minAttendees: '',
-    recurrence: 'once' as 'once' | 'weekly' | 'monthly',
-    isFree: true,
-    fee: '',
-    requirements: [] as string[],
-    organizerNote: '',
-    status: 'published' as 'draft' | 'published',
-  });
-  const [newReqText,   setNewReqText]   = useState('');
-  const [eventErrors,  setEventErrors]  = useState<Record<string, string>>({});
+  // Event Wizard State
+  const [newEvent, setNewEvent] = useState({ title: '', description: '', date: '', time: '', endTime: '', location: '', mapUrl: '', category: '', coverPreset: 0, maxAttendees: '', minAttendees: '', recurrence: 'once' as 'once' | 'weekly' | 'monthly', isFree: true, fee: '', requirements: [] as string[], organizerNote: '', status: 'published' as 'draft' | 'published' });
+  const [newReqText, setNewReqText] = useState('');
+  const [eventErrors, setEventErrors] = useState<Record<string, string>>({});
   const [eventTouched, setEventTouched] = useState<Record<string, boolean>>({});
-  const [wizardStep,   setWizardStep]   = useState<1 | 2 | 3>(1);
+  const [wizardStep, setWizardStep] = useState<1 | 2 | 3>(1);
 
-  // ── Faza creation wizard ─────────────────────────────────────────────────
+  // Faza Wizard State
   const [showCreateFazaModal, setShowCreateFazaModal] = useState(false);
   const [fazaWizardStep, setFazaWizardStep] = useState<1 | 2 | 3>(1);
   const [fazaSubmitSuccess, setFazaSubmitSuccess] = useState(false);
   const [fazaSubmitting, setFazaSubmitting] = useState(false);
-  const [newFazaForm, setNewFazaForm] = useState({
-    question: '',
-    category: '',
-    urgency: 'anytime' as 'today' | 'week' | 'anytime',
-    rewardPoints: 50,
-    photoUrl: '',
-    anonymous: false,
-  });
+  const [newFazaForm, setNewFazaForm] = useState({ question: '', category: '', urgency: 'anytime' as 'today' | 'week' | 'anytime', rewardPoints: 50, photoUrl: '', anonymous: false });
   const [fazaErrors, setFazaErrors] = useState<Record<string, string>>({});
 
   const [communityMessages, setCommunityMessages] = useState<Record<string, ChatMessage[]>>(() => {
     try { return JSON.parse(localStorage.getItem('tripo_community_messages') || '{}'); } catch { return {}; }
   });
-  const chatEndRef = useRef<HTMLDivElement>(null);
   const threadEndRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    localStorage.setItem('tripo_community_messages', JSON.stringify(communityMessages));
-  }, [communityMessages]);
-
+  useEffect(() => { localStorage.setItem('tripo_community_messages', JSON.stringify(communityMessages)); }, [communityMessages]);
   useEffect(() => {
     if (activeTab === 'majlis' && selectedThread) {
       threadEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }
   }, [activeTab, selectedThread, communityMessages]);
+
+
 
   const handleFazaSubmit = () => {
     if (!fazaAnswer.trim() || !showFazaModal) return;
@@ -456,16 +292,16 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
     const newFazaCount = (userProfile.fazaCount || 0) + 1;
     let newRank = userProfile.rank;
 
-    if (newFazaCount >= 10) newRank = "ماستر الفزعات";
-    else if (newFazaCount >= 3) newRank = 'شهم';
+    if (newFazaCount >= 10) newRank = "ماستر الفزعات" as any;
+    else if (newFazaCount >= 3) newRank = 'شهم' as any;
 
-    setUserProfile(prev => ({
+    setUserProfile(prev => prev ? ({
       ...prev,
       karamPoints: (prev.karamPoints || 0) + rewardPoints,
       walletBalance: (prev.walletBalance || 0) + cashReward,
       fazaCount: newFazaCount,
-      rank: newRank as any
-    }));
+      rank: newRank
+    }) : prev);
 
     setLocalFazaRequests(prev => prev.filter(r => r.id !== showFazaModal.id));
     setCompletedFaza(prev => [{ id: showFazaModal.id, question: showFazaModal.question, pointsEarned: rewardPoints, answeredAt: new Date().toISOString(), helperName: userProfile.name }, ...prev]);
@@ -485,7 +321,6 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
     if (!newEvent.category) errs.category = 'اختر نوع الفعالية';
     return errs;
   };
-
   const validateStep2 = () => {
     const errs: Record<string, string> = {};
     if (!newEvent.date) errs.date = 'التاريخ مطلوب';
@@ -493,7 +328,6 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
     if (!newEvent.time) errs.time = 'وقت البداية مطلوب';
     return errs;
   };
-
   const validateStep3 = () => {
     const errs: Record<string, string> = {};
     if (!newEvent.isFree && !newEvent.fee) errs.fee = 'أدخل رسوم الدخول';
@@ -551,7 +385,7 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
     setLocalEvents([event, ...localEvents]);
     setShowCreateEventModal(false);
     const isDraft = newEvent.status === 'draft';
-    setSuccessMessage(isDraft ? 'تم حفظ المسودة ✅' : (lang === 'ar' ? 'تم نشر الفعالية بنجاح! ننتظر الجميع 🚀' : "Event published! Everyone's invited 🚀"));
+    setSuccessMessage(isDraft ? 'تم حفظ المسودة ✅' : (lang === 'ar' ? 'تم نشر الفعالية بنجاح! ننتظر الجميع ' : "Event published! Everyone's invited "));
     setNewEvent({ title: '', description: '', date: '', time: '', endTime: '', location: '', mapUrl: '', category: '', coverPreset: 0, maxAttendees: '', minAttendees: '', recurrence: 'once', isFree: true, fee: '', requirements: [], organizerNote: '', status: 'published' });
     setNewReqText(''); setEventErrors({}); setEventTouched({}); setWizardStep(1);
     setIsSubmitting(false);
@@ -574,10 +408,10 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
       pointsReward: newFazaForm.rewardPoints,
     };
     setLocalFazaRequests(prev => [req, ...prev]);
-    setUserProfile(prev => ({
+    setUserProfile(prev => prev ? ({
       ...prev,
       karamPoints: Math.max(0, (prev.karamPoints || 0) - newFazaForm.rewardPoints),
-    }));
+    }) : prev);
     setFazaSubmitting(false);
     setFazaSubmitSuccess(true);
   };
@@ -589,23 +423,6 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
     setFazaSubmitting(false);
     setNewFazaForm({ question: '', category: '', urgency: 'anytime', rewardPoints: 50, photoUrl: '', anonymous: false });
     setFazaErrors({});
-  };
-
-  const handleSendMessage = () => {
-    if (!chatInput.trim() || !selectedCommunity) return;
-    const newMsg: ChatMessage = {
-      id: Date.now().toString(),
-      userId: userProfile.id,
-      userName: userProfile.name,
-      text: chatInput,
-      timestamp: Date.now()
-    };
-
-    setCommunityMessages({
-      ...communityMessages,
-      [selectedCommunity.id]: [...(communityMessages[selectedCommunity.id] || []), newMsg]
-    });
-    setChatInput('');
   };
 
   const toggleJoinEvent = (eventId: string) => {
@@ -626,7 +443,6 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
     }
   };
 
-  // ── Travel Post handlers ──────────────────────────────────────────────────
   const handlePostTrip = () => {
     if (!newTripPost.placeName || !newTripPost.date || isSubmitting) return;
     setIsSubmitting(true);
@@ -634,7 +450,7 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
       id: Date.now().toString(),
       userId: userProfile.id,
       userName: userProfile.name,
-      userAvatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${userProfile.id}`,
+      userAvatar: userProfile.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${userProfile.id}`,
       placeName: newTripPost.placeName,
       date: newTripPost.date,
       groupSize: 1,
@@ -654,93 +470,137 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
   const handleJoinTrip = (postId: string) => {
     setTravelPosts(prev => prev.map(p => {
       if (p.id !== postId) return p;
-      if (p.joinedByMe) return p; // already joined
+      if (p.joinedByMe) return p;
       return { ...p, groupSize: p.groupSize + 1, joinedByMe: true };
     }));
     setSuccessMessage("You're in! 🎉 Have a great trip!");
     setTimeout(() => setSuccessMessage(null), 3000);
   };
 
-  const handleCreateThread = () => {
+  const handleCreateThread = async () => {
     if (!newThread.title || !selectedCommunity || isSubmitting) return;
     setIsSubmitting(true);
-    const thread: MajlisThread = {
-      id: Date.now().toString(),
-      communityId: selectedCommunity.id,
+
+    const payload = {
       title: newThread.title,
       body: newThread.body,
-      authorName: userProfile.name,
-      createdAt: new Date().toISOString(),
       tags: newThread.tags.split(',').map(t => t.trim()).filter(Boolean),
-      replies: [],
       imageUrl: newThreadImageUrl.trim() || undefined,
       poll: (newPoll.enabled && newPoll.question && newPoll.options.filter(Boolean).length >= 2)
-        ? { question: newPoll.question, options: newPoll.options.filter(Boolean), votes: {} }
+        ? { question: newPoll.question, options: newPoll.options.filter(Boolean) }
         : undefined,
     };
-    setThreads(prev => ({ ...prev, [selectedCommunity.id]: [thread, ...(prev[selectedCommunity.id] || [])] }));
-    setShowCreateThread(false);
-    setNewThread({ title: '', body: '', tags: '' });
-    setNewThreadImageUrl('');
-    setNewPoll({ enabled: false, question: '', options: ['', ''] });
-    setIsSubmitting(false);
-    setSuccessMessage(lang === 'ar' ? "تم نشر الموضوع بنجاح!" : "Thread published successfully!");
-    setTimeout(() => setSuccessMessage(null), 3000);
+
+    try {
+      const communityId = (selectedCommunity as any).id || (selectedCommunity as any)._id;
+      const createdThread = await threadAPI.createThread(communityId, payload);
+      setServerThreads(prev => [createdThread, ...prev]);
+
+      setShowCreateThread(false);
+      setNewThread({ title: '', body: '', tags: '' });
+      setNewThreadImageUrl('');
+      setNewPoll({ enabled: false, question: '', options: ['', ''] });
+      setSuccessMessage(lang === 'ar' ? "تم نشر الموضوع بنجاح!" : "Thread published successfully!");
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setIsSubmitting(false);
+      setTimeout(() => setSuccessMessage(null), 3000);
+    }
   };
 
-  const handleReplyToThread = () => {
+  const handleReplyToThread = async () => {
     if (!replyText.trim() || !selectedThread || !selectedCommunity) return;
-    const reply = { id: Date.now().toString(), text: replyText, authorName: userProfile.name, createdAt: new Date().toISOString(), imageUrl: replyImageUrl.trim() || undefined };
-    const updated = { ...selectedThread, replies: [...selectedThread.replies, reply] };
-    setSelectedThread(updated);
-    setThreads(prev => ({
-      ...prev,
-      [selectedCommunity.id]: (prev[selectedCommunity.id] || []).map(t => t.id === updated.id ? updated : t)
-    }));
+
+    const communityId = (selectedCommunity as any).id || (selectedCommunity as any)._id;
+    // Optimistic Update
+    const optimisticReply = { id: Date.now().toString(), text: replyText, authorId: userProfile.id, authorName: userProfile.name, createdAt: new Date().toISOString(), imageUrl: replyImageUrl.trim() || undefined };
+
+    setSelectedThread(prev => prev ? { ...prev, replies: [...prev.replies, optimisticReply as any] } : prev);
+    setServerThreads(prev => prev.map(t => t.id === selectedThread.id ? { ...t, replies: [...t.replies, optimisticReply as any] } : t));
+
+    const currentText = replyText;
+    const currentImg = replyImageUrl;
     setReplyText('');
     setReplyImageUrl('');
     setShowReplyImageInput(false);
+
+    try {
+      const updatedThread = await threadAPI.addReply(communityId, selectedThread.id, { text: currentText, imageUrl: currentImg });
+      setSelectedThread(updatedThread);
+      setServerThreads(prev => prev.map(t => t.id === updatedThread.id ? updatedThread : t));
+    } catch (error) {
+      console.error("Failed to reply", error);
+    }
   };
 
-  // Feature 2: Toggle pin
-  const handleTogglePin = (threadId: string) => {
+  const handleTogglePin = async (threadId: string) => {
     if (!selectedCommunity) return;
-    setThreads(prev => ({
-      ...prev,
-      [selectedCommunity.id]: (prev[selectedCommunity.id] || []).map(t =>
-        t.id === threadId ? { ...t, pinned: !t.pinned } : t
-      )
-    }));
-    // Also update selectedThread if it's the one being toggled
+    const communityId = (selectedCommunity as any).id || (selectedCommunity as any)._id;
+    // Optimistic
+    setServerThreads(prev => prev.map(t => t.id === threadId ? { ...t, pinned: !t.pinned } : t));
     setSelectedThread(prev => prev && prev.id === threadId ? { ...prev, pinned: !prev.pinned } : prev);
+
+    try {
+      await threadAPI.togglePin(communityId, threadId);
+    } catch (err) {
+      console.error(err);
+    }
   };
 
-  // Feature 13: Vote poll
-  const handleVotePoll = (threadId: string, optionIdx: number) => {
+  const handleVotePoll = async (threadId: string, optionIdx: number) => {
     if (!selectedCommunity) return;
-    setThreads(prev => ({
-      ...prev,
-      [selectedCommunity.id]: (prev[selectedCommunity.id] || []).map(t => {
-        if (t.id !== threadId || !t.poll) return t;
-        return { ...t, poll: { ...t.poll, votes: { ...t.poll.votes, [userProfile.id]: optionIdx } } };
-      })
-    }));
-    // Also update selectedThread
-    setSelectedThread(prev => {
-      if (!prev || prev.id !== threadId || !prev.poll) return prev;
-      return { ...prev, poll: { ...prev.poll, votes: { ...prev.poll.votes, [userProfile.id]: optionIdx } } };
-    });
+    const communityId = (selectedCommunity as any).id || (selectedCommunity as any)._id;
+
+    // Optimistic update
+    const updatePoll = (t: MajlisThread) => {
+      if (t.id !== threadId || !t.poll) return t;
+      return { ...t, poll: { ...t.poll, votes: { ...t.poll.votes, [userProfile.id]: optionIdx } } };
+    };
+    setServerThreads(prev => prev.map(updatePoll));
+    setSelectedThread(prev => prev ? updatePoll(prev) : prev);
+
+    // Background Sync
+    try {
+      await threadAPI.votePoll(communityId, threadId, optionIdx);
+    } catch (err) {
+      console.error(err);
+    }
   };
 
-  const handleToggleReaction = (threadId: string, emoji: string) => {
-    setThreadReactions(prev => {
-      const current = prev[threadId] || {};
-      const users = current[emoji] || [];
-      const newUsers = users.includes(userProfile.id)
-        ? users.filter(u => u !== userProfile.id)
-        : [...users, userProfile.id];
-      return { ...prev, [threadId]: { ...current, [emoji]: newUsers } };
+  const handleToggleReaction = async (threadId: string, emoji: string) => {
+    if (!selectedCommunity) return;
+    const communityId = (selectedCommunity as any).id || (selectedCommunity as any)._id;
+
+    // 1. Optimistic Update (UI feels instant)
+    setServerThreads(prev => prev.map(t => {
+      if (t.id !== threadId) return t;
+      const currentReactions = t.reactions?.[emoji] || [];
+      const hasReacted = currentReactions.includes(userProfile.id);
+      const newReactions = hasReacted
+        ? currentReactions.filter((id: string) => id !== userProfile.id)
+        : [...currentReactions, userProfile.id];
+
+      return { ...t, reactions: { ...t.reactions, [emoji]: newReactions } };
+    }));
+
+    // Update selected thread if it's open
+    setSelectedThread(prev => {
+      if (!prev || prev.id !== threadId) return prev;
+      const currentReactions = prev.reactions?.[emoji] || [];
+      const hasReacted = currentReactions.includes(userProfile.id);
+      const newReactions = hasReacted
+        ? currentReactions.filter((id: string) => id !== userProfile.id)
+        : [...currentReactions, userProfile.id];
+      return { ...prev, reactions: { ...prev.reactions, [emoji]: newReactions } };
     });
+
+    // 2. Background Sync
+    try {
+      await threadAPI.toggleReaction(communityId, threadId, emoji);
+    } catch (err) {
+      console.error(err);
+    }
   };
 
   const top3Ids = useMemo(() =>
@@ -756,6 +616,15 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
     }
     return list;
   }, [communities, categoryFilter, communitySearch]);
+
+  if (isLoading || !userProfile) {
+    return (
+      <div className="h-full flex flex-col items-center justify-center bg-slate-50 space-y-4">
+        <div className="w-10 h-10 border-4 border-emerald-200 border-t-emerald-600 rounded-full animate-spin"></div>
+        <p className="text-emerald-700 font-black text-sm animate-pulse">جاري التحميل...</p>
+      </div>
+    );
+  }
 
   const formatRelativeTime = (iso: string) => {
     const diff = Date.now() - new Date(iso).getTime();
@@ -779,19 +648,15 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
         className="relative overflow-hidden rounded-3xl shadow-md active:scale-[0.98] transition-transform cursor-pointer mb-3"
         style={{ height: 160 }}
       >
-        {/* Full bleed photo */}
         <img src={comm.image} className="absolute inset-0 w-full h-full object-cover" alt={comm.name} loading="lazy" />
-        {/* Gradient overlay */}
         <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-transparent" />
 
-        {/* Trending badge top-left */}
         {isTrending && (
           <div className="absolute top-3 left-3 flex items-center gap-1 bg-orange-500 text-white text-[10px] font-black px-2.5 py-1 rounded-full shadow-md z-10">
             <Flame className="w-3 h-3" /> رائج
           </div>
         )}
 
-        {/* Active now + bell indicator top-right (Feature 3) */}
         <div className="absolute top-3 right-3 flex items-center gap-1.5 z-10">
           <button
             onClick={e => { e.stopPropagation(); setSubscribedCommunities(prev => isSubscribed ? prev.filter(id => id !== comm.id) : [...prev, comm.id]); }}
@@ -805,7 +670,6 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
           </div>
         </div>
 
-        {/* Bottom content */}
         <div className="absolute bottom-0 left-0 right-0 p-4 z-10">
           <div className="flex items-end justify-between">
             <div className="flex-1 min-w-0">
@@ -815,7 +679,6 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
               </div>
               <p className="text-[10px] text-white/70 font-bold">{comm.memberCount.toLocaleString()} {t.commMembers || 'عضو'}</p>
             </div>
-            {/* Stacked member avatars + join button (Feature 7) */}
             <div className="flex flex-col items-end gap-1 shrink-0 ml-2">
               <div className="flex items-center">
                 {memberSeeds.map((seed, i) => (
@@ -845,37 +708,33 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
   if (selectedCommunity) {
     const communityFaza = localFazaRequests.filter(r => r.communityId === selectedCommunity.id);
     const communityEvents = localEvents.filter(e => e.communityId === selectedCommunity.id);
-    const messages = communityMessages[selectedCommunity.id] || [{
-      id: 'welcome',
-      userId: 'system',
-      userName: 'تريبو',
-      text: `أهلاً بك في مجلس ${selectedCommunity.name}! هنا تبدأ سوالفنا..`,
-      timestamp: Date.now()
-    }];
 
-    // Computed threads for current community with search filter + sort + pin (Feature 2)
-    let communityThreadsList = (threads[selectedCommunity?.id || ''] || []).filter(t =>
+    let communityThreadsList = serverThreads.filter(t =>
       !threadSearch || t.title.toLowerCase().includes(threadSearch.toLowerCase()) ||
       t.tags.some(tag => tag.toLowerCase().includes(threadSearch.toLowerCase()))
     );
-    if (threadSort === 'replies') communityThreadsList = [...communityThreadsList].sort((a, b) => b.replies.length - a.replies.length);
-    else if (threadSort === 'reactions') communityThreadsList = [...communityThreadsList].sort((a, b) => {
-      const rA = Object.values(threadReactions[a.id] || {}).reduce((s, u) => s + u.length, 0);
-      const rB = Object.values(threadReactions[b.id] || {}).reduce((s, u) => s + u.length, 0);
-      return rB - rA;
-    });
-    else if (threadSort === 'trending') communityThreadsList = [...communityThreadsList].sort((a, b) => {
-      const ageA = Math.max(1, (Date.now() - new Date(a.createdAt).getTime()) / 3600000);
-      const ageB = Math.max(1, (Date.now() - new Date(b.createdAt).getTime()) / 3600000);
-      const scoreA = (a.replies.length + Object.values(threadReactions[a.id] || {}).reduce((s, u) => s + u.length, 0)) / ageA;
-      const scoreB = (b.replies.length + Object.values(threadReactions[b.id] || {}).reduce((s, u) => s + u.length, 0)) / ageB;
-      return scoreB - scoreA;
-    });
-    else communityThreadsList = [...communityThreadsList].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-    // Pinned always first
+    if (threadSort === 'replies') {
+      communityThreadsList = [...communityThreadsList].sort((a, b) => (b.replies?.length || 0) - (a.replies?.length || 0));
+    } else if (threadSort === 'reactions') {
+      communityThreadsList = [...communityThreadsList].sort((a, b) => {
+        const rA = Object.values(a.reactions || {}).reduce((s: number, u: any) => s + (u?.length || 0), 0) as number;
+        const rB = Object.values(b.reactions || {}).reduce((s: number, u: any) => s + (u?.length || 0), 0) as number;
+        return rB - rA;
+      });
+    } else if (threadSort === 'trending') {
+      communityThreadsList = [...communityThreadsList].sort((a, b) => {
+        const ageA = Math.max(1, (Date.now() - new Date(a.createdAt).getTime()) / 3600000);
+        const ageB = Math.max(1, (Date.now() - new Date(b.createdAt).getTime()) / 3600000);
+        const scoreA = ((a.replies?.length || 0) + Object.values(a.reactions || {}).reduce((s: number, u: any) => s + u.length, 0)) / ageA;
+        const scoreB = ((b.replies?.length || 0) + Object.values(b.reactions || {}).reduce((s: number, u: any) => s + u.length, 0)) / ageB;
+        return scoreB - scoreA;
+      });
+    } else {
+      communityThreadsList = [...communityThreadsList].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    }
+
     const communityThreads = [...communityThreadsList.filter(t => t.pinned), ...communityThreadsList.filter(t => !t.pinned)];
 
-    // اقتراح أماكن للمجلس بناءً على تصنيف المجتمع والأماكن الحقيقية
     const suggestions = allPlaces.filter(p => {
       const placeCategory = p.categoryTags?.[0] || p.category || '';
       return placeCategory.toLowerCase().includes(selectedCommunity.category.toLowerCase());
@@ -916,59 +775,43 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
         </div>
 
         <div className="flex-1 overflow-hidden relative">
-          {/* ──────────────────────────────────────────────────────── */}
-          {/* MAJLIS TAB — Forum Thread Views                          */}
-          {/* ──────────────────────────────────────────────────────── */}
           {activeTab === 'majlis' && (
             <div className="h-full flex flex-col">
-              {/* ── THREAD DETAIL VIEW ── */}
               {selectedThread ? (
                 <div className="h-full flex flex-col">
-                  {/* Detail header */}
                   <div className="bg-white border-b border-slate-100 px-4 py-3 flex items-center gap-3 shrink-0">
-                    <button
-                      onClick={() => setSelectedThread(null)}
-                      className="w-9 h-9 bg-slate-50 rounded-full flex items-center justify-center text-slate-600 active:scale-90 transition-transform"
-                    >
+                    <button onClick={() => setSelectedThread(null)} className="w-9 h-9 bg-slate-50 rounded-full flex items-center justify-center text-slate-600 active:scale-90 transition-transform">
                       <ArrowLeft className="w-4 h-4" />
                     </button>
                     <div className="flex-1 min-w-0">
                       <p className="font-black text-slate-900 text-sm truncate">{selectedThread.pinned ? '📌 ' : ''}{selectedThread.title}</p>
                       <p className="text-[10px] text-slate-400">{selectedThread.replies.length} رد · {selectedThread.authorName}</p>
                     </div>
-                    {/* Pin/unpin button — only for author (Feature 2) */}
                     {selectedThread.authorName === userProfile.name && (
-                      <button
-                        onClick={() => handleTogglePin(selectedThread.id)}
-                        className={`w-9 h-9 rounded-full flex items-center justify-center transition-transform active:scale-90 ${selectedThread.pinned ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-50 text-slate-400'}`}
-                        title={selectedThread.pinned ? 'إلغاء التثبيت' : 'تثبيت الموضوع'}
-                      >
+                      <button onClick={() => handleTogglePin(selectedThread.id)} className={`w-9 h-9 rounded-full flex items-center justify-center transition-transform active:scale-90 ${selectedThread.pinned ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-50 text-slate-400'}`} title={selectedThread.pinned ? 'إلغاء التثبيت' : 'تثبيت الموضوع'}>
                         <span className="text-base">{selectedThread.pinned ? '📌' : '📍'}</span>
                       </button>
                     )}
                   </div>
 
-                  {/* Thread body + replies scroll area */}
                   <div className="flex-1 overflow-y-auto p-4 space-y-4">
-                    {/* Original post */}
                     <div className="bg-white rounded-3xl p-5 border border-slate-100 shadow-sm">
                       <h3 className="font-black text-slate-900 text-base mb-3 leading-snug">{selectedThread.title}</h3>
-                      {/* Feature 4: Thread image */}
                       {selectedThread.imageUrl && (
                         <img src={selectedThread.imageUrl} className="w-full rounded-2xl object-cover max-h-64 mb-3" alt="" loading="lazy" />
                       )}
                       {selectedThread.body ? (
                         <p className="text-sm text-slate-700 leading-relaxed mb-4">{selectedThread.body}</p>
                       ) : null}
-                      {/* Feature 10: Link preview in detail */}
-                      {!selectedThread.imageUrl && (() => { const url = extractFirstUrl(selectedThread.body); return url ? (
-                        <a href={url} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} className="flex items-center gap-2 bg-slate-50 border border-slate-100 rounded-xl px-3 py-2 mt-1 mb-2 text-xs text-slate-600 hover:bg-slate-100 transition">
-                          <Globe className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
-                          <span className="truncate font-medium">{urlDomain(url)}</span>
-                          <ExternalLink className="w-3 h-3 text-slate-300 flex-shrink-0 ml-auto" />
-                        </a>
-                      ) : null; })()}
-                      {/* Feature 13: Poll in detail */}
+                      {!selectedThread.imageUrl && (() => {
+                        const url = extractFirstUrl(selectedThread.body); return url ? (
+                          <a href={url} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} className="flex items-center gap-2 bg-slate-50 border border-slate-100 rounded-xl px-3 py-2 mt-1 mb-2 text-xs text-slate-600 hover:bg-slate-100 transition">
+                            <Globe className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
+                            <span className="truncate font-medium">{urlDomain(url)}</span>
+                            <ExternalLink className="w-3 h-3 text-slate-300 flex-shrink-0 ml-auto" />
+                          </a>
+                        ) : null;
+                      })()}
                       {selectedThread.poll && (() => {
                         const poll = selectedThread.poll!;
                         const totalVotes = Object.keys(poll.votes).length;
@@ -1015,12 +858,11 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
                         </div>
                         <p className="text-[10px] text-slate-400 font-bold">{selectedThread.authorName} · {formatRelativeTime(selectedThread.createdAt)}</p>
                       </div>
-                      {/* Emoji reactions on OP */}
                       <div className="flex items-center gap-2 mt-3 pt-3 border-t border-slate-50">
                         <span className="text-[10px] text-slate-400 font-bold ml-1">التفاعل:</span>
                         {['👍', '❤️', '😂', '😮'].map(emoji => {
-                          const count = (threadReactions[selectedThread.id]?.[emoji] || []).length;
-                          const reacted = (threadReactions[selectedThread.id]?.[emoji] || []).includes(userProfile.id);
+                          const count = (selectedThread.reactions?.[emoji] || []).length;
+                          const reacted = (selectedThread.reactions?.[emoji] || []).includes(userProfile.id);
                           return (
                             <button
                               key={emoji}
@@ -1034,21 +876,18 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
                       </div>
                     </div>
 
-                    {/* Divider */}
                     {selectedThread.replies.length > 0 && (
                       <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">
                         {selectedThread.replies.length} {selectedThread.replies.length === 1 ? 'رد' : 'ردود'}
                       </p>
                     )}
 
-                    {/* Replies as chat bubbles */}
                     {selectedThread.replies.map(reply => (
                       <div key={reply.id} className={`flex ${reply.authorName === userProfile.name ? 'justify-end' : 'justify-start'}`}>
                         <div className={`max-w-[80%] p-3 rounded-2xl shadow-sm ${reply.authorName === userProfile.name ? 'bg-emerald-600 text-white rounded-tr-none' : 'bg-white border border-slate-100 rounded-tl-none'}`}>
                           {reply.authorName !== userProfile.name && (
                             <p className="text-[9px] font-bold opacity-60 mb-1">{reply.authorName}</p>
                           )}
-                          {/* Feature 4: Reply image */}
                           {reply.imageUrl && (
                             <img src={reply.imageUrl} className="w-full rounded-xl object-cover max-h-40 mb-2" alt="" loading="lazy" />
                           )}
@@ -1070,7 +909,6 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
                     <div ref={threadEndRef} />
                   </div>
 
-                  {/* Reply input (Feature 4: image toggle) */}
                   <div className="bg-white border-t border-slate-100 shrink-0">
                     {showReplyImageInput && (
                       <div className="px-4 pt-3">
@@ -1106,7 +944,6 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
                   </div>
                 </div>
               ) : showCreateThread ? (
-                /* ── CREATE THREAD FORM (inline) ── */
                 <div className="h-full flex flex-col">
                   <div className="bg-white border-b border-slate-100 px-4 py-3 flex items-center gap-3 shrink-0">
                     <button
@@ -1159,7 +996,6 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
                       )}
                     </div>
 
-                    {/* Feature 4: Image URL input */}
                     <div>
                       <label className="text-xs font-black text-slate-600 mb-1.5 block">رابط صورة (اختياري)</label>
                       <input
@@ -1170,7 +1006,6 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
                       />
                     </div>
 
-                    {/* Feature 13: Poll section */}
                     <div>
                       <button
                         type="button"
@@ -1219,9 +1054,7 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
                   </div>
                 </div>
               ) : (
-                /* ── THREAD LIST VIEW ── */
                 <div className="h-full flex flex-col">
-                  {/* Search + New Thread toolbar */}
                   <div className="bg-white border-b border-slate-100 px-4 py-3 flex items-center gap-3 shrink-0">
                     <div className="flex-1 flex items-center gap-2 bg-slate-50 rounded-full px-3 py-2">
                       <Search className="w-3.5 h-3.5 text-slate-400 shrink-0" />
@@ -1244,7 +1077,6 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
                       <Plus className="w-3.5 h-3.5" /> موضوع +
                     </button>
                   </div>
-                  {/* Feature 2: Sort bar */}
                   <div className="bg-white border-b border-slate-100 px-4 pb-2.5 flex gap-2 shrink-0">
                     {([
                       { key: 'latest', label: 'الأحدث' },
@@ -1262,9 +1094,7 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
                     ))}
                   </div>
 
-                  {/* Thread list */}
                   <div className="flex-1 overflow-y-auto p-4 space-y-3">
-                    {/* Place suggestions strip */}
                     {suggestions.length > 0 && (
                       <div className="bg-white p-4 rounded-3xl border border-slate-100 mb-2 shadow-sm">
                         <div className="flex items-center gap-2 mb-3">
@@ -1309,31 +1139,27 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
                           onClick={() => setSelectedThread(thread)}
                           className={`bg-white rounded-3xl p-5 border shadow-sm active:scale-[0.98] transition-transform cursor-pointer ${thread.pinned ? 'border-emerald-200 bg-emerald-50/30' : 'border-slate-100'}`}
                         >
-                          {/* Feature 2: Pin badge */}
                           {thread.pinned && (
                             <div className="flex items-center gap-1 mb-2">
                               <span className="text-[10px] font-black text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">📌 مثبت</span>
                             </div>
                           )}
-                          {/* Feature 4: Thread thumbnail image */}
                           {thread.imageUrl && (
                             <img src={thread.imageUrl} className="w-full h-28 rounded-xl object-cover mb-2" alt="" loading="lazy" />
                           )}
-                          {/* Title */}
                           <h4 className="font-black text-slate-900 text-sm leading-snug mb-2">{thread.title}</h4>
-                          {/* Body preview */}
                           {thread.body ? (
                             <p className="text-xs text-slate-500 leading-relaxed mb-3 line-clamp-2">{thread.body}</p>
                           ) : null}
-                          {/* Feature 10: Link preview in list card */}
-                          {!thread.imageUrl && (() => { const url = extractFirstUrl(thread.body); return url ? (
-                            <a href={url} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} className="flex items-center gap-2 bg-slate-50 border border-slate-100 rounded-xl px-3 py-2 mt-1 mb-2 text-xs text-slate-600 hover:bg-slate-100 transition">
-                              <Globe className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
-                              <span className="truncate font-medium">{urlDomain(url)}</span>
-                              <ExternalLink className="w-3 h-3 text-slate-300 flex-shrink-0 ml-auto" />
-                            </a>
-                          ) : null; })()}
-                          {/* Feature 13: Poll compact preview */}
+                          {!thread.imageUrl && (() => {
+                            const url = extractFirstUrl(thread.body); return url ? (
+                              <a href={url} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} className="flex items-center gap-2 bg-slate-50 border border-slate-100 rounded-xl px-3 py-2 mt-1 mb-2 text-xs text-slate-600 hover:bg-slate-100 transition">
+                                <Globe className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
+                                <span className="truncate font-medium">{urlDomain(url)}</span>
+                                <ExternalLink className="w-3 h-3 text-slate-300 flex-shrink-0 ml-auto" />
+                              </a>
+                            ) : null;
+                          })()}
                           {thread.poll && (
                             <div className="flex items-center gap-2 mb-2 bg-slate-50 rounded-xl px-3 py-2">
                               <span className="text-[10px]">📊</span>
@@ -1341,7 +1167,6 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
                               <span className="text-[9px] text-slate-400 shrink-0">{thread.poll.options.length} خيارات</span>
                             </div>
                           )}
-                          {/* Tags */}
                           {thread.tags.length > 0 && (
                             <div className="flex flex-wrap gap-1.5 mb-3">
                               {thread.tags.map(tag => (
@@ -1351,7 +1176,6 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
                               ))}
                             </div>
                           )}
-                          {/* Footer: author, date, replies */}
                           <div className="flex items-center justify-between pt-3 border-t border-slate-50">
                             <div className="flex items-center gap-2">
                               <div className="w-5 h-5 bg-emerald-100 rounded-full flex items-center justify-center text-[8px] font-black text-emerald-700">
@@ -1364,11 +1188,10 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
                               <span>{thread.replies.length}</span>
                             </div>
                           </div>
-                          {/* Emoji reactions */}
                           <div className="flex items-center gap-1.5 mt-2.5">
                             {['👍', '❤️', '😂', '😮'].map(emoji => {
-                              const count = (threadReactions[thread.id]?.[emoji] || []).length;
-                              const reacted = (threadReactions[thread.id]?.[emoji] || []).includes(userProfile.id);
+                              const count = (thread.reactions?.[emoji] || []).length;
+                              const reacted = (thread.reactions?.[emoji] || []).includes(userProfile.id);
                               return (
                                 <button
                                   key={emoji}
@@ -1408,114 +1231,104 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
                 ) : communityEvents.map(event => {
                   const ext = event as ExtendedCommunityEvent;
                   const catInfo = EVENT_CATEGORIES.find(c => c.id === ext.category);
-                  const cover   = ext.coverPreset !== undefined ? COVER_PRESETS[ext.coverPreset] : null;
-                  const isFull  = !!ext.maxAttendees && event.attendeesCount >= ext.maxAttendees;
+                  const cover = ext.coverPreset !== undefined ? COVER_PRESETS[ext.coverPreset] : null;
+                  const isFull = !!ext.maxAttendees && event.attendeesCount >= ext.maxAttendees;
                   const spotsLeft = ext.maxAttendees ? ext.maxAttendees - event.attendeesCount : null;
                   const needsMore = ext.minAttendees ? Math.max(0, ext.minAttendees - event.attendeesCount) : 0;
-                  const isDraft   = ext.status === 'draft';
+                  const isDraft = ext.status === 'draft';
                   return (
-                  <div key={event.id} className={`bg-white rounded-3xl overflow-hidden shadow-sm border ${isDraft ? 'border-amber-200' : 'border-slate-100'}`}>
-                    {/* Cover */}
-                    <div className="h-32 relative">
-                      {cover ? (
-                        <div className="w-full h-full flex items-center justify-center text-5xl" style={{ background: cover.bg }}>{cover.emoji}</div>
-                      ) : (
-                        <img src={event.image} className="w-full h-full object-cover" loading="lazy" />
-                      )}
-                      {/* Badges overlay */}
-                      <div className="absolute top-3 left-3 flex gap-1.5 flex-wrap rtl:right-3 rtl:left-auto">
-                        <div className="bg-white/90 px-2 py-1 rounded-lg text-xs font-bold text-emerald-600 flex items-center gap-1">
-                          <Calendar className="w-3 h-3" /> {event.date}
+                    <div key={event.id} className={`bg-white rounded-3xl overflow-hidden shadow-sm border ${isDraft ? 'border-amber-200' : 'border-slate-100'}`}>
+                      <div className="h-32 relative">
+                        {cover ? (
+                          <div className="w-full h-full flex items-center justify-center text-5xl" style={{ background: cover.bg }}>{cover.emoji}</div>
+                        ) : (
+                          <img src={event.image} className="w-full h-full object-cover" loading="lazy" />
+                        )}
+                        <div className="absolute top-3 left-3 flex gap-1.5 flex-wrap rtl:right-3 rtl:left-auto">
+                          <div className="bg-white/90 px-2 py-1 rounded-lg text-xs font-bold text-emerald-600 flex items-center gap-1">
+                            <Calendar className="w-3 h-3" /> {event.date}
+                          </div>
+                          {catInfo && (
+                            <div className="bg-white/90 px-2 py-1 rounded-lg text-xs font-bold text-slate-700">
+                              {catInfo.emoji} {catInfo.label}
+                            </div>
+                          )}
+                          {isDraft && (
+                            <div className="bg-amber-400/90 px-2 py-1 rounded-lg text-xs font-bold text-amber-900">مسودة</div>
+                          )}
                         </div>
-                        {catInfo && (
-                          <div className="bg-white/90 px-2 py-1 rounded-lg text-xs font-bold text-slate-700">
-                            {catInfo.emoji} {catInfo.label}
+                        <div className="absolute bottom-3 right-3 flex gap-1.5 rtl:left-3 rtl:right-auto">
+                          <div className="bg-black/60 px-2 py-1 rounded-lg text-[10px] text-white font-bold flex items-center gap-1">
+                            <Users className="w-3 h-3" /> {event.attendeesCount}{ext.maxAttendees ? `/${ext.maxAttendees}` : ''} خوي
+                          </div>
+                          {ext.isFree === false && ext.fee ? (
+                            <div className="bg-black/60 px-2 py-1 rounded-lg text-[10px] text-yellow-300 font-bold">{ext.fee} ر.س</div>
+                          ) : ext.isFree !== false ? (
+                            <div className="bg-black/60 px-2 py-1 rounded-lg text-[10px] text-emerald-300 font-bold">مجاني</div>
+                          ) : null}
+                        </div>
+                      </div>
+
+                      <div className="p-4">
+                        {ext.recurrence && ext.recurrence !== 'once' && (
+                          <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded-full mb-2">
+                            🔁 {ext.recurrence === 'weekly' ? 'أسبوعياً' : 'شهرياً'}
+                          </span>
+                        )}
+
+                        <h4 className="font-black text-slate-900 mb-1">{event.title}</h4>
+                        <p className="text-xs text-slate-500 mb-3 leading-relaxed">{event.description}</p>
+
+                        {ext.requirements && ext.requirements.length > 0 && (
+                          <div className="mb-3 space-y-1">
+                            {ext.requirements.map((r, i) => (
+                              <p key={i} className="text-[10px] text-slate-500 flex items-center gap-1">
+                                <span className="text-emerald-500 font-bold">•</span> {r}
+                              </p>
+                            ))}
                           </div>
                         )}
-                        {isDraft && (
-                          <div className="bg-amber-400/90 px-2 py-1 rounded-lg text-xs font-bold text-amber-900">مسودة</div>
+
+                        <div className="flex items-center gap-4 text-[10px] text-slate-400 font-bold mb-3 flex-wrap">
+                          <span className="flex items-center gap-1">
+                            <Clock className="w-3 h-3" /> {event.time}{ext.endTime ? ` – ${ext.endTime}` : ''}
+                          </span>
+                          <span className="flex items-center gap-1"><MapPin className="w-3 h-3" /> {event.locationName}</span>
+                        </div>
+
+                        {ext.mapUrl && (
+                          <a href={ext.mapUrl} target="_blank" rel="noopener noreferrer"
+                            className="flex items-center gap-1 text-[10px] text-blue-500 font-bold mb-3 hover:underline"
+                            onClick={e => e.stopPropagation()}>
+                            <ExternalLink className="w-3 h-3" /> فتح الخريطة
+                          </a>
                         )}
-                      </div>
-                      <div className="absolute bottom-3 right-3 flex gap-1.5 rtl:left-3 rtl:right-auto">
-                        <div className="bg-black/60 px-2 py-1 rounded-lg text-[10px] text-white font-bold flex items-center gap-1">
-                          <Users className="w-3 h-3" /> {event.attendeesCount}{ext.maxAttendees ? `/${ext.maxAttendees}` : ''} خوي
-                        </div>
-                        {ext.isFree === false && ext.fee ? (
-                          <div className="bg-black/60 px-2 py-1 rounded-lg text-[10px] text-yellow-300 font-bold">{ext.fee} ر.س</div>
-                        ) : ext.isFree !== false ? (
-                          <div className="bg-black/60 px-2 py-1 rounded-lg text-[10px] text-emerald-300 font-bold">مجاني</div>
-                        ) : null}
+
+                        {ext.organizerNote && (
+                          <p className="text-[10px] text-slate-400 italic mb-3">💬 {ext.organizerNote}</p>
+                        )}
+
+                        {needsMore > 0 && (
+                          <div className="bg-amber-50 border border-amber-100 rounded-xl px-3 py-2 mb-3 text-[10px] text-amber-700 font-bold">
+                            ⚠️ يحتاج {needsMore} مشارك إضافي للتأكيد
+                          </div>
+                        )}
+
+                        {spotsLeft !== null && spotsLeft <= 3 && spotsLeft > 0 && (
+                          <p className="text-[10px] text-red-500 font-bold mb-3">🔴 {spotsLeft} أماكن متبقية فقط!</p>
+                        )}
+
+                        <Button
+                          onClick={() => toggleJoinEvent(event.id)}
+                          disabled={isFull && !joinedEvents.includes(event.id)}
+                          className={`w-full py-2.5 text-xs font-black ${joinedEvents.includes(event.id) ? 'bg-slate-100 text-slate-500 shadow-none' :
+                            isFull ? 'bg-slate-100 text-slate-400 shadow-none cursor-not-allowed' : ''
+                            }`}
+                        >
+                          {joinedEvents.includes(event.id) ? 'تم تسجيل الاهتمام ✅' : isFull ? 'الفعالية ممتلئة' : 'سجل اهتمامك'}
+                        </Button>
                       </div>
                     </div>
-
-                    <div className="p-4">
-                      {/* Recurrence badge */}
-                      {ext.recurrence && ext.recurrence !== 'once' && (
-                        <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded-full mb-2">
-                          🔁 {ext.recurrence === 'weekly' ? 'أسبوعياً' : 'شهرياً'}
-                        </span>
-                      )}
-
-                      <h4 className="font-black text-slate-900 mb-1">{event.title}</h4>
-                      <p className="text-xs text-slate-500 mb-3 leading-relaxed">{event.description}</p>
-
-                      {/* Requirements */}
-                      {ext.requirements && ext.requirements.length > 0 && (
-                        <div className="mb-3 space-y-1">
-                          {ext.requirements.map((r, i) => (
-                            <p key={i} className="text-[10px] text-slate-500 flex items-center gap-1">
-                              <span className="text-emerald-500 font-bold">•</span> {r}
-                            </p>
-                          ))}
-                        </div>
-                      )}
-
-                      {/* Time + Location */}
-                      <div className="flex items-center gap-4 text-[10px] text-slate-400 font-bold mb-3 flex-wrap">
-                        <span className="flex items-center gap-1">
-                          <Clock className="w-3 h-3" /> {event.time}{ext.endTime ? ` – ${ext.endTime}` : ''}
-                        </span>
-                        <span className="flex items-center gap-1"><MapPin className="w-3 h-3" /> {event.locationName}</span>
-                      </div>
-
-                      {/* Map link */}
-                      {ext.mapUrl && (
-                        <a href={ext.mapUrl} target="_blank" rel="noopener noreferrer"
-                          className="flex items-center gap-1 text-[10px] text-blue-500 font-bold mb-3 hover:underline"
-                          onClick={e => e.stopPropagation()}>
-                          <ExternalLink className="w-3 h-3" /> فتح الخريطة
-                        </a>
-                      )}
-
-                      {/* Organizer note */}
-                      {ext.organizerNote && (
-                        <p className="text-[10px] text-slate-400 italic mb-3">💬 {ext.organizerNote}</p>
-                      )}
-
-                      {/* Min attendees warning */}
-                      {needsMore > 0 && (
-                        <div className="bg-amber-50 border border-amber-100 rounded-xl px-3 py-2 mb-3 text-[10px] text-amber-700 font-bold">
-                          ⚠️ يحتاج {needsMore} مشارك إضافي للتأكيد
-                        </div>
-                      )}
-
-                      {/* Spots remaining */}
-                      {spotsLeft !== null && spotsLeft <= 3 && spotsLeft > 0 && (
-                        <p className="text-[10px] text-red-500 font-bold mb-3">🔴 {spotsLeft} أماكن متبقية فقط!</p>
-                      )}
-
-                      <Button
-                        onClick={() => toggleJoinEvent(event.id)}
-                        disabled={isFull && !joinedEvents.includes(event.id)}
-                        className={`w-full py-2.5 text-xs font-black ${
-                          joinedEvents.includes(event.id) ? 'bg-slate-100 text-slate-500 shadow-none' :
-                          isFull ? 'bg-slate-100 text-slate-400 shadow-none cursor-not-allowed' : ''
-                        }`}
-                      >
-                        {joinedEvents.includes(event.id) ? 'تم تسجيل الاهتمام ✅' : isFull ? 'الفعالية ممتلئة' : 'سجل اهتمامك'}
-                      </Button>
-                    </div>
-                  </div>
                   );
                 })}
               </div>
@@ -1524,7 +1337,6 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
 
           {activeTab === 'requests' && (
             <div className="h-full overflow-y-auto p-4 space-y-6 pb-24">
-              {/* Header with "ask" button */}
               <div className="flex items-center justify-between">
                 <div>
                   <h3 className="font-black text-slate-900 text-base">الفزعات</h3>
@@ -1567,7 +1379,6 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
                   </div>
                 ))}
               </section>
-              {/* Feature 8: Completed Faza history */}
               {completedFaza.length > 0 && (
                 <section>
                   <h3 className="text-xs font-black text-slate-400 mb-3 uppercase tracking-widest flex items-center gap-2">
@@ -1590,12 +1401,10 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
             </div>
           )}
 
-          {/* Feature 11: About tab */}
           {activeTab === 'about' && (() => {
             const aboutData = COMMUNITY_ABOUT[selectedCommunity.id] || COMMUNITY_ABOUT['default'];
             return (
               <div className="h-full overflow-y-auto p-4 space-y-4 pb-20">
-                {/* Header */}
                 <div className="flex items-center gap-3 bg-white rounded-3xl p-5 border border-slate-100 shadow-sm">
                   <span className="text-3xl">{selectedCommunity.icon}</span>
                   <div>
@@ -1603,12 +1412,10 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
                     <p className="text-[10px] text-slate-400">{selectedCommunity.memberCount.toLocaleString()} عضو</p>
                   </div>
                 </div>
-                {/* About text */}
                 <div className="bg-white rounded-3xl p-5 border border-slate-100 shadow-sm">
                   <h4 className="font-black text-slate-700 text-sm mb-2 flex items-center gap-2"><Info className="w-4 h-4 text-emerald-600" /> عن المجتمع</h4>
                   <p className="text-sm text-slate-600 leading-relaxed">{aboutData.about}</p>
                 </div>
-                {/* Rules list */}
                 <div className="bg-white rounded-3xl p-5 border border-slate-100 shadow-sm">
                   <h4 className="font-black text-slate-700 text-sm mb-3 flex items-center gap-2"><ShieldCheck className="w-4 h-4 text-emerald-600" /> قواعد المجتمع</h4>
                   <ol className="space-y-3">
@@ -1620,7 +1427,6 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
                     ))}
                   </ol>
                 </div>
-                {/* Contact admin button */}
                 <button
                   onClick={() => { setSuccessMessage('تم إرسال رسالتك للمشرف 📩'); setTimeout(() => setSuccessMessage(null), 3000); }}
                   className="w-full py-3.5 bg-slate-900 text-white font-black rounded-2xl text-sm active:scale-95 transition-transform"
@@ -1632,37 +1438,31 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
           })()}
         </div>
 
-        {/* ── Create Event Wizard ─────────────────────────────────────── */}
+        {/* Create Event Wizard */}
         {showCreateEventModal && (() => {
           const closeModal = () => { setShowCreateEventModal(false); setEventErrors({}); setEventTouched({}); setWizardStep(1); };
           const selectedCat = EVENT_CATEGORIES.find(c => c.id === newEvent.category);
           const cover = COVER_PRESETS[newEvent.coverPreset];
 
           const STEPS = [
-            { num: 1, title: 'الأساسيات',        sub: 'اسم الفعالية ونوعها وشكلها' },
-            { num: 2, title: 'الموعد والمكان',    sub: 'متى وأين تنعقد الفعالية'   },
-            { num: 3, title: 'التفاصيل والنشر',   sub: 'المعلومات الإضافية والنشر'  },
+            { num: 1, title: 'الأساسيات', sub: 'اسم الفعالية ونوعها وشكلها' },
+            { num: 2, title: 'الموعد والمكان', sub: 'متى وأين تنعقد الفعالية' },
+            { num: 3, title: 'التفاصيل والنشر', sub: 'المعلومات الإضافية والنشر' },
           ];
           const current = STEPS[wizardStep - 1];
 
           return (
             <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-end">
               <div className="bg-slate-50 w-full rounded-t-[32px] shadow-2xl flex flex-col" style={{ maxHeight: '93vh' }}>
-
-                {/* ── Fixed header ── */}
                 <div className="flex-shrink-0 bg-white rounded-t-[32px] px-6 pt-5 pb-4 shadow-sm">
-                  {/* Drag handle */}
                   <div className="w-10 h-1 bg-slate-200 rounded-full mx-auto mb-5" />
-
-                  {/* Step indicator */}
                   <div className="flex items-center gap-2 mb-5">
                     {STEPS.map((s, i) => (
                       <React.Fragment key={s.num}>
-                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-black transition-all duration-300 ${
-                          wizardStep > s.num ? 'bg-indigo-600 text-white scale-95' :
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-black transition-all duration-300 ${wizardStep > s.num ? 'bg-indigo-600 text-white scale-95' :
                           wizardStep === s.num ? 'bg-indigo-600 text-white ring-4 ring-indigo-100' :
-                          'bg-slate-100 text-slate-400'
-                        }`}>
+                            'bg-slate-100 text-slate-400'
+                          }`}>
                           {wizardStep > s.num ? '✓' : s.num}
                         </div>
                         {i < 2 && (
@@ -1674,7 +1474,6 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
                     ))}
                   </div>
 
-                  {/* Step title row */}
                   <div className="flex items-center justify-between">
                     <div>
                       <h3 className="font-black text-lg text-slate-900 leading-tight">{current.title}</h3>
@@ -1686,13 +1485,9 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
                   </div>
                 </div>
 
-                {/* ── Scrollable step body ── */}
                 <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
-
-                  {/* ════════════════ STEP 1 ════════════════ */}
                   {wizardStep === 1 && (
                     <>
-                      {/* Live card preview */}
                       <div className="bg-white rounded-3xl p-4 shadow-sm border border-slate-100">
                         <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 text-center">معاينة الفعالية</p>
                         <div className="rounded-2xl overflow-hidden border border-slate-100 shadow-sm mx-auto" style={{ maxWidth: 240 }}>
@@ -1712,13 +1507,11 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
                         </div>
                       </div>
 
-                      {/* Title */}
                       <div className="bg-white rounded-3xl p-5 shadow-sm border border-slate-100 space-y-1">
                         <p className="text-sm font-black text-slate-700 mb-2">اسم الفعالية <span className="text-red-400">*</span></p>
                         <input
-                          className={`w-full bg-slate-50 rounded-2xl px-4 py-3 text-sm font-semibold text-slate-900 focus:outline-none focus:ring-2 transition-all border ${
-                            eventErrors.title && eventTouched.title ? 'border-red-300 focus:ring-red-300' : 'border-slate-100 focus:ring-indigo-300'
-                          }`}
+                          className={`w-full bg-slate-50 rounded-2xl px-4 py-3 text-sm font-semibold text-slate-900 focus:outline-none focus:ring-2 transition-all border ${eventErrors.title && eventTouched.title ? 'border-red-300 focus:ring-red-300' : 'border-slate-100 focus:ring-indigo-300'
+                            }`}
                           placeholder="مثال: تجمع بادل السبت"
                           value={newEvent.title}
                           onChange={e => {
@@ -1732,18 +1525,16 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
                         )}
                       </div>
 
-                      {/* Category */}
                       <div className="bg-white rounded-3xl p-5 shadow-sm border border-slate-100">
                         <p className="text-sm font-black text-slate-700 mb-3">نوع الفعالية <span className="text-red-400">*</span></p>
                         <div className="grid grid-cols-4 gap-2">
                           {EVENT_CATEGORIES.map(cat => (
                             <button key={cat.id} type="button"
                               onClick={() => { setNewEvent(p => ({ ...p, category: cat.id })); setEventErrors(p => ({ ...p, category: '' })); }}
-                              className={`flex flex-col items-center gap-1.5 py-3 rounded-2xl border-2 transition-all active:scale-95 ${
-                                newEvent.category === cat.id
-                                  ? 'border-indigo-500 bg-indigo-50 shadow-sm shadow-indigo-100'
-                                  : 'border-slate-100 bg-white hover:border-slate-200'
-                              }`}
+                              className={`flex flex-col items-center gap-1.5 py-3 rounded-2xl border-2 transition-all active:scale-95 ${newEvent.category === cat.id
+                                ? 'border-indigo-500 bg-indigo-50 shadow-sm shadow-indigo-100'
+                                : 'border-slate-100 bg-white hover:border-slate-200'
+                                }`}
                             >
                               <span className="text-2xl">{cat.emoji}</span>
                               <span className={`text-[9px] font-black leading-tight text-center ${newEvent.category === cat.id ? 'text-indigo-700' : 'text-slate-500'}`}>{cat.label}</span>
@@ -1755,16 +1546,14 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
                         )}
                       </div>
 
-                      {/* Cover */}
                       <div className="bg-white rounded-3xl p-5 shadow-sm border border-slate-100">
                         <p className="text-sm font-black text-slate-700 mb-3">غلاف الفعالية</p>
                         <div className="flex gap-3">
                           {COVER_PRESETS.map((preset, idx) => (
                             <button key={idx} type="button"
                               onClick={() => setNewEvent(p => ({ ...p, coverPreset: idx }))}
-                              className={`flex-1 h-14 rounded-2xl flex items-center justify-center text-2xl transition-all active:scale-95 ${
-                                newEvent.coverPreset === idx ? 'ring-3 ring-indigo-500 ring-offset-2 scale-105 shadow-lg' : 'opacity-60 hover:opacity-90'
-                              }`}
+                              className={`flex-1 h-14 rounded-2xl flex items-center justify-center text-2xl transition-all active:scale-95 ${newEvent.coverPreset === idx ? 'ring-3 ring-indigo-500 ring-offset-2 scale-105 shadow-lg' : 'opacity-60 hover:opacity-90'
+                                }`}
                               style={{ background: preset.bg }}
                             >
                               {preset.emoji}
@@ -1775,19 +1564,16 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
                     </>
                   )}
 
-                  {/* ════════════════ STEP 2 ════════════════ */}
                   {wizardStep === 2 && (
                     <>
-                      {/* Date & time */}
                       <div className="bg-white rounded-3xl p-5 shadow-sm border border-slate-100 space-y-4">
                         <p className="text-sm font-black text-slate-700">التاريخ والوقت</p>
                         <div className="grid grid-cols-2 gap-3">
                           <div>
                             <p className="text-xs font-bold text-slate-500 mb-1.5">التاريخ <span className="text-red-400">*</span></p>
                             <input type="date"
-                              className={`w-full bg-slate-50 rounded-2xl px-3 py-2.5 text-sm font-semibold focus:outline-none focus:ring-2 border transition-all ${
-                                eventErrors.date && eventTouched.date ? 'border-red-300 focus:ring-red-300' : 'border-slate-100 focus:ring-indigo-300'
-                              }`}
+                              className={`w-full bg-slate-50 rounded-2xl px-3 py-2.5 text-sm font-semibold focus:outline-none focus:ring-2 border transition-all ${eventErrors.date && eventTouched.date ? 'border-red-300 focus:ring-red-300' : 'border-slate-100 focus:ring-indigo-300'
+                                }`}
                               value={newEvent.date}
                               onChange={e => { setNewEvent(p => ({ ...p, date: e.target.value })); if (eventTouched.date) { const er = validateStep2(); setEventErrors(p => ({ ...p, date: er.date || '' })); } }}
                               onBlur={() => { setEventTouched(p => ({ ...p, date: true })); const er = validateStep2(); setEventErrors(p => ({ ...p, date: er.date || '' })); }}
@@ -1797,9 +1583,8 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
                           <div>
                             <p className="text-xs font-bold text-slate-500 mb-1.5">وقت البداية <span className="text-red-400">*</span></p>
                             <input type="time"
-                              className={`w-full bg-slate-50 rounded-2xl px-3 py-2.5 text-sm font-semibold focus:outline-none focus:ring-2 border transition-all ${
-                                eventErrors.time && eventTouched.time ? 'border-red-300 focus:ring-red-300' : 'border-slate-100 focus:ring-indigo-300'
-                              }`}
+                              className={`w-full bg-slate-50 rounded-2xl px-3 py-2.5 text-sm font-semibold focus:outline-none focus:ring-2 border transition-all ${eventErrors.time && eventTouched.time ? 'border-red-300 focus:ring-red-300' : 'border-slate-100 focus:ring-indigo-300'
+                                }`}
                               value={newEvent.time}
                               onChange={e => setNewEvent(p => ({ ...p, time: e.target.value }))}
                               onBlur={() => { setEventTouched(p => ({ ...p, time: true })); const er = validateStep2(); setEventErrors(p => ({ ...p, time: er.time || '' })); }}
@@ -1817,23 +1602,20 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
                           />
                         </div>
 
-                        {/* Recurrence */}
                         <div>
                           <p className="text-xs font-bold text-slate-500 mb-2">التكرار</p>
                           <div className="flex gap-2">
                             {RECURRENCE_OPTS.map(opt => (
                               <button key={opt.id} type="button"
                                 onClick={() => setNewEvent(p => ({ ...p, recurrence: opt.id }))}
-                                className={`flex-1 py-2.5 rounded-2xl text-xs font-black border-2 transition-all active:scale-95 ${
-                                  newEvent.recurrence === opt.id ? 'border-indigo-500 bg-indigo-50 text-indigo-700' : 'border-slate-100 text-slate-500 bg-white'
-                                }`}
+                                className={`flex-1 py-2.5 rounded-2xl text-xs font-black border-2 transition-all active:scale-95 ${newEvent.recurrence === opt.id ? 'border-indigo-500 bg-indigo-50 text-indigo-700' : 'border-slate-100 text-slate-500 bg-white'
+                                  }`}
                               >{opt.label}</button>
                             ))}
                           </div>
                         </div>
                       </div>
 
-                      {/* Location */}
                       <div className="bg-white rounded-3xl p-5 shadow-sm border border-slate-100 space-y-3">
                         <p className="text-sm font-black text-slate-700">المكان</p>
                         <div>
@@ -1861,10 +1643,8 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
                     </>
                   )}
 
-                  {/* ════════════════ STEP 3 ════════════════ */}
                   {wizardStep === 3 && (
                     <>
-                      {/* Description */}
                       <div className="bg-white rounded-3xl p-5 shadow-sm border border-slate-100">
                         <p className="text-sm font-black text-slate-700 mb-3">وصف الفعالية <span className="text-slate-300 text-xs font-normal">(اختياري)</span></p>
                         <textarea
@@ -1876,7 +1656,6 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
                         <p className="text-[10px] text-slate-300 text-left mt-1">{newEvent.description.length}/300</p>
                       </div>
 
-                      {/* Requirements */}
                       <div className="bg-white rounded-3xl p-5 shadow-sm border border-slate-100">
                         <p className="text-sm font-black text-slate-700 mb-1">ماذا يجب أن يحضر المشاركون؟</p>
                         <p className="text-[10px] text-slate-400 mb-3">اضغط Enter أو + لإضافة كل عنصر</p>
@@ -1912,7 +1691,6 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
                         )}
                       </div>
 
-                      {/* Capacity */}
                       <div className="bg-white rounded-3xl p-5 shadow-sm border border-slate-100">
                         <p className="text-sm font-black text-slate-700 mb-3">عدد المشاركين</p>
                         <div className="grid grid-cols-2 gap-3">
@@ -1928,9 +1706,8 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
                           <div>
                             <p className="text-xs font-bold text-slate-500 mb-1.5">الحد الأدنى للانعقاد</p>
                             <input type="number" min="1"
-                              className={`w-full bg-slate-50 rounded-2xl px-4 py-2.5 text-sm font-semibold focus:outline-none focus:ring-2 border transition-all ${
-                                eventErrors.minAttendees ? 'border-red-300 focus:ring-red-300' : 'border-slate-100 focus:ring-indigo-300'
-                              }`}
+                              className={`w-full bg-slate-50 rounded-2xl px-4 py-2.5 text-sm font-semibold focus:outline-none focus:ring-2 border transition-all ${eventErrors.minAttendees ? 'border-red-300 focus:ring-red-300' : 'border-slate-100 focus:ring-indigo-300'
+                                }`}
                               placeholder="1"
                               value={newEvent.minAttendees}
                               onChange={e => { setNewEvent(p => ({ ...p, minAttendees: e.target.value })); const er = validateStep3(); setEventErrors(p => ({ ...p, minAttendees: er.minAttendees || '' })); }}
@@ -1943,7 +1720,6 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
                         )}
                       </div>
 
-                      {/* Fee */}
                       <div className="bg-white rounded-3xl p-5 shadow-sm border border-slate-100">
                         <p className="text-sm font-black text-slate-700 mb-3">رسوم الدخول</p>
                         <div className="flex gap-2 mb-3">
@@ -1960,9 +1736,8 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
                           <div>
                             <p className="text-xs font-bold text-slate-500 mb-1.5">المبلغ (ريال) <span className="text-red-400">*</span></p>
                             <input type="number" min="0" step="0.5"
-                              className={`w-full bg-slate-50 rounded-2xl px-4 py-3 text-sm font-semibold focus:outline-none focus:ring-2 border transition-all ${
-                                eventErrors.fee && eventTouched.fee ? 'border-red-300 focus:ring-red-300' : 'border-slate-100 focus:ring-indigo-300'
-                              }`}
+                              className={`w-full bg-slate-50 rounded-2xl px-4 py-3 text-sm font-semibold focus:outline-none focus:ring-2 border transition-all ${eventErrors.fee && eventTouched.fee ? 'border-red-300 focus:ring-red-300' : 'border-slate-100 focus:ring-indigo-300'
+                                }`}
                               placeholder="0.00"
                               value={newEvent.fee}
                               onChange={e => { setNewEvent(p => ({ ...p, fee: e.target.value })); setEventTouched(p => ({ ...p, fee: true })); if (e.target.value) setEventErrors(p => ({ ...p, fee: '' })); }}
@@ -1972,7 +1747,6 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
                         )}
                       </div>
 
-                      {/* Organizer note */}
                       <div className="bg-white rounded-3xl p-5 shadow-sm border border-slate-100">
                         <p className="text-sm font-black text-slate-700 mb-1">ملاحظة للمشاركين <span className="text-slate-300 text-xs font-normal">(اختياري)</span></p>
                         <p className="text-[10px] text-slate-400 mb-3">مثل رقم التواصل أو تعليمات خاصة</p>
@@ -1984,13 +1758,12 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
                         />
                       </div>
 
-                      {/* Publish toggle */}
                       <div className="bg-white rounded-3xl p-5 shadow-sm border border-slate-100">
                         <p className="text-sm font-black text-slate-700 mb-3">طريقة النشر</p>
                         <div className="flex gap-2">
                           <button type="button" onClick={() => setNewEvent(p => ({ ...p, status: 'published' }))}
                             className={`flex-1 flex flex-col items-center gap-1 py-3.5 rounded-2xl border-2 transition-all active:scale-95 ${newEvent.status === 'published' ? 'border-indigo-500 bg-indigo-50 shadow-sm' : 'border-slate-100 bg-white'}`}>
-                            <span className="text-2xl">🚀</span>
+                            <span className="text-2xl"></span>
                             <span className={`text-xs font-black ${newEvent.status === 'published' ? 'text-indigo-700' : 'text-slate-500'}`}>نشر الآن</span>
                             <span className={`text-[9px] text-center leading-tight ${newEvent.status === 'published' ? 'text-indigo-400' : 'text-slate-300'}`}>يراها الأعضاء فوراً</span>
                           </button>
@@ -2006,7 +1779,6 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
                   )}
                 </div>
 
-                {/* ── Fixed footer ── */}
                 <div className="flex-shrink-0 bg-white border-t border-slate-100 px-6 py-4">
                   <div className="flex gap-3">
                     {wizardStep > 1 && (
@@ -2029,29 +1801,28 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
                             <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                             جاري النشر...
                           </>
-                        ) : newEvent.status === 'draft' ? '💾 حفظ المسودة' : '🚀 نشر الفعالية'}
+                        ) : newEvent.status === 'draft' ? '💾 حفظ المسودة' : ' نشر الفعالية'}
                       </button>
                     )}
                   </div>
                 </div>
-
               </div>
             </div>
           );
         })()}
 
-        {/* ── Create Faza Request Wizard ─────────────────────────────── */}
+        {/* Faza Wizard Modal */}
         {showCreateFazaModal && (() => {
           const FAZA_STEPS = [
-            { num: 1, title: 'سؤالك',        sub: 'وصف طلبك بوضوح' },
-            { num: 2, title: 'المكافأة',      sub: 'حدد نقاط الكرم' },
-            { num: 3, title: 'المراجعة',      sub: 'راجع وأرسل' },
+            { num: 1, title: 'سؤالك', sub: 'وصف طلبك بوضوح' },
+            { num: 2, title: 'المكافأة', sub: 'حدد نقاط الكرم' },
+            { num: 3, title: 'المراجعة', sub: 'راجع وأرسل' },
           ];
           const selectedCat = FAZA_CATEGORIES.find(c => c.id === newFazaForm.category);
-          const urgencyOpt  = FAZA_URGENCY.find(u => u.id === newFazaForm.urgency)!;
+          const urgencyOpt = FAZA_URGENCY.find(u => u.id === newFazaForm.urgency)!;
           const rewardLabel = newFazaForm.rewardPoints >= 150 ? '🔥 جذاب جداً' : newFazaForm.rewardPoints >= 75 ? '👍 عادي' : '📉 منخفض';
           const rewardColor = newFazaForm.rewardPoints >= 150 ? '#10b981' : newFazaForm.rewardPoints >= 75 ? '#f59e0b' : '#ef4444';
-          const walletPts   = userProfile.karamPoints || 0;
+          const walletPts = userProfile.karamPoints || 0;
           const similarFaza = localFazaRequests.filter(r =>
             r.communityId === selectedCommunity!.id &&
             newFazaForm.question.trim().length > 5 &&
@@ -2066,12 +1837,11 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
                 onClick={e => e.stopPropagation()}
               >
                 {fazaSubmitSuccess ? (
-                  /* ── Success Screen ─────────────────────────────────── */
                   <div className="flex flex-col items-center justify-center py-16 px-8 text-center gap-4">
                     <div className="w-20 h-20 rounded-full bg-emerald-100 flex items-center justify-center text-4xl animate-bounce">🎉</div>
                     <h3 className="font-black text-2xl text-slate-900">تم إرسال فزعتك!</h3>
                     <p className="text-sm text-slate-500 leading-relaxed">
-                      طلبك وصل لأعضاء <span className="font-black text-slate-700">{selectedCommunity!.name}</span>.<br/>
+                      طلبك وصل لأعضاء <span className="font-black text-slate-700">{selectedCommunity!.name}</span>.<br />
                       عادةً يجاوب الأعضاء خلال ساعة ⚡
                     </p>
                     <div className="bg-orange-50 border border-orange-100 rounded-2xl px-5 py-3 flex items-center gap-3">
@@ -2082,37 +1852,26 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
                       </div>
                     </div>
                     <button
-                      onClick={() => {
-                        if (navigator.share) {
-                          navigator.share({ title: 'فزعتي في تريبو', text: newFazaForm.question });
-                        }
-                      }}
+                      onClick={() => { if (navigator.share) navigator.share({ title: 'فزعتي في تريبو', text: newFazaForm.question }); }}
                       className="flex items-center gap-2 bg-white border border-slate-200 text-slate-700 text-sm font-bold px-6 py-3 rounded-2xl active:scale-95 transition-transform"
                     >
                       📤 شارك فزعتك
                     </button>
-                    <button
-                      onClick={resetFazaWizard}
-                      className="bg-emerald-600 text-white font-black text-sm px-10 py-3.5 rounded-2xl active:scale-95 transition-transform"
-                    >
+                    <button onClick={resetFazaWizard} className="bg-emerald-600 text-white font-black text-sm px-10 py-3.5 rounded-2xl active:scale-95 transition-transform">
                       تمام 👌
                     </button>
                   </div>
                 ) : (
                   <>
-                    {/* Fixed Header */}
                     <div className="px-5 pt-4 pb-3 border-b border-slate-100 bg-white rounded-t-[32px] shrink-0">
-                      {/* Drag handle */}
                       <div className="w-10 h-1 bg-slate-200 rounded-full mx-auto mb-4" />
-                      {/* Step indicator */}
                       <div className="flex items-center gap-1 mb-4">
                         {FAZA_STEPS.map((s, i) => (
                           <React.Fragment key={s.num}>
-                            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-black shrink-0 transition-all duration-300 ${
-                              fazaWizardStep > s.num ? 'bg-emerald-600 text-white scale-95' :
+                            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-black shrink-0 transition-all duration-300 ${fazaWizardStep > s.num ? 'bg-emerald-600 text-white scale-95' :
                               fazaWizardStep === s.num ? 'bg-emerald-600 text-white ring-4 ring-emerald-100' :
-                              'bg-slate-100 text-slate-400'
-                            }`}>
+                                'bg-slate-100 text-slate-400'
+                              }`}>
                               {fazaWizardStep > s.num ? '✓' : s.num}
                             </div>
                             {i < 2 && (
@@ -2134,29 +1893,20 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
                       </div>
                     </div>
 
-                    {/* Scrollable Body */}
                     <div className="flex-1 overflow-y-auto px-5 py-4 space-y-5">
-
-                      {/* ── Step 1: The Ask ─────────────────────────── */}
                       {fazaWizardStep === 1 && (
                         <>
-                          {/* Quick Templates */}
                           <div>
                             <p className="text-xs font-black text-slate-500 mb-2 uppercase tracking-wider">ابدأ من هنا</p>
                             <div className="flex flex-wrap gap-2">
                               {FAZA_TEMPLATES.map(tpl => (
-                                <button
-                                  key={tpl}
-                                  onClick={() => setNewFazaForm(p => ({ ...p, question: p.question ? p.question : tpl }))}
-                                  className="px-3 py-1.5 bg-white border border-slate-200 text-slate-600 text-xs font-bold rounded-xl active:scale-95 transition-transform hover:border-emerald-400 hover:text-emerald-600"
-                                >
+                                <button key={tpl} onClick={() => setNewFazaForm(p => ({ ...p, question: p.question ? p.question : tpl }))}
+                                  className="px-3 py-1.5 bg-white border border-slate-200 text-slate-600 text-xs font-bold rounded-xl active:scale-95 transition-transform hover:border-emerald-400 hover:text-emerald-600">
                                   {tpl}
                                 </button>
                               ))}
                             </div>
                           </div>
-
-                          {/* Question Textarea */}
                           <div>
                             <p className="text-xs font-black text-slate-500 mb-2">سؤالك <span className="text-red-400">*</span></p>
                             <div className="relative">
@@ -2165,10 +1915,7 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
                                 placeholder="اكتب سؤالك بوضوح... كلما كان واضحاً، كلما جاءتك إجابات أفضل"
                                 maxLength={280}
                                 value={newFazaForm.question}
-                                onChange={e => {
-                                  setNewFazaForm(p => ({ ...p, question: e.target.value }));
-                                  if (fazaErrors.question) setFazaErrors(p => ({ ...p, question: '' }));
-                                }}
+                                onChange={e => { setNewFazaForm(p => ({ ...p, question: e.target.value })); if (fazaErrors.question) setFazaErrors(p => ({ ...p, question: '' })); }}
                               />
                               <span className={`absolute bottom-3 left-3 text-[10px] font-bold ${newFazaForm.question.length > 250 ? 'text-red-400' : 'text-slate-300'}`}>
                                 {newFazaForm.question.length}/280
@@ -2176,21 +1923,13 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
                             </div>
                             {fazaErrors.question && <p className="text-xs text-red-500 mt-1 font-bold">{fazaErrors.question}</p>}
                           </div>
-
-                          {/* Category */}
                           <div>
                             <p className="text-xs font-black text-slate-500 mb-2">نوع المساعدة</p>
                             <div className="grid grid-cols-4 gap-2">
                               {FAZA_CATEGORIES.map(cat => (
-                                <button
-                                  key={cat.id}
-                                  onClick={() => setNewFazaForm(p => ({ ...p, category: cat.id }))}
-                                  className={`flex flex-col items-center gap-1 py-3 rounded-2xl border transition-all active:scale-95 ${
-                                    newFazaForm.category === cat.id
-                                      ? 'border-emerald-400 bg-emerald-50'
-                                      : 'border-slate-100 bg-white'
-                                  }`}
-                                >
+                                <button key={cat.id} onClick={() => setNewFazaForm(p => ({ ...p, category: cat.id }))}
+                                  className={`flex flex-col items-center gap-1 py-3 rounded-2xl border transition-all active:scale-95 ${newFazaForm.category === cat.id ? 'border-emerald-400 bg-emerald-50' : 'border-slate-100 bg-white'
+                                    }`}>
                                   <span className="text-xl">{cat.emoji}</span>
                                   <span className="text-[9px] font-black text-slate-600">{cat.label}</span>
                                 </button>
@@ -2200,10 +1939,8 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
                         </>
                       )}
 
-                      {/* ── Step 2: Reward & Urgency ─────────────── */}
                       {fazaWizardStep === 2 && (
                         <>
-                          {/* Points Slider */}
                           <div className="bg-white rounded-2xl border border-slate-100 p-5">
                             <div className="flex items-center justify-between mb-1">
                               <p className="text-xs font-black text-slate-700">مكافأة الكرم</p>
@@ -2214,10 +1951,7 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
                               <span className="text-xs text-slate-400 font-bold">نقطة كرم</span>
                             </div>
                             <input
-                              type="range"
-                              min={10}
-                              max={Math.min(200, walletPts)}
-                              step={10}
+                              type="range" min={10} max={Math.min(200, walletPts)} step={10}
                               value={newFazaForm.rewardPoints}
                               onChange={e => setNewFazaForm(p => ({ ...p, rewardPoints: parseInt(e.target.value) }))}
                               className="w-full accent-emerald-600 h-2"
@@ -2232,20 +1966,13 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
                             )}
                           </div>
 
-                          {/* Urgency */}
                           <div>
                             <p className="text-xs font-black text-slate-500 mb-2">متى تحتاج الإجابة؟</p>
                             <div className="space-y-2">
                               {FAZA_URGENCY.map(u => (
-                                <button
-                                  key={u.id}
-                                  onClick={() => setNewFazaForm(p => ({ ...p, urgency: u.id }))}
-                                  className={`w-full flex items-center gap-3 p-4 rounded-2xl border transition-all active:scale-95 text-right ${
-                                    newFazaForm.urgency === u.id
-                                      ? 'border-emerald-400 bg-emerald-50'
-                                      : 'border-slate-100 bg-white'
-                                  }`}
-                                >
+                                <button key={u.id} onClick={() => setNewFazaForm(p => ({ ...p, urgency: u.id }))}
+                                  className={`w-full flex items-center gap-3 p-4 rounded-2xl border transition-all active:scale-95 text-right ${newFazaForm.urgency === u.id ? 'border-emerald-400 bg-emerald-50' : 'border-slate-100 bg-white'
+                                    }`}>
                                   <span className="text-xl">{u.emoji}</span>
                                   <div className="flex-1">
                                     <p className="text-sm font-black text-slate-800">{u.label}</p>
@@ -2261,13 +1988,11 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
                             </div>
                           </div>
 
-                          {/* Optional Photo */}
                           <div>
                             <p className="text-xs font-black text-slate-500 mb-2">صورة توضيحية (اختياري)</p>
                             <div className="flex items-center gap-3">
                               <div className="flex-1">
-                                <input
-                                  type="text"
+                                <input type="text"
                                   className="w-full px-4 py-3 bg-white border border-slate-200 rounded-2xl text-xs outline-none focus:ring-2 focus:ring-emerald-500"
                                   placeholder="رابط صورة توضيحية..."
                                   value={newFazaForm.photoUrl}
@@ -2282,10 +2007,8 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
                         </>
                       )}
 
-                      {/* ── Step 3: Preview & Post ───────────────── */}
                       {fazaWizardStep === 3 && (
                         <>
-                          {/* Live preview card */}
                           <div>
                             <p className="text-xs font-black text-slate-500 mb-2 uppercase tracking-wider">كيف ستظهر فزعتك</p>
                             <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-5">
@@ -2307,16 +2030,13 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
                                   +{newFazaForm.rewardPoints} كرم
                                 </div>
                               </div>
-                              <p className="text-sm text-slate-700 leading-relaxed font-medium">
-                                "{newFazaForm.question || 'سؤالك سيظهر هنا...'}"
-                              </p>
+                              <p className="text-sm text-slate-700 leading-relaxed font-medium">"{newFazaForm.question || 'سؤالك سيظهر هنا...'}"</p>
                               {newFazaForm.photoUrl && (
                                 <img src={newFazaForm.photoUrl} className="mt-3 w-full h-28 object-cover rounded-xl" onError={e => (e.currentTarget.style.display = 'none')} loading="lazy" />
                               )}
                             </div>
                           </div>
 
-                          {/* Anonymous toggle */}
                           <div className="bg-white rounded-2xl border border-slate-100 p-4 flex items-center justify-between">
                             <div>
                               <p className="text-sm font-black text-slate-800">🎭 نشر مجهول الهوية</p>
@@ -2330,12 +2050,9 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
                             </button>
                           </div>
 
-                          {/* Similar faza radar */}
                           {similarFaza.length > 0 && (
                             <div className="bg-amber-50 border border-amber-100 rounded-2xl p-4">
-                              <p className="text-xs font-black text-amber-700 mb-2 flex items-center gap-1">
-                                🔍 أسئلة مشابهة موجودة
-                              </p>
+                              <p className="text-xs font-black text-amber-700 mb-2 flex items-center gap-1">🔍 أسئلة مشابهة موجودة</p>
                               {similarFaza.map(sf => (
                                 <div key={sf.id} className="text-xs text-amber-600 leading-relaxed mb-1">
                                   · "{sf.question.slice(0, 80)}{sf.question.length > 80 ? '...' : ''}"
@@ -2348,13 +2065,9 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
                       )}
                     </div>
 
-                    {/* Fixed Footer */}
                     <div className="px-5 py-4 bg-white border-t border-slate-100 shrink-0 flex gap-3">
                       {fazaWizardStep > 1 && (
-                        <button
-                          onClick={() => setFazaWizardStep(s => (s - 1) as 1 | 2 | 3)}
-                          className="px-5 py-3.5 bg-slate-100 text-slate-600 font-black text-sm rounded-2xl active:scale-95 transition-transform"
-                        >
+                        <button onClick={() => setFazaWizardStep(s => (s - 1) as 1 | 2 | 3)} className="px-5 py-3.5 bg-slate-100 text-slate-600 font-black text-sm rounded-2xl active:scale-95 transition-transform">
                           ← رجوع
                         </button>
                       )}
@@ -2362,23 +2075,15 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
                         disabled={fazaSubmitting || (fazaWizardStep === 2 && newFazaForm.rewardPoints > walletPts)}
                         onClick={() => {
                           if (fazaWizardStep < 3) {
-                            if (fazaWizardStep === 1 && !newFazaForm.question.trim()) {
-                              setFazaErrors({ question: 'اكتب سؤالك أولاً' });
-                              return;
-                            }
+                            if (fazaWizardStep === 1 && !newFazaForm.question.trim()) { setFazaErrors({ question: 'اكتب سؤالك أولاً' }); return; }
                             setFazaWizardStep(s => (s + 1) as 1 | 2 | 3);
-                          } else {
-                            handleCreateFaza();
-                          }
+                          } else { handleCreateFaza(); }
                         }}
                         className="flex-1 flex items-center justify-center gap-2 bg-emerald-600 text-white font-black text-sm py-3.5 rounded-2xl active:scale-95 transition-transform disabled:opacity-50"
                       >
                         {fazaSubmitting ? (
-                          <>
-                            <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                            جاري الإرسال...
-                          </>
-                        ) : fazaWizardStep < 3 ? 'التالي →' : '🚀 أرسل الفزعة'}
+                          <><span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> جاري الإرسال...</>
+                        ) : fazaWizardStep < 3 ? 'التالي →' : ' أرسل الفزعة'}
                       </button>
                     </div>
                   </>
@@ -2388,7 +2093,7 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
           );
         })()}
 
-        {/* Faza'a Modal */}
+        {/* Faza Answer Modal */}
         {showFazaModal && (
           <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
             <div className="bg-white rounded-[40px] w-full max-sm:max-w-xs p-8 shadow-2xl relative animate-in zoom-in-95">
@@ -2413,14 +2118,12 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
 
   return (
     <div className="pb-28 overflow-y-auto h-full bg-slate-50">
-      {/* ── Main Tab Bar ─────────────────────────────────────────────────── */}
       <div className="sticky top-0 z-20 bg-white border-b border-slate-100 px-6 pt-6 pb-0">
         <div className="flex justify-between items-center mb-4">
           <div>
             <h1 className="text-3xl font-black text-slate-900 tracking-tighter leading-none">{t.tabCommunities || 'المجتمعات'}</h1>
           </div>
           <div className="flex items-center gap-2">
-            {/* Notification bell */}
             <button
               className="relative w-9 h-9 bg-white rounded-full shadow-sm border border-slate-100 flex items-center justify-center active:scale-90 transition-transform"
               onClick={() => setUnreadCount(0)}
@@ -2459,14 +2162,12 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
         </div>
       </div>
 
-      {/* ── COMMUNITIES TAB ─────────────────────────────────────────────── */}
       {mainTab === 'communities' && (
         <div className="p-6 space-y-8">
-          {/* Feature 12: Weekly Recap Digest */}
           {(() => {
             const weekStart = Date.now() - 7 * 24 * 60 * 60 * 1000;
-            const recapThreads = Object.values(threads).flat().filter((th: MajlisThread) => new Date(th.createdAt).getTime() > weekStart).length;
-            const recapEvents = localEvents.filter(e => new Date(e.date).getTime() > weekStart - 7*24*3600*1000).length;
+            const recapThreads = 0; // threads not tracked globally yet
+            const recapEvents = localEvents.filter(e => new Date(e.date).getTime() > weekStart - 7 * 24 * 3600 * 1000).length;
             const recapTrips = travelPosts.filter(p => p.timestamp > weekStart && p.userId !== userProfile.id).length;
             if (recapThreads + recapEvents + recapTrips === 0) return null;
             return (
@@ -2528,7 +2229,6 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
               <Users className="w-4 h-4 text-emerald-600" /> استكشف المجالس والمجتمعات
             </h2>
 
-            {/* Feature 7: My Communities shelf */}
             {joinedCommunities.length > 0 && (
               <div className="mb-4">
                 <p className="text-[10px] font-black text-slate-500 mb-2 uppercase tracking-widest">مجتمعاتي</p>
@@ -2553,7 +2253,6 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
               </div>
             )}
 
-            {/* Feature 6: Community search bar */}
             <div className="flex items-center gap-2 bg-slate-100 rounded-xl px-3 py-2.5 mb-3">
               <Search className="w-4 h-4 text-slate-400 shrink-0" />
               <input
@@ -2569,7 +2268,6 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
               )}
             </div>
 
-            {/* Category filter chips */}
             <div className="flex gap-2 overflow-x-auto no-scrollbar pb-3 mb-1">
               {COMMUNITY_CATEGORIES.map(cat => {
                 const label: Record<string, string> = {
@@ -2582,13 +2280,12 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
                   <button
                     key={cat}
                     onClick={() => setCategoryFilter(cat)}
-                    className={`shrink-0 px-4 py-1.5 rounded-full text-xs font-black border transition-all ${
-                      categoryFilter === cat
-                        ? isGender
-                          ? (cat === 'Women' ? 'bg-pink-500 text-white border-pink-500' : 'bg-blue-500 text-white border-blue-500')
-                          : 'bg-emerald-600 text-white border-emerald-600 shadow-md'
-                        : 'bg-white text-slate-600 border-slate-200 hover:border-emerald-400'
-                    }`}
+                    className={`shrink-0 px-4 py-1.5 rounded-full text-xs font-black border transition-all ${categoryFilter === cat
+                      ? isGender
+                        ? (cat === 'Women' ? 'bg-pink-500 text-white border-pink-500' : 'bg-blue-500 text-white border-blue-500')
+                        : 'bg-emerald-600 text-white border-emerald-600 shadow-md'
+                      : 'bg-white text-slate-600 border-slate-200 hover:border-emerald-400'
+                      }`}
                   >
                     {label[cat] || cat}
                   </button>
@@ -2603,7 +2300,7 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
                 <div className="text-center py-12 bg-white rounded-3xl border border-dashed border-slate-200">
                   <Users className="w-10 h-10 mx-auto text-slate-300 mb-3" />
                   <h3 className="font-bold text-slate-600">لا توجد مجتمعات حالياً</h3>
-                  <p className="text-xs text-slate-400 mt-1">اربط الواجهة بـ communityAPI لعرض المجالس هنا.</p>
+                  <p className="text-xs text-slate-400 mt-1">لم يتم جلب أي مجالس أو مجتمعات من السيرفر</p>
                 </div>
               )}
             </div>
@@ -2611,10 +2308,8 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
         </div>
       )}
 
-      {/* ── TRAVELING TOGETHER TAB ───────────────────────────────────────── */}
       {mainTab === 'traveling' && (
         <div className="p-6 space-y-4">
-          {/* Header & Post Trip button */}
           <div className="flex items-center justify-between">
             <div>
               <p className="text-slate-500 text-sm">{(t as any).ttFindCompanions || 'Find travel companions for your next micro-escape!'}</p>
@@ -2627,7 +2322,6 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
             </button>
           </div>
 
-          {/* Smart match recommendation */}
           {travelPosts.length > 0 && (() => {
             const userInterests = userProfile.smartProfile?.interests || [];
             const recommended = travelPosts.find(p =>
@@ -2668,7 +2362,6 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
             );
           })()}
 
-          {/* Travel Posts Feed */}
           {travelPosts.length === 0 ? (
             <div className="text-center py-16 bg-white rounded-3xl border border-dashed border-slate-200">
               <div className="text-4xl mb-3">🤝</div>
@@ -2687,7 +2380,6 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
             const isMyPost = post.userId === userProfile.id;
             return (
               <div key={post.id} className="bg-white rounded-3xl p-5 border border-slate-100 shadow-sm">
-                {/* Header */}
                 <div className="flex items-center gap-3 mb-3">
                   <img
                     src={post.userAvatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${post.userId}`}
@@ -2707,12 +2399,10 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
                   </div>
                 </div>
 
-                {/* Description */}
                 {post.description && (
                   <p className="text-sm text-slate-600 leading-relaxed mb-3">{post.description}</p>
                 )}
 
-                {/* Interests + Feature 9: match score badge */}
                 {post.interests.length > 0 && (() => {
                   const userInterests = userProfile.smartProfile?.interests || [];
                   const score = post.interests.length === 0 ? 0 : Math.round((post.interests.filter(i => userInterests.includes(i)).length / post.interests.length) * 100);
@@ -2737,7 +2427,6 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
                   );
                 })()}
 
-                {/* Footer: group size + join */}
                 <div className="flex items-center justify-between pt-3 border-t border-slate-50">
                   <div className="flex items-center gap-2">
                     <div className="flex items-center gap-1">
@@ -2748,7 +2437,6 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
                         />
                       ))}
                     </div>
-                    {/* Spots left pill — red when ≤2 */}
                     {!isFull ? (
                       <span className={`text-[10px] font-black px-2.5 py-0.5 rounded-full ${spotsLeft <= 2 ? 'bg-red-50 text-red-600 border border-red-100' : 'bg-emerald-50 text-emerald-700'}`}>
                         {spotsLeft} {(t as any).ttLeft || 'left'}
@@ -2774,8 +2462,8 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
                           ${post.joinedByMe
                             ? 'bg-emerald-50 text-emerald-700 cursor-default'
                             : isFull
-                            ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
-                            : 'bg-emerald-600 text-white hover:bg-emerald-700 active:scale-95'
+                              ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
+                              : 'bg-emerald-600 text-white hover:bg-emerald-700 active:scale-95'
                           }`}
                       >
                         {post.joinedByMe ? <><CheckCircle2 className="w-3.5 h-3.5" /> {(t as any).ttJoined || 'Joined'}</> : isFull ? ((t as any).ttFull || 'Full') : <><UserPlus className="w-3.5 h-3.5" /> {(t as any).ttJoin || 'Join'}</>}
@@ -2786,7 +2474,6 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
                     )}
                   </div>
                 </div>
-                {/* Inline DM input */}
                 {chatDmPost === post.id && (
                   <div className="mt-3 pt-3 border-t border-slate-100 flex gap-2 animate-in slide-in-from-top duration-200">
                     <input
@@ -2825,7 +2512,6 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
         </div>
       )}
 
-      {/* ── Post a Trip Modal ────────────────────────────────────────────── */}
       {showPostTripModal && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-4">
           <div className="bg-white rounded-[32px] w-full max-w-sm p-6 shadow-2xl relative">
@@ -2839,7 +2525,6 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
             <p className="text-xs text-slate-400 mb-5">{(t as any).ttModalSubtitle || 'Let others join your next micro-escape'}</p>
 
             <div className="space-y-4">
-              {/* Place name */}
               <div>
                 <label className="text-xs font-black text-slate-500 uppercase tracking-wide mb-1.5 block">{(t as any).ttPlaceLabel || 'Place / Destination *'}</label>
                 <input
@@ -2850,7 +2535,6 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
                 />
               </div>
 
-              {/* Date */}
               <div>
                 <label className="text-xs font-black text-slate-500 uppercase tracking-wide mb-1.5 block">{(t as any).ttDateLabel || 'Date *'}</label>
                 <input
@@ -2862,7 +2546,6 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
                 />
               </div>
 
-              {/* Max group size */}
               <div>
                 <label className="text-xs font-black text-slate-500 uppercase tracking-wide mb-1.5 block">{(t as any).ttGroupSizeLabel || 'Looking for (total group size)'}</label>
                 <div className="flex items-center gap-3">
@@ -2883,7 +2566,6 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
                 </div>
               </div>
 
-              {/* Description */}
               <div>
                 <label className="text-xs font-black text-slate-500 uppercase tracking-wide mb-1.5 block">{(t as any).ttDescLabel || 'Description'}</label>
                 <textarea
@@ -2895,7 +2577,6 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
                 />
               </div>
 
-              {/* Interests */}
               <div>
                 <label className="text-xs font-black text-slate-500 uppercase tracking-wide mb-1.5 block">{(t as any).ttInterestsLabel || 'Interests'}</label>
                 <div className="flex flex-wrap gap-2">

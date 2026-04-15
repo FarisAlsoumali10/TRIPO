@@ -11,7 +11,6 @@ export const getFavorites = async (req: AuthRequest, res: Response) => {
     res.json(favorites);
   } catch (error: any) {
     console.error('❌ Error in getFavorites:', error);
-    // ✅ إرجاع رد واضح للواجهة بدلاً من تعليق السيرفر
     res.status(500).json({ error: 'حدث خطأ أثناء جلب قائمة المفضلة' });
   }
 };
@@ -27,12 +26,10 @@ export const addFavorite = async (req: AuthRequest, res: Response) => {
 
     res.status(201).json(favorite);
   } catch (error: any) {
-    // ✅ تم الإبقاء على اصطياد خطأ التكرار (Duplicate Key)
     if (error.code === 11000) {
       return res.status(409).json({ error: 'المكان موجود مسبقاً في المفضلة' });
     }
     console.error('❌ Error in addFavorite:', error);
-    // ✅ منع تعليق الواجهة
     res.status(500).json({ error: 'حدث خطأ أثناء إضافة المكان للمفضلة' });
   }
 };
@@ -53,7 +50,26 @@ export const removeFavorite = async (req: AuthRequest, res: Response) => {
     res.json({ message: 'Favorite removed successfully' });
   } catch (error: any) {
     console.error('❌ Error in removeFavorite:', error);
-    // ✅ منع تعليق الواجهة
     res.status(500).json({ error: 'حدث خطأ أثناء إزالة المكان من المفضلة' });
   }
 };
+
+/** Toggle: if already saved → remove; otherwise → add */
+export const toggleFavorite = async (req: AuthRequest, res: Response) => {
+  try {
+    const placeId = req.body.placeId ?? req.body.itemId;
+    const userId = req.user?.userId;
+
+    const existing = await Favorite.findOne({ userId, placeId });
+    if (existing) {
+      await existing.deleteOne();
+      return res.json({ saved: false });
+    }
+
+    await Favorite.create({ userId, placeId });
+    return res.status(201).json({ saved: true });
+  } catch (error: any) {
+    console.error('❌ Error in toggleFavorite:', error);
+    res.status(500).json({ error: 'حدث خطأ أثناء تبديل حالة المفضلة' });
+  }
+};

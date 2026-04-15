@@ -1,69 +1,18 @@
-import { Response } from 'express';
+import { Request, Response } from 'express';
 import { AuthRequest } from '../types';
 import { Place } from '../models';
 
-export const getPlaces = async (req: AuthRequest, res: Response) => {
+export const getAllPlaces = async (req: Request, res: Response) => {
   try {
-    const {
-      city, categoryTags, category, search, minRating,
-      page = 1, limit = 50,
-      // advanced filters
-      accessType, isFamilySuitable, isFoodTruck, isTrending,
-      maxPrice, sortBy, gender, subcategory, cuisineType,
-      hasGroupOffer, partnerVenue,
-    } = req.query;
-
-    const query: any = { status: 'active' };
-
-    if (city) query.city = city;
-    if (categoryTags) {
-      const tags = (categoryTags as string).split(',');
-      query.categoryTags = { $in: tags };
-    }
-    if (category) {
-      query.categoryTags = { $elemMatch: { $regex: new RegExp(`^${category}$`, 'i') } };
-    }
-    if (search) {
-      query.$text = { $search: search as string };
-    }
-    if (minRating) {
-      query['ratingSummary.avgRating'] = { $gte: Number(minRating) };
-    }
-    if (accessType) query.accessType = accessType;
-    if (isFamilySuitable === 'true') query.isFamilySuitable = true;
-    if (isFoodTruck === 'true') query.isFoodTruck = true;
-    if (isTrending === 'true') query.isTrending = true;
-    if (maxPrice) query.priceRange = { $lte: Number(maxPrice) };
-    if (gender) query.gender = gender;
-    if (subcategory) query.subcategory = { $regex: new RegExp(subcategory as string, 'i') };
-    if (cuisineType) query.cuisineType = { $regex: new RegExp(cuisineType as string, 'i') };
-    if (hasGroupOffer === 'true') query['groupOffer.available'] = true;
-    if (partnerVenue === 'true') query.partnerVenue = true;
-
-    // Sort options
-    let sortOption: any = { 'ratingSummary.avgRating': -1 };
-    if (sortBy === 'price_asc')  sortOption = { priceRange: 1, avgCost: 1 };
-    if (sortBy === 'price_desc') sortOption = { priceRange: -1, avgCost: -1 };
-    if (sortBy === 'trending')   sortOption = { isTrending: -1, 'ratingSummary.avgRating': -1 };
-    if (sortBy === 'newest')     sortOption = { createdAt: -1 };
-
-    const skip = (Number(page) - 1) * Number(limit);
-    const places = await Place.find(query)
-      .sort(sortOption)
-      .skip(skip)
-      .limit(Number(limit));
-
-    const total = await Place.countDocuments(query);
-
-    res.json({
-      places,
-      total,
-      page: Number(page),
-      pages: Math.ceil(total / Number(limit))
+    const places = await Place.find({}).limit(50).lean();
+    return res.status(200).json({
+      success: true,
+      count: places.length,
+      data: places
     });
   } catch (error: any) {
-    console.error('❌ Error in getPlaces:', error);
-    res.status(500).json({ error: 'حدث خطأ أثناء جلب قائمة الأماكن' });
+    console.error('❌ Error fetching places:', error);
+    return res.status(500).json({ success: false, error: 'Server Error' });
   }
 };
 

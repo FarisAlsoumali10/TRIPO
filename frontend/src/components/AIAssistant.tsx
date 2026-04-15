@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { GoogleGenAI } from "@google/genai";
+import { aiAPI } from '../services/api';
 import { Sparkles, Mic, MicOff, X, Send, Bot } from 'lucide-react';
 import { Button } from './ui';
 import { User } from '../types/index';
@@ -34,7 +34,6 @@ export const AIAssistant = ({ user, t, lang }: AIAssistantProps) => {
         role: 'model',
         text: t.aiWelcome || "يا هلا والله! أنا مساعد تريبو الذكي. طفشان أو تدور فعالية بالرياض؟ آمرني!"
       }]);
-      initializeGemini();
     }
   }, [isOpen]);
 
@@ -42,52 +41,40 @@ export const AIAssistant = ({ user, t, lang }: AIAssistantProps) => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  const initializeGemini = async () => {
-    try {
-      const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY });
-
-      const systemInstruction = `
-        You are 'Tripo AI', a friendly local city guide for Riyadh, Saudi Arabia.
-        Tone: Very hospitable, warm, and professional (Saudi culture).
-        Language: Friendly Saudi/Gulf dialect when speaking Arabic.
-        Culture: Use terms like 'Shella', 'Asriya', 'Faza'a', 'Karam', and 'Majlis'.
-        Your mission is to find the user a perfect "micro-escape" in Riyadh.
-        
-        Rules:
-        1. Keep responses very short (max 35 words).
-        2. Suggest REAL places in Riyadh (cafes, parks, boulevards, hidden gems).
-        3. If it's afternoon, suggest an "Asriya" spot.
-        4. Current user is ${user?.name || 'Guest'}. They prefer a ${user?.smartProfile?.preferredBudget || 'medium'} budget.
-      `;
-
-      chatSessionRef.current = ai.chats.create({
-        model: 'gemini-2.5-flash',
-        config: {
-          systemInstruction: systemInstruction,
-        },
-      });
-    } catch (e) {
-      console.error("Failed to init AI", e);
-    }
-  };
+  const systemInstruction = `
+    You are 'Tripo AI', a friendly local city guide for Riyadh, Saudi Arabia.
+    Tone: Very hospitable, warm, and professional (Saudi culture).
+    Language: Friendly Saudi/Gulf dialect when speaking Arabic.
+    Culture: Use terms like 'Shella', 'Asriya', 'Faza'a', 'Karam', and 'Majlis'.
+    Your mission is to find the user a perfect "micro-escape" in Riyadh.
+    
+    Rules:
+    1. Keep responses very short (max 35 words).
+    2. Suggest REAL places in Riyadh (cafes, parks, boulevards, hidden gems).
+    3. If it's afternoon, suggest an "Asriya" spot.
+    4. Current user is ${user?.name || 'Guest'}. They prefer a ${user?.smartProfile?.preferredBudget || 'medium'} budget.
+  `;
 
   const handleSend = async (textOverride?: string) => {
     const textToSend = textOverride || input;
     if (!textToSend.trim()) return;
 
     const userMsg: Message = { id: Date.now().toString(), role: 'user', text: textToSend };
-    setMessages(prev => [...prev, userMsg]);
+    const currentMessages = [...messages, userMsg];
+    setMessages(currentMessages);
     setInput('');
     setIsLoading(true);
 
     try {
-      if (!chatSessionRef.current) await initializeGemini();
+      // Concatenate history for context
+      const chatHistory = currentMessages.map(m => `${m.role === 'model' ? 'Assistant' : 'User'}: ${m.text}`).join('\n');
+      const prompt = `${chatHistory}\nAssistant:`;
 
-      const result = await chatSessionRef.current.sendMessage(textToSend);
+      const result = await aiAPI.generateContent(prompt, systemInstruction);
 
-      const modelMsg: Message = { id: (Date.now() + 1).toString(), role: 'model', text: result.text };
+      const modelMsg: Message = { id: (Date.now() + 1).toString(), role: 'model', text: result.text || '' };
       setMessages(prev => [...prev, modelMsg]);
-      speak(result.text);
+      speak(result.text || '');
     } catch (error) {
       console.error("AI Error:", error);
       setMessages(prev => [...prev, { id: 'err', role: 'model', text: "عذراً يا غالي، يبدو أن هناك مشكلة في الاتصال بمرشدنا المحلي حالياً." }]);
