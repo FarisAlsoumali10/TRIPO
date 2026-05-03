@@ -7,6 +7,9 @@ export interface ITourStop {
   description: string;
   timeSlot?: string;
   image?: string;
+  lat?: number;
+  lng?: number;
+  address?: string;
 }
 
 export interface ITour extends Document {
@@ -21,6 +24,7 @@ export interface ITour extends Document {
   maxGroupSize: number;
   minGroupSize: number;
   baseItineraryId?: Types.ObjectId;
+  ownerId?: Types.ObjectId;
   stops: ITourStop[];
   departureLocation: string;
   departureTime: string;
@@ -39,6 +43,7 @@ export interface ITour extends Document {
   reviewCount: number;
   bookingsCount: number;
   status: 'active' | 'inactive';
+  commissionRate?: number;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -59,32 +64,34 @@ const tourSchema = new Schema<ITour>(
   {
     title: { type: String, required: true, trim: true },
     slug: { type: String, unique: true, sparse: true, lowercase: true, trim: true },
-    description: { type: String, required: true, trim: true },
+    description: { type: String, default: '', trim: true },
     highlights: { type: [String], default: [] },
     heroImage: { type: String },
     images: { type: [String], default: [] },
     pricePerPerson: { type: Number, required: true, min: 0 },
+    commissionRate: { type: Number, min: 0, max: 1 },  // overrides PLATFORM_FEE_RATE when set
     currency: { type: String, enum: ['SAR'], default: 'SAR' },
-    maxGroupSize: { type: Number, required: true, min: 1 },
+    maxGroupSize: { type: Number, default: 10, min: 1 },
     minGroupSize: { type: Number, default: 1 },
     baseItineraryId: { type: Schema.Types.ObjectId, ref: 'Itinerary' },
+    ownerId: { type: Schema.Types.ObjectId, ref: 'User', index: true },
     stops: { type: [tourStopSchema], default: [] },
-    departureLocation: { type: String, required: true, trim: true },
-    departureTime: { type: String, required: true },
+    departureLocation: { type: String, default: '', trim: true },
+    departureTime: { type: String, default: '' },
     returnTime: { type: String },
-    totalDuration: { type: Number, required: true }, // hours
+    totalDuration: { type: Number, default: 2 }, // hours
     difficulty: {
       type: String,
       enum: ['easy', 'moderate', 'challenging'],
-      required: true,
+      default: 'easy',
     },
     included: { type: [String], default: [] },
     excluded: { type: [String], default: [] },
-    guideName: { type: String, required: true, trim: true },
+    guideName: { type: String, default: '', trim: true },
     guideAvatar: { type: String },
     guideRating: { type: Number, min: 0, max: 5, default: 4.8 },
     availableDates: { type: [Date], default: [] },
-    category: { type: String, required: true, trim: true, index: true },
+    category: { type: String, default: 'community', trim: true, index: true },
     tags: { type: [String], default: [] },
     rating: { type: Number, default: 4.7, min: 0, max: 5 },
     reviewCount: { type: Number, default: 0 },
@@ -100,6 +107,7 @@ const tourSchema = new Schema<ITour>(
 );
 
 tourSchema.index({ status: 1, category: 1 });
+tourSchema.index({ ownerId: 1, createdAt: -1 });
 
 // Auto-generate slug from title if not provided
 tourSchema.pre('save', function (next) {

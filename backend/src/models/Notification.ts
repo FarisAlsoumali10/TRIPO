@@ -4,7 +4,7 @@ import { NotificationType } from '../types';
 export interface INotification extends Document {
   userId: Types.ObjectId;
   // ✅ توسيع الأنواع لتشمل الحجوزات وتنبيهات النظام
-  type: NotificationType | 'group_invitation' | 'new_message' | 'expense_added' | 'member_joined' | 'member_left' | 'booking_status' | 'system_alert';
+  type: NotificationType | 'group_invitation' | 'new_message' | 'expense_added' | 'member_joined' | 'member_left' | 'booking_status' | 'system_alert' | 'payment_received' | 'refund_issued' | 'payment_failed' | 'booking_cancelled' | 'payout_credited' | 'payout_requested';
   payload: any;
   read: boolean;
   createdAt: Date;
@@ -20,7 +20,7 @@ const notificationSchema = new Schema({
   },
   type: {
     type: String,
-    enum: ['group_invitation', 'new_message', 'expense_added', 'member_joined', 'member_left', 'booking_status', 'system_alert'],
+    enum: ['group_invitation', 'new_message', 'expense_added', 'member_joined', 'member_left', 'booking_status', 'system_alert', 'new_booking', 'new_booking_tour', 'new_reply', 'new_joiner', 'new_review', 'payment_received', 'refund_issued', 'payment_failed', 'booking_cancelled', 'payout_credited', 'payout_requested'],
     required: true
   },
   payload: {

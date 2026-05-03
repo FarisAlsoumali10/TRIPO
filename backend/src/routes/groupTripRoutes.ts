@@ -10,6 +10,8 @@ import {
   createPrivateTrip,
   getMyPrivateTrips,
   searchUsers,
+  getInviteLink,
+  joinByToken,
 } from '../controllers/groupTripController';
 import { authenticate } from '../middleware/auth';
 import { validate } from '../middleware/validation';
@@ -27,5 +29,7 @@ router.patch('/group-trips/:groupTripId/invitations/:invitationId', authenticate
 router.delete('/group-trips/:groupTripId/members/:userId', authenticate, removeMember);
 router.post('/group-trips/:groupTripId/leave', authenticate, leaveGroupTrip);
 router.get('/users/search', authenticate, searchUsers);
+router.get('/group-trips/:groupTripId/invite-link', authenticate, getInviteLink);
+router.post('/group-trips/join/:token', authenticate, joinByToken);
 
 export default router;

@@ -1,9 +1,9 @@
 import { Response } from 'express';
 import { AuthRequest } from '../types';
-import { Review, Place, Itinerary, Campsite, Session } from '../models'; // ✅ إضافة النماذج الناقصة
+import { Review, Place, Itinerary, Campsite, Session, Rental, Notification } from '../models';
+import { Tour } from '../models/Tour';
 
-// ✅ تحديث الدالة لتدعم كل الأنواع الجديدة في المتجر
-const updateRatingSummary = async (targetType: 'place' | 'itinerary' | 'campsite' | 'session', targetId: string) => {
+const updateRatingSummary = async (targetType: 'place' | 'itinerary' | 'campsite' | 'session' | 'rental' | 'tour', targetId: string) => {
   const reviews = await Review.find({ targetType, targetId });
 
   let Model: any;
@@ -20,8 +20,14 @@ const updateRatingSummary = async (targetType: 'place' | 'itinerary' | 'campsite
     case 'session':
       Model = Session;
       break;
+    case 'rental':
+      Model = Rental;
+      break;
+    case 'tour':
+      Model = Tour;
+      break;
     default:
-      return; // حماية إضافية
+      return;
   }
 
   if (reviews.length === 0) {
@@ -70,7 +76,25 @@ export const createReview = async (req: AuthRequest, res: Response) => {
     const review = await Review.create(reviewData);
 
     // Update rating summary
-    await updateRatingSummary(review.targetType, review.targetId.toString());
+    await updateRatingSummary(review.targetType as any, review.targetId.toString());
+
+    // Notify the owner of the reviewed item
+    try {
+      let ownerId: string | undefined;
+      if (review.targetType === 'tour') {
+        const tour = await Tour.findById(review.targetId).select('ownerId').lean();
+        ownerId = (tour as any)?.ownerId?.toString();
+      } else if (review.targetType === 'rental') {
+        const rental = await Rental.findById(review.targetId).select('hostId').lean();
+        ownerId = (rental as any)?.hostId?.toString();
+      }
+      if (ownerId && ownerId !== review.userId?.toString()) {
+        const payload = { reviewId: review._id, targetType: review.targetType, targetId: review.targetId, rating: review.rating };
+        await Notification.create({ userId: ownerId, type: 'new_review', payload, read: false });
+        const io = req.app?.get('io');
+        if (io) io.to(`user:${ownerId}`).emit('notification', { type: 'new_review', payload });
+      }
+    } catch { /* non-fatal */ }
 
     const populatedReview = await Review.findById(review._id)
       .populate('userId', 'name avatar');

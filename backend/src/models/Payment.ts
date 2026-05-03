@@ -4,10 +4,13 @@ export interface IPayment extends Document {
   userId: mongoose.Types.ObjectId;
   itemType: 'event' | 'tour' | 'rental';
   itemId: mongoose.Types.ObjectId;
-  amount: number; // in SAR (not halalas)
+  bookingId?: mongoose.Types.ObjectId;
+  amount: number;  // in SAR (not subunit)
   currency: string;
-  stripeSessionId: string;
-  status: 'pending' | 'completed' | 'refunded';
+  provider: string;
+  providerSessionId: string;
+  paymentIntentId?: string;
+  status: 'pending' | 'completed' | 'refunded' | 'failed';
   paidAt: Date;
 }
 
@@ -27,6 +30,10 @@ const paymentSchema = new Schema<IPayment>(
       type: Schema.Types.ObjectId,
       required: true,
     },
+    bookingId: {
+      type: Schema.Types.ObjectId,
+      ref: 'Booking',
+    },
     amount: {
       type: Number,
       required: true,
@@ -35,14 +42,21 @@ const paymentSchema = new Schema<IPayment>(
       type: String,
       default: 'SAR',
     },
-    stripeSessionId: {
+    provider: {
+      type: String,
+      default: 'stripe',
+    },
+    providerSessionId: {
       type: String,
       required: true,
       unique: true,
     },
+    paymentIntentId: {
+      type: String,
+    },
     status: {
       type: String,
-      enum: ['pending', 'completed', 'refunded'],
+      enum: ['pending', 'completed', 'refunded', 'failed'],
       default: 'completed',
     },
     paidAt: {
@@ -50,7 +64,7 @@ const paymentSchema = new Schema<IPayment>(
       default: Date.now,
     },
   },
-  { timestamps: false }
+  { timestamps: false },
 );
 
 export const Payment = mongoose.model<IPayment>('Payment', paymentSchema);

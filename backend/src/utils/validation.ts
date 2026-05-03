@@ -120,3 +120,50 @@ export const createReportSchema = z.object({
   reason: z.string().trim().min(1),
   description: z.string().trim().max(1000).optional()
 }).strict();
+
+// ==========================================
+// 📅 Events
+// ==========================================
+
+export const createEventSchema = z.object({
+  title:        z.string().trim().min(3, 'Title must be at least 3 characters'),
+  description:  z.string().trim().max(2000).optional(),
+  date:         z.string().datetime({ message: 'Invalid date format' }),
+  endDate:      z.string().datetime().optional(),
+  time:         z.string().optional(),
+  locationName: z.string().trim().optional(),
+  city:         z.string().trim().optional(),
+  category:     z.string().trim().optional(),
+  image:        z.string().url().optional(),
+  coverImage:   z.string().url().optional(),
+  isFree:       z.boolean().default(false),
+  fee:          z.number().min(0).optional(),
+  currency:     z.string().length(3).default('SAR'),
+  communityId:  objectIdValidator.optional(),
+  color:        z.string().optional(),
+  website:      z.string().url().optional(),
+  mapQuery:     z.string().optional(),
+});
+
+// ==========================================
+// 👥 Communities
+// ==========================================
+
+export const createCommunitySchema = z.object({
+  name:        z.string().trim().min(2, 'Name must be at least 2 characters'),
+  description: z.string().trim().min(10, 'Description must be at least 10 characters'),
+  icon:        z.string().trim().min(1, 'Icon is required'),
+});
+
+// ==========================================
+// 🔑 Auth extras
+// ==========================================
+
+export const requestPasswordResetSchema = z.object({
+  email: z.string().trim().toLowerCase().email('Invalid email address'),
+}).strict();
+
+export const resetPasswordSchema = z.object({
+  token:       z.string().min(1, 'Token is required'),
+  newPassword: z.string().min(8, 'Password must be at least 8 characters'),
+}).strict();

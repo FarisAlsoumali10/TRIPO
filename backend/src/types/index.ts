@@ -35,10 +35,10 @@ export type ContentStatus = 'active' | 'deactivated' | 'hidden' | 'removed';
 
 // ✅ تم توسيعها لتطابق ترقيات الباك-إند
 export type MessageType = 'text' | 'system' | 'image' | 'location';
-export type NotificationType = 'group_invitation' | 'new_message' | 'expense_added' | 'member_joined' | 'member_left' | 'booking_status' | 'system_alert';
-export type ReviewTargetType = 'place' | 'itinerary' | 'campsite' | 'session';
+export type NotificationType = 'group_invitation' | 'new_message' | 'expense_added' | 'member_joined' | 'member_left' | 'booking_status' | 'system_alert' | 'new_booking';
+export type ReviewTargetType = 'place' | 'itinerary' | 'campsite' | 'session' | 'rental' | 'tour';
 export type ReportTargetType = 'itinerary' | 'message' | 'session' | 'campsite' | 'user' | 'place' | 'review';
-export type MarketplaceTargetType = 'session' | 'campsite';
+export type MarketplaceTargetType = 'session' | 'campsite' | 'rental';
 
 // ==========================================
 // 👤 Profile & User Data Structures

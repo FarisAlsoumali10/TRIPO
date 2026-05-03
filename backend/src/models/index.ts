@@ -11,6 +11,7 @@ export { Itinerary, IItinerary } from './Itinerary';
 export { Session, ISession } from './Session';
 export { Campsite, ICampsite } from './Campsite';
 export { Booking, IBooking } from './Booking';
+export { Rental, IRental } from './Rental';
 
 // ==========================================
 // 👥 Social & Group Trips (الرحلات الجماعية والمجتمع)
@@ -31,3 +32,6 @@ export { Report, IReport } from './Report';
 // 🗺️ Tours & Experiences (الجولات السياحية)
 // ==========================================
 export { Tour, ITour } from './Tour';
+export { PointsTransaction, IPointsTransaction } from './PointsTransaction';
+export { Payment, IPayment } from './Payment';
+export { PayoutRequest, IPayoutRequest } from './PayoutRequest';

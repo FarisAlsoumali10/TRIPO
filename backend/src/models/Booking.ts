@@ -6,8 +6,10 @@ export interface IBooking extends Document {
   targetType: MarketplaceTargetType | 'session' | 'campsite' | 'tour';
   targetId: Types.ObjectId;
   status: BookingStatus | 'pending' | 'confirmed' | 'cancelled';
-  paymentStatus: 'pending' | 'paid' | 'refunded'; // ✅ إضافة حالة الدفع
-  totalPrice: number; // ✅ فصل السعر الإجمالي لسهولة الإحصائيات
+  paymentStatus: 'pending' | 'paid' | 'refunded';
+  totalPrice: number;
+  providerSessionId?: string;
+  paymentId?: Types.ObjectId;
   bookingDetails: any;
   createdAt: Date;
   updatedAt: Date;
@@ -22,7 +24,7 @@ const bookingSchema = new Schema({
   },
   targetType: {
     type: String,
-    enum: ['session', 'campsite', 'tour'],
+    enum: ['session', 'campsite', 'tour', 'rental'],
     required: true
   },
   targetId: {
@@ -44,6 +46,14 @@ const bookingSchema = new Schema({
     type: Number,
     required: true,
     default: 0
+  },
+  providerSessionId: {
+    type: String,
+    index: true,
+  },
+  paymentId: {
+    type: Schema.Types.ObjectId,
+    ref: 'Payment',
   },
   bookingDetails: {
     type: Schema.Types.Mixed,

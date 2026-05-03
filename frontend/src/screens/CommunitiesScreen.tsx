@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Users, ChevronRight, Trophy, Star, MessageSquare, Plus, Crown, Flame, CheckCircle2, Send, X, ShieldCheck, Heart, Calendar, Clock, MapPin, Wallet as WalletIcon, TrendingUp, Award, Search, Tag, ArrowLeft, Hash, MessageCircle, Handshake, UserPlus, Bell, Globe, ExternalLink, Info, Image } from 'lucide-react';
 import { Community, Itinerary, FazaRequest, ChatMessage, CommunityEvent, User, Place, MajlisThread } from '../types/index';
 import { Button, Input, Badge } from '../components/ui';
-import { placeAPI, communityAPI, authAPI, threadAPI, eventAPI, fazaAPI } from '../services/api';
+import { placeAPI, communityAPI, authAPI, threadAPI, eventAPI, fazaAPI, travelPostAPI } from '../services/api';
 
 // ── Feature 10 helpers ──────────────────────────────────────────────────────
 function extractFirstUrl(text: string): string | null {
@@ -121,6 +121,7 @@ const INTEREST_KEYS = [
 const COMMUNITY_CATEGORIES = ['الكل', 'Sports', 'Food', 'Nature', 'Cars', 'Women', 'Men', 'Sea'];
 
 export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId, onCommunityOpened }: { t: any, lang: string, onOpenItinerary: (it: Itinerary) => void, initialCommunityId?: string, onCommunityOpened?: () => void }) => {
+  const ar = lang === 'ar';
   // ── Anti-Gravity State (Real Data) ──────────────────────────────────────
   const [userProfile, setUserProfile] = useState<User | null>(null);
   const [communities, setCommunities] = useState<Community[]>([]);
@@ -149,6 +150,7 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
   const [joinedEvents, setJoinedEvents] = useState<string[]>(() => {
     try { return JSON.parse(localStorage.getItem('tripo_joined_events') || '[]'); } catch { return []; }
   });
+  const [apiLoaded, setApiLoaded] = useState(false);
 
   const [categoryFilter, setCategoryFilter] = useState('الكل');
 
@@ -233,6 +235,48 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
         }
         if (eventsRes.status === 'fulfilled') setLocalEvents(Array.isArray(eventsRes.value) ? eventsRes.value : []);
         if (fazaRes.status === 'fulfilled') setLocalFazaRequests(Array.isArray(fazaRes.value) ? fazaRes.value : []);
+
+        // Sync joined communities, subscriptions, events, travel posts from API
+        if (token) {
+          const [joinedCommRes, subscribedCommRes, joinedEvtRes, postsRes] = await Promise.allSettled([
+            communityAPI.getJoinedCommunityIds(),
+            communityAPI.getSubscribedCommunityIds(),
+            eventAPI.getJoinedEventIds(),
+            travelPostAPI.getPosts(),
+          ]);
+          if (joinedCommRes.status === 'fulfilled') {
+            setJoinedCommunities(joinedCommRes.value);
+            localStorage.setItem('tripo_joined_communities', JSON.stringify(joinedCommRes.value));
+          }
+          if (subscribedCommRes.status === 'fulfilled') {
+            setSubscribedCommunities(subscribedCommRes.value);
+            localStorage.setItem('tripo_subscribed_communities', JSON.stringify(subscribedCommRes.value));
+          }
+          if (joinedEvtRes.status === 'fulfilled') {
+            setJoinedEvents(joinedEvtRes.value);
+            localStorage.setItem('tripo_joined_events', JSON.stringify(joinedEvtRes.value));
+          }
+          if (postsRes.status === 'fulfilled') {
+            const posts = Array.isArray(postsRes.value) ? postsRes.value : [];
+            const mapped: TravelPost[] = posts.map((p: any) => ({
+              id: p._id ?? p.id,
+              userId: p.authorId ?? '',
+              userName: p.authorName ?? (ar ? 'مسافر' : 'Traveller'),
+              userAvatar: p.userAvatar,
+              placeName: p.placeName ?? '',
+              date: p.date ?? '',
+              groupSize: p.joinedBy?.length ?? p.groupSize ?? 1,
+              maxSize: p.maxSize ?? 4,
+              description: p.description ?? '',
+              interests: p.interests ?? [],
+              timestamp: p.createdAt ? +new Date(p.createdAt) : Date.now(),
+              joinedByMe: Array.isArray(p.joinedBy) && p.joinedBy.includes(userRes.status === 'fulfilled' ? (userRes.value as any)._id ?? (userRes.value as any).id : ''),
+            }));
+            setTravelPosts(mapped);
+            localStorage.setItem(TRAVEL_POSTS_KEY, JSON.stringify(mapped));
+          }
+          setApiLoaded(true);
+        }
 
       } catch (error) {
         console.error("Antigravity engine failed to load some data:", error);
@@ -392,26 +436,40 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
     setTimeout(() => setSuccessMessage(null), 3000);
   };
 
-  const handleCreateFaza = () => {
+  const handleCreateFaza = async () => {
     if (!newFazaForm.question.trim() || !selectedCommunity || fazaSubmitting) return;
     setFazaSubmitting(true);
-    const req: FazaRequest = {
+    const communityId = (selectedCommunity as any)._id ?? selectedCommunity.id;
+    const optimisticReq: FazaRequest = {
       id: Date.now().toString(),
-      userId: userProfile.id,
-      userName: newFazaForm.anonymous ? 'مجهول الهوية' : userProfile.name,
+      userId: (userProfile as any)?._id ?? userProfile?.id ?? '',
+      userName: newFazaForm.anonymous ? 'مجهول الهوية' : (userProfile?.name ?? ''),
       userAvatar: newFazaForm.anonymous
         ? 'https://api.dicebear.com/7.x/avataaars/svg?seed=anon'
-        : (userProfile.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${userProfile.id}`),
+        : (userProfile?.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${(userProfile as any)?._id ?? userProfile?.id}`),
       question: newFazaForm.question.trim(),
-      communityId: selectedCommunity.id,
+      communityId,
       timestamp: Date.now(),
       pointsReward: newFazaForm.rewardPoints,
     };
-    setLocalFazaRequests(prev => [req, ...prev]);
-    setUserProfile(prev => prev ? ({
-      ...prev,
-      karamPoints: Math.max(0, (prev.karamPoints || 0) - newFazaForm.rewardPoints),
-    }) : prev);
+    setLocalFazaRequests(prev => [optimisticReq, ...prev]);
+    setUserProfile(prev => prev ? ({ ...prev, karamPoints: Math.max(0, (prev.karamPoints || 0) - newFazaForm.rewardPoints) }) : prev);
+    try {
+      const saved = await fazaAPI.createRequest({
+        question: optimisticReq.question,
+        communityId,
+        category: newFazaForm.category || 'general',
+        urgency: newFazaForm.urgency,
+        rewardPoints: newFazaForm.rewardPoints,
+        anonymous: newFazaForm.anonymous,
+      });
+      const serverId = saved.data?._id ?? saved.data?.id ?? saved._id ?? saved.id;
+      if (serverId) {
+        setLocalFazaRequests(prev => prev.map(r => r.id === optimisticReq.id ? { ...r, id: serverId } : r));
+      }
+    } catch {
+      // keep optimistic version
+    }
     setFazaSubmitting(false);
     setFazaSubmitSuccess(true);
   };
@@ -425,11 +483,12 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
     setFazaErrors({});
   };
 
-  const toggleJoinEvent = (eventId: string) => {
-    const evt = localEvents.find(e => e.id === eventId) as ExtendedCommunityEvent | undefined;
-    if (joinedEvents.includes(eventId)) {
+  const toggleJoinEvent = async (eventId: string) => {
+    const evt = localEvents.find(e => e.id === eventId || (e as any)._id === eventId) as ExtendedCommunityEvent | undefined;
+    const isJoined = joinedEvents.includes(eventId);
+    if (isJoined) {
       setJoinedEvents(joinedEvents.filter(id => id !== eventId));
-      setLocalEvents(prev => prev.map(e => e.id === eventId ? { ...e, attendeesCount: e.attendeesCount - 1 } : e));
+      setLocalEvents(prev => prev.map(e => e.id === eventId ? { ...e, attendeesCount: Math.max(0, e.attendeesCount - 1) } : e));
     } else {
       if (evt?.maxAttendees && evt.attendeesCount >= evt.maxAttendees) {
         setSuccessMessage('الفعالية ممتلئة — لا توجد أماكن شاغرة حالياً');
@@ -441,16 +500,21 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
       setSuccessMessage(lang === 'ar' ? "تم تسجيل اهتمامك بالفعالية! ننتظرك هناك 🤩" : "You're registered! See you there 🤩");
       setTimeout(() => setSuccessMessage(null), 3000);
     }
+    try { await eventAPI.toggleMembership(eventId); } catch {
+      // revert
+      if (isJoined) setJoinedEvents(prev => [...prev, eventId]);
+      else setJoinedEvents(prev => prev.filter(id => id !== eventId));
+    }
   };
 
-  const handlePostTrip = () => {
+  const handlePostTrip = async () => {
     if (!newTripPost.placeName || !newTripPost.date || isSubmitting) return;
     setIsSubmitting(true);
-    const post: TravelPost = {
+    const optimisticPost: TravelPost = {
       id: Date.now().toString(),
-      userId: userProfile.id,
-      userName: userProfile.name,
-      userAvatar: userProfile.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${userProfile.id}`,
+      userId: (userProfile as any)._id ?? userProfile?.id ?? '',
+      userName: userProfile?.name ?? (ar ? 'مسافر' : 'Traveller'),
+      userAvatar: userProfile?.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${(userProfile as any)?._id ?? userProfile?.id}`,
       placeName: newTripPost.placeName,
       date: newTripPost.date,
       groupSize: 1,
@@ -459,15 +523,33 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
       interests: newTripPost.interests,
       timestamp: Date.now(),
     };
-    setTravelPosts(prev => [post, ...prev]);
+    setTravelPosts(prev => [optimisticPost, ...prev]);
     setShowPostTripModal(false);
     setNewTripPost({ placeName: '', date: '', maxSize: 4, description: '', interests: [] });
-    setIsSubmitting(false);
     setSuccessMessage("Trip posted! Looking forward to meeting fellow travelers 🤝");
     setTimeout(() => setSuccessMessage(null), 3000);
+    try {
+      const saved = await travelPostAPI.createPost({
+        placeName: optimisticPost.placeName,
+        date: optimisticPost.date,
+        maxSize: optimisticPost.maxSize,
+        description: optimisticPost.description,
+        interests: optimisticPost.interests,
+        authorName: optimisticPost.userName,
+        communityId: selectedCommunity ? ((selectedCommunity as any)._id ?? selectedCommunity.id) : undefined,
+      });
+      const serverPost: TravelPost = {
+        ...optimisticPost,
+        id: (saved.data?._id ?? saved.data?.id ?? saved._id ?? saved.id) || optimisticPost.id,
+      };
+      setTravelPosts(prev => prev.map(p => p.id === optimisticPost.id ? serverPost : p));
+    } catch {
+      // keep optimistic version
+    }
+    setIsSubmitting(false);
   };
 
-  const handleJoinTrip = (postId: string) => {
+  const handleJoinTrip = async (postId: string) => {
     setTravelPosts(prev => prev.map(p => {
       if (p.id !== postId) return p;
       if (p.joinedByMe) return p;
@@ -475,6 +557,9 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
     }));
     setSuccessMessage("You're in! 🎉 Have a great trip!");
     setTimeout(() => setSuccessMessage(null), 3000);
+    try { await travelPostAPI.joinPost(postId); } catch {
+      setTravelPosts(prev => prev.map(p => p.id === postId ? { ...p, groupSize: Math.max(1, p.groupSize - 1), joinedByMe: false } : p));
+    }
   };
 
   const handleCreateThread = async () => {
@@ -659,7 +744,17 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
 
         <div className="absolute top-3 right-3 flex items-center gap-1.5 z-10">
           <button
-            onClick={e => { e.stopPropagation(); setSubscribedCommunities(prev => isSubscribed ? prev.filter(id => id !== comm.id) : [...prev, comm.id]); }}
+            onClick={async e => {
+              e.stopPropagation();
+              const commId = (comm as any)._id ?? comm.id;
+              setSubscribedCommunities(prev => isSubscribed ? prev.filter(id => id !== commId) : [...prev, commId]);
+              try {
+                if (isSubscribed) await communityAPI.unsubscribeCommunity(commId);
+                else await communityAPI.subscribeCommunity(commId);
+              } catch {
+                setSubscribedCommunities(prev => isSubscribed ? [...prev, commId] : prev.filter(id => id !== commId));
+              }
+            }}
             className="w-7 h-7 flex items-center justify-center bg-black/40 backdrop-blur-sm rounded-full"
           >
             <Bell className={`w-3.5 h-3.5 ${isSubscribed ? 'text-emerald-400 fill-emerald-400' : 'text-white/60'}`} />
@@ -693,7 +788,17 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
                 ))}
               </div>
               <button
-                onClick={e => { e.stopPropagation(); setJoinedCommunities(prev => isJoined ? prev.filter(id => id !== comm.id) : [...prev, comm.id]); }}
+                onClick={async e => {
+                  e.stopPropagation();
+                  const commId = (comm as any)._id ?? comm.id;
+                  setJoinedCommunities(prev => isJoined ? prev.filter(id => id !== commId) : [...prev, commId]);
+                  try {
+                    if (isJoined) await communityAPI.leaveCommunity(commId);
+                    else await communityAPI.joinCommunity(commId);
+                  } catch {
+                    setJoinedCommunities(prev => isJoined ? [...prev, commId] : prev.filter(id => id !== commId));
+                  }
+                }}
                 className={`text-[9px] font-black px-2.5 py-1 rounded-full transition-all ${isJoined ? 'bg-emerald-500 text-white' : 'bg-white/20 text-white backdrop-blur-sm'}`}
               >
                 {isJoined ? '✓ منضم' : '+ انضم'}
@@ -2154,7 +2259,7 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
             onClick={() => setMainTab('traveling')}
             className={`flex items-center gap-1.5 px-4 py-2.5 rounded-t-2xl text-sm font-black transition-all border-b-2 ${mainTab === 'traveling' ? 'border-emerald-600 text-emerald-600 bg-emerald-50' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
           >
-            {(t as any).travelingTogether || '🤝 Traveling Together'}
+            {(t as any).travelingTogether || (ar ? '🤝 سفر مع رفاق' : '🤝 Traveling Together')}
             {travelPosts.length > 0 && (
               <span className="ml-1 px-1.5 py-0.5 bg-emerald-100 text-emerald-700 text-[9px] font-black rounded-full">{travelPosts.length}</span>
             )}
@@ -2164,6 +2269,22 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
 
       {mainTab === 'communities' && (
         <div className="p-6 space-y-8">
+          {/* CTA Banner */}
+          <div className="rounded-3xl overflow-hidden" style={{ background: 'linear-gradient(135deg, #0f766e, #065f46)' }}>
+            <div className="p-5 flex items-center gap-4">
+              <div className="flex-1">
+                <p className="text-white font-black text-sm leading-tight">{ar ? 'السفر أجمل مع رفاق' : 'Travel is better together'}</p>
+                <p className="text-teal-200 text-xs mt-0.5">{ar ? 'انضم لمجتمع وتواصل مع مسافرين من كل أنحاء المملكة.' : 'Join a community and connect with fellow explorers across the Kingdom.'}</p>
+              </div>
+              <button
+                onClick={() => setShowPostTripModal(true)}
+                className="shrink-0 px-4 py-2.5 bg-white text-teal-700 font-black text-xs rounded-2xl active:scale-95 transition-transform shadow-md"
+              >
+                {ar ? 'ابحث عن رفاق ←' : 'Find Travel Buddies →'}
+              </button>
+            </div>
+          </div>
+
           {(() => {
             const weekStart = Date.now() - 7 * 24 * 60 * 60 * 1000;
             const recapThreads = 0; // threads not tracked globally yet
@@ -2312,13 +2433,13 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
         <div className="p-6 space-y-4">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-slate-500 text-sm">{(t as any).ttFindCompanions || 'Find travel companions for your next micro-escape!'}</p>
+              <p className="text-slate-500 text-sm">{(t as any).ttFindCompanions || (ar ? 'ابحث عن رفاق سفر لمغامرتك القادمة!' : 'Find travel companions for your next micro-escape!')}</p>
             </div>
             <button
               onClick={() => setShowPostTripModal(true)}
               className="flex items-center gap-1.5 px-4 py-2.5 bg-emerald-600 text-white text-sm font-black rounded-2xl shadow-md active:scale-95 transition-transform"
             >
-              <Plus className="w-4 h-4" /> {(t as any).ttPostTrip || 'Post a Trip'}
+              <Plus className="w-4 h-4" /> {(t as any).ttPostTrip || (ar ? 'أضف رحلة' : 'Post a Trip')}
             </button>
           </div>
 
@@ -2365,13 +2486,13 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
           {travelPosts.length === 0 ? (
             <div className="text-center py-16 bg-white rounded-3xl border border-dashed border-slate-200">
               <div className="text-4xl mb-3">🤝</div>
-              <h3 className="font-bold text-slate-600 mb-1">{(t as any).ttNoTrips || 'No trips posted yet'}</h3>
-              <p className="text-xs text-slate-400 mb-4">{(t as any).ttBeFirst || 'Be the first to find travel companions!'}</p>
+              <h3 className="font-bold text-slate-600 mb-1">{(t as any).ttNoTrips || (ar ? 'لا توجد رحلات بعد' : 'No trips posted yet')}</h3>
+              <p className="text-xs text-slate-400 mb-4">{(t as any).ttBeFirst || (ar ? 'كن أول من يبحث عن رفاق!' : 'Be the first to find travel companions!')}</p>
               <button
                 onClick={() => setShowPostTripModal(true)}
                 className="px-5 py-2.5 bg-emerald-600 text-white text-sm font-bold rounded-full"
               >
-                {(t as any).ttPostYourTrip || 'Post Your Trip'}
+                {(t as any).ttPostYourTrip || (ar ? 'أضف رحلتك' : 'Post Your Trip')}
               </button>
             </div>
           ) : travelPosts.map(post => {
@@ -2389,12 +2510,12 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
                   />
                   <div className="flex-1 min-w-0">
                     <p className="font-black text-slate-900 text-sm">{post.userName}</p>
-                    <p className="text-xs text-slate-500">{(t as any).ttIsHeadingTo || 'is heading to'} <span className="font-bold text-emerald-700">{post.placeName}</span></p>
+                    <p className="text-xs text-slate-500">{(t as any).ttIsHeadingTo || (ar ? 'متجه إلى' : 'is heading to')} <span className="font-bold text-emerald-700">{post.placeName}</span></p>
                   </div>
                   <div className="text-right flex-shrink-0">
                     <p className="text-[10px] text-slate-400 font-bold flex items-center gap-1 justify-end">
                       <Calendar className="w-3 h-3" />
-                      {new Date(post.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                      {new Date(post.date).toLocaleDateString(ar ? 'ar-SA' : 'en-US', { month: 'short', day: 'numeric' })}
                     </p>
                   </div>
                 </div>
@@ -2419,7 +2540,7 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
                         })}
                         {score > 0 && (
                           <span className={`ml-auto shrink-0 px-2 py-0.5 rounded-full text-[10px] font-black ${score === 100 ? 'bg-yellow-50 text-yellow-700' : 'bg-emerald-100 text-emerald-700'}`}>
-                            {score === 100 ? '⭐ ' : ''}{score}% match
+                            {score === 100 ? '⭐ ' : ''}{score}%{ar ? ' تطابق' : ' match'}
                           </span>
                         )}
                       </div>
@@ -2439,7 +2560,7 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
                     </div>
                     {!isFull ? (
                       <span className={`text-[10px] font-black px-2.5 py-0.5 rounded-full ${spotsLeft <= 2 ? 'bg-red-50 text-red-600 border border-red-100' : 'bg-emerald-50 text-emerald-700'}`}>
-                        {spotsLeft} {(t as any).ttLeft || 'left'}
+                        {spotsLeft} {(t as any).ttLeft || (ar ? 'متبقي' : 'left')}
                       </span>
                     ) : (
                       <span className="text-[10px] font-black px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-500">مكتمل</span>
@@ -2466,11 +2587,11 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
                               : 'bg-emerald-600 text-white hover:bg-emerald-700 active:scale-95'
                           }`}
                       >
-                        {post.joinedByMe ? <><CheckCircle2 className="w-3.5 h-3.5" /> {(t as any).ttJoined || 'Joined'}</> : isFull ? ((t as any).ttFull || 'Full') : <><UserPlus className="w-3.5 h-3.5" /> {(t as any).ttJoin || 'Join'}</>}
+                        {post.joinedByMe ? <><CheckCircle2 className="w-3.5 h-3.5" /> {(t as any).ttJoined || (ar ? 'انضممت' : 'Joined')}</> : isFull ? ((t as any).ttFull || (ar ? 'مكتمل' : 'Full')) : <><UserPlus className="w-3.5 h-3.5" /> {(t as any).ttJoin || (ar ? 'انضم' : 'Join')}</>}
                       </button>
                     )}
                     {isMyPost && (
-                      <span className="text-[10px] font-bold text-slate-400 bg-slate-50 px-3 py-1.5 rounded-xl">{(t as any).ttYourPost || 'Your post'}</span>
+                      <span className="text-[10px] font-bold text-slate-400 bg-slate-50 px-3 py-1.5 rounded-xl">{(t as any).ttYourPost || (ar ? 'منشورك' : 'Your post')}</span>
                     )}
                   </div>
                 </div>
@@ -2521,22 +2642,22 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
             >
               <X className="w-5 h-5 text-slate-400" />
             </button>
-            <h3 className="font-black text-xl text-slate-900 mb-1">{(t as any).ttModalTitle || 'Post a Trip 🗺️'}</h3>
-            <p className="text-xs text-slate-400 mb-5">{(t as any).ttModalSubtitle || 'Let others join your next micro-escape'}</p>
+            <h3 className="font-black text-xl text-slate-900 mb-1">{(t as any).ttModalTitle || (ar ? 'أضف رحلة 🗺️' : 'Post a Trip 🗺️')}</h3>
+            <p className="text-xs text-slate-400 mb-5">{(t as any).ttModalSubtitle || (ar ? 'دع الآخرين ينضمون لمغامرتك القادمة' : 'Let others join your next micro-escape')}</p>
 
             <div className="space-y-4">
               <div>
-                <label className="text-xs font-black text-slate-500 uppercase tracking-wide mb-1.5 block">{(t as any).ttPlaceLabel || 'Place / Destination *'}</label>
+                <label className="text-xs font-black text-slate-500 uppercase tracking-wide mb-1.5 block">{(t as any).ttPlaceLabel || (ar ? 'المكان / الوجهة *' : 'Place / Destination *')}</label>
                 <input
                   className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-emerald-500"
-                  placeholder={(t as any).ttPlacePlaceholder || 'e.g. Al Bujairi Heritage Park'}
+                  placeholder={(t as any).ttPlacePlaceholder || (ar ? 'مثال: حديقة البجيري التراثية' : 'e.g. Al Bujairi Heritage Park')}
                   value={newTripPost.placeName}
                   onChange={e => setNewTripPost(p => ({ ...p, placeName: e.target.value }))}
                 />
               </div>
 
               <div>
-                <label className="text-xs font-black text-slate-500 uppercase tracking-wide mb-1.5 block">{(t as any).ttDateLabel || 'Date *'}</label>
+                <label className="text-xs font-black text-slate-500 uppercase tracking-wide mb-1.5 block">{(t as any).ttDateLabel || (ar ? 'التاريخ *' : 'Date *')}</label>
                 <input
                   type="date"
                   className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-emerald-500"
@@ -2547,7 +2668,7 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
               </div>
 
               <div>
-                <label className="text-xs font-black text-slate-500 uppercase tracking-wide mb-1.5 block">{(t as any).ttGroupSizeLabel || 'Looking for (total group size)'}</label>
+                <label className="text-xs font-black text-slate-500 uppercase tracking-wide mb-1.5 block">{(t as any).ttGroupSizeLabel || (ar ? 'حجم المجموعة الإجمالي' : 'Looking for (total group size)')}</label>
                 <div className="flex items-center gap-3">
                   <button
                     onClick={() => setNewTripPost(p => ({ ...p, maxSize: Math.max(2, p.maxSize - 1) }))}
@@ -2562,23 +2683,23 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
                   >
                     +
                   </button>
-                  <span className="text-xs text-slate-400">{(t as any).ttPeopleTotal || 'people total'}</span>
+                  <span className="text-xs text-slate-400">{(t as any).ttPeopleTotal || (ar ? 'شخص إجمالاً' : 'people total')}</span>
                 </div>
               </div>
 
               <div>
-                <label className="text-xs font-black text-slate-500 uppercase tracking-wide mb-1.5 block">{(t as any).ttDescLabel || 'Description'}</label>
+                <label className="text-xs font-black text-slate-500 uppercase tracking-wide mb-1.5 block">{(t as any).ttDescLabel || (ar ? 'الوصف' : 'Description')}</label>
                 <textarea
                   rows={3}
                   className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-emerald-500 resize-none"
-                  placeholder={(t as any).ttDescPlaceholder || 'Tell others about your plans...'}
+                  placeholder={(t as any).ttDescPlaceholder || (ar ? 'أخبر الآخرين عن خططك...' : 'Tell others about your plans...')}
                   value={newTripPost.description}
                   onChange={e => setNewTripPost(p => ({ ...p, description: e.target.value }))}
                 />
               </div>
 
               <div>
-                <label className="text-xs font-black text-slate-500 uppercase tracking-wide mb-1.5 block">{(t as any).ttInterestsLabel || 'Interests'}</label>
+                <label className="text-xs font-black text-slate-500 uppercase tracking-wide mb-1.5 block">{(t as any).ttInterestsLabel || (ar ? 'الاهتمامات' : 'Interests')}</label>
                 <div className="flex flex-wrap gap-2">
                   {INTEREST_KEYS.map(opt => {
                     const active = newTripPost.interests.includes(opt.val);
@@ -2605,7 +2726,7 @@ export const CommunitiesScreen = ({ t, lang, onOpenItinerary, initialCommunityId
                 disabled={!newTripPost.placeName.trim() || !newTripPost.date || isSubmitting}
                 className="w-full py-3.5 bg-emerald-600 text-white font-black rounded-2xl hover:bg-emerald-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {isSubmitting ? '...' : ((t as any).ttPostBtn || 'Post Trip 🤝')}
+                {isSubmitting ? '...' : ((t as any).ttPostBtn || (ar ? 'أضف الرحلة 🤝' : 'Post Trip 🤝'))}
               </button>
             </div>
           </div>

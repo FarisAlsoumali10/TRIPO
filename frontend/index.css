@@ -1,3 +1,125 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+:root {
+  --navy-950: #050B1E;
+  --navy-900: #081229;
+  --navy-800: #101B36;
+  --mint: #7CF7C8;
+  --mint-600: #1EC99A;
+  --gold: #F7C948;
+  --coral: #FF6B7A;
+  --surface-glass: rgba(255, 255, 255, 0.08);
+  --surface-glass-strong: rgba(255, 255, 255, 0.12);
+  --border-glass: rgba(255, 255, 255, 0.14);
+  --text-secondary: #B8C2D6;
+  --text-muted: #7F8AA3;
+}
+
+.dark {
+  --bg: var(--navy-950);
+  --surface: var(--surface-glass);
+  --border: var(--border-glass);
+}
+
+@layer components {
+  .glass-card {
+    background: rgba(255, 255, 255, 0.08);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 1.25rem;
+    box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.55);
+  }
+  .glass-card-strong {
+    background: rgba(255, 255, 255, 0.12);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 1.25rem;
+    box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.55);
+  }
+  .mobile-frame {
+    max-width: 430px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+}
+
+/* ── Animation keyframes ──────────────────────────────────────────────────── */
+
+@keyframes fade-up-in {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes shimmer-sweep {
+  from { transform: translateX(-100%); }
+  to   { transform: translateX(250%); }
+}
+
+@keyframes weather-sway {
+  0%, 100% { transform: rotate(-8deg); }
+  50%       { transform: rotate(8deg); }
+}
+
+@keyframes streak-fire {
+  0%, 100% { transform: scale(1); }
+  40%       { transform: scale(1.15); }
+  65%       { transform: scale(1.07); }
+}
+
+/* ── Animation utilities ──────────────────────────────────────────────────── */
+
+@layer utilities {
+  .animate-fade-up    { animation: fade-up-in 0.5s cubic-bezier(0.16, 1, 0.3, 1) both; }
+  .animate-fade-up-d1 { animation: fade-up-in 0.5s 0.07s cubic-bezier(0.16, 1, 0.3, 1) both; }
+  .animate-fade-up-d2 { animation: fade-up-in 0.5s 0.14s cubic-bezier(0.16, 1, 0.3, 1) both; }
+  .animate-fade-up-d3 { animation: fade-up-in 0.5s 0.22s cubic-bezier(0.16, 1, 0.3, 1) both; }
+
+  .shimmer-once {
+    animation: shimmer-sweep 1.1s 0.55s cubic-bezier(0.22, 1, 0.36, 1) 1 forwards;
+  }
+
+  .animate-weather-sway {
+    animation: weather-sway 3s ease-in-out infinite;
+    transform-origin: center center;
+  }
+
+  .animate-streak-fire {
+    animation: streak-fire 2.2s cubic-bezier(0.16, 1, 0.3, 1) infinite;
+  }
+
+  /* ── Scroll-reveal ── */
+  .section-reveal {
+    opacity: 0;
+    transform: translateY(14px);
+    transition: opacity 0.45s cubic-bezier(0.16, 1, 0.3, 1),
+                transform 0.45s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .section-reveal.is-visible {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ── Reduced motion ───────────────────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  .animate-fade-up,
+  .animate-fade-up-d1,
+  .animate-fade-up-d2,
+  .animate-fade-up-d3 {
+    animation: none !important;
+    opacity: 1;
+    transform: none;
+  }
+  .shimmer-once { animation: none !important; }
+  .animate-weather-sway,
+  .animate-streak-fire { animation: none !important; transform: none; }
+  .section-reveal {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+}

@@ -37,21 +37,25 @@ function mapBackendTrip(raw: any, currentUser: User): ExtendedPrivateTrip {
     title: raw.title,
     startDate: raw.startDate,
     endDate: raw.endDate,
+    destination: raw.description,
+    coverImage: raw.coverImage,
     organizerId: raw.organizerId?._id || raw.organizerId,
     members,
     chatMessages: [],
     expenses: [],
     isPrivate: true,
-    photos: raw.photos || [], // Data contract: Backend provides photos
+    photos: raw.photos || [],
   };
 }
 
 interface Props {
   currentUser: User;
   onOpenTrip: (trip: ExtendedPrivateTrip) => void;
+  lang?: 'en' | 'ar';
 }
 
-export const MyTripsScreen = ({ currentUser, onOpenTrip }: Props) => {
+export const MyTripsScreen = ({ currentUser, onOpenTrip, lang }: Props) => {
+  const ar = lang === 'ar';
   const [trips, setTrips] = useState<ExtendedPrivateTrip[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
@@ -112,7 +116,21 @@ export const MyTripsScreen = ({ currentUser, onOpenTrip }: Props) => {
 
   const formatDate = (dateStr?: string) => {
     if (!dateStr) return null;
-    return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    return new Date(dateStr).toLocaleDateString(ar ? 'ar-SA' : 'en-US', { month: 'short', day: 'numeric' });
+  };
+
+  const tripCountdown = (startDate?: string, endDate?: string): { label: string; color: string } | null => {
+    if (!startDate) return null;
+    const now = Date.now();
+    const start = new Date(startDate).getTime();
+    const end = endDate ? new Date(endDate).getTime() : null;
+    if (end && now > end) return { label: ar ? 'منتهية' : 'Completed', color: 'bg-slate-100 text-slate-500' };
+    if (now >= start && (!end || now <= end)) return { label: ar ? 'جارية 🟢' : 'Ongoing 🟢', color: 'bg-emerald-50 text-emerald-700' };
+    const days = Math.ceil((start - now) / 86400000);
+    if (days === 0) return { label: ar ? 'غداً!' : 'Tomorrow!', color: 'bg-amber-50 text-amber-700' };
+    if (days <= 7) return { label: ar ? `بعد ${days} أيام` : `${days}d away`, color: 'bg-orange-50 text-orange-600' };
+    if (days <= 30) return { label: ar ? `بعد ${days} أيام` : `${days}d away`, color: 'bg-blue-50 text-blue-600' };
+    return { label: ar ? `بعد ${days} أيام` : `${days}d away`, color: 'bg-slate-50 text-slate-500' };
   };
 
   const lightboxPrev = () => setLightboxIdx(i => i !== null ? (i - 1 + allSlides.length) % allSlides.length : null);
@@ -123,15 +141,15 @@ export const MyTripsScreen = ({ currentUser, onOpenTrip }: Props) => {
       {/* Header - Sticky with Backdrop Blur */}
       <div className="sticky top-0 z-20 bg-white/80 backdrop-blur-xl border-b border-slate-200/60 px-6 py-4 flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-black text-slate-900 tracking-tight">Private Trips</h1>
-          <p className="text-xs font-medium text-slate-500 mt-0.5">Plan and split expenses with friends</p>
+          <h1 className="text-xl font-black text-slate-900 tracking-tight">{ar ? 'رحلاتي الخاصة' : 'Private Trips'}</h1>
+          <p className="text-xs font-medium text-slate-500 mt-0.5">{ar ? 'خطط وقسّم المصاريف مع أصدقائك' : 'Plan and split expenses with friends'}</p>
         </div>
         <button
           onClick={() => setShowCreate(true)}
           className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 rounded-2xl text-sm font-bold transition-all active:scale-95 shadow-sm shadow-emerald-600/20"
         >
           <Plus className="w-4 h-4" />
-          <span className="hidden sm:inline">New Trip</span>
+          <span className="hidden sm:inline">{ar ? 'رحلة جديدة' : 'New Trip'}</span>
         </button>
       </div>
 
@@ -197,16 +215,16 @@ export const MyTripsScreen = ({ currentUser, onOpenTrip }: Props) => {
             <div className="w-20 h-20 bg-emerald-50 rounded-3xl flex items-center justify-center mb-5 rotate-3 shadow-inner">
               <Lock className="w-8 h-8 text-emerald-500 -rotate-3" />
             </div>
-            <h3 className="font-black text-slate-900 text-lg mb-2">No private trips yet</h3>
+            <h3 className="font-black text-slate-900 text-lg mb-2">{ar ? 'لا توجد رحلات خاصة بعد' : 'No private trips yet'}</h3>
             <p className="text-slate-500 text-sm max-w-[260px] leading-relaxed mb-8">
-              Create an invite-only trip to organize itineraries, chat, and split expenses securely with friends.
+              {ar ? 'أنشئ رحلة خاصة لتنظيم المسارات والدردشة وتقسيم المصاريف مع أصدقائك.' : 'Create an invite-only trip to organize itineraries, chat, and split expenses securely with friends.'}
             </p>
             <button
               onClick={() => setShowCreate(true)}
               className="flex items-center gap-2 bg-slate-900 hover:bg-slate-800 text-white px-6 py-3.5 rounded-2xl text-sm font-bold transition-all active:scale-95"
             >
               <Plus className="w-4 h-4" />
-              Create First Trip
+              {ar ? 'إنشاء أول رحلة' : 'Create First Trip'}
             </button>
           </div>
         ) : (
@@ -229,14 +247,17 @@ export const MyTripsScreen = ({ currentUser, onOpenTrip }: Props) => {
                   </div>
 
                   <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3 text-xs text-slate-500 font-medium">
+                    <div className="flex items-center gap-2 flex-wrap text-xs font-medium">
                       {(trip.startDate || trip.endDate) && (
-                        <span className="flex items-center gap-1.5 bg-slate-50 px-2 py-1 rounded-lg">
+                        <span className="flex items-center gap-1.5 bg-slate-50 text-slate-500 px-2 py-1 rounded-lg">
                           <Calendar className="w-3.5 h-3.5" />
                           {formatDate(trip.startDate)}
                           {trip.endDate && trip.endDate !== trip.startDate && ` – ${formatDate(trip.endDate)}`}
                         </span>
                       )}
+                      {(() => { const c = tripCountdown(trip.startDate, trip.endDate); return c ? (
+                        <span className={`px-2 py-1 rounded-lg font-bold ${c.color}`}>{c.label}</span>
+                      ) : null; })()}
                     </div>
 
                     {/* Compact Avatar Stack */}
@@ -270,6 +291,7 @@ export const MyTripsScreen = ({ currentUser, onOpenTrip }: Props) => {
         <CreatePrivateTripModal
           onClose={() => setShowCreate(false)}
           onCreated={handleCreated}
+          lang={lang}
         />
       )}
 
@@ -333,7 +355,7 @@ export const MyTripsScreen = ({ currentUser, onOpenTrip }: Props) => {
                 {allSlides[lightboxIdx].tripTitle}
               </h4>
               <p className="text-white/60 text-xs font-medium">
-                Added by {allSlides[lightboxIdx].photo.uploaderName} • {new Date(allSlides[lightboxIdx].photo.timestamp).toLocaleDateString('en-US', { month: 'long', day: 'numeric' })}
+                {ar ? `أضافه ${allSlides[lightboxIdx].photo.uploaderName} •` : `Added by ${allSlides[lightboxIdx].photo.uploaderName} •`} {new Date(allSlides[lightboxIdx].photo.timestamp).toLocaleDateString(ar ? 'ar-SA' : 'en-US', { month: 'long', day: 'numeric' })}
               </p>
             </div>
 

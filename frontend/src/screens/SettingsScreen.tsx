@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Globe, Moon, Sun, Bell, Lock, Info, LogOut, ChevronLeft, Shield, Trash2, Download, CheckCircle2, X } from 'lucide-react';
 import { User } from '../types/index';
+import { authAPI } from '../services/api';
 
 interface SettingsScreenProps {
   user: User | null;
@@ -65,30 +66,45 @@ const ChevronRow = ({ icon, label, description, value, onClick, iconBg = 'bg-sla
 );
 
 export const SettingsScreen = ({ user, lang, isDark, onToggleLang, onToggleDark, onUpdateUser, onLogout, t }: SettingsScreenProps) => {
-  const [notificationsEnabled, setNotificationsEnabled] = useState(() => {
-    return localStorage.getItem('tripo_notif_enabled') !== 'false';
-  });
-  const [locationEnabled, setLocationEnabled] = useState(() => {
-    return localStorage.getItem('tripo_location_enabled') !== 'false';
-  });
-  const [analyticsEnabled, setAnalyticsEnabled] = useState(() => {
-    return localStorage.getItem('tripo_analytics_enabled') !== 'false';
-  });
+  const [notificationsEnabled, setNotificationsEnabled] = useState(
+    () => user?.preferences?.notifications ?? true
+  );
+  const [locationEnabled, setLocationEnabled] = useState(
+    () => user?.preferences?.locationSharing ?? true
+  );
+  const [analyticsEnabled, setAnalyticsEnabled] = useState(
+    () => user?.preferences?.analytics ?? true
+  );
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showAbout, setShowAbout] = useState(false);
   const [exportDone, setExportDone] = useState(false);
 
+  const updatePreference = async (key: 'notifications' | 'locationSharing' | 'analytics', value: boolean) => {
+    const newPrefs = {
+      notifications: notificationsEnabled,
+      locationSharing: locationEnabled,
+      analytics: analyticsEnabled,
+      [key]: value,
+    };
+    try {
+      const updated = await authAPI.updateProfile({ preferences: newPrefs });
+      if (user && onUpdateUser) onUpdateUser({ ...user, preferences: updated.preferences ?? newPrefs });
+    } catch {
+      // Optimistic update already applied to local state
+    }
+  };
+
   const handleToggleNotif = (v: boolean) => {
     setNotificationsEnabled(v);
-    localStorage.setItem('tripo_notif_enabled', v ? 'true' : 'false');
+    updatePreference('notifications', v);
   };
   const handleToggleLocation = (v: boolean) => {
     setLocationEnabled(v);
-    localStorage.setItem('tripo_location_enabled', v ? 'true' : 'false');
+    updatePreference('locationSharing', v);
   };
   const handleToggleAnalytics = (v: boolean) => {
     setAnalyticsEnabled(v);
-    localStorage.setItem('tripo_analytics_enabled', v ? 'true' : 'false');
+    updatePreference('analytics', v);
   };
 
   const handleExportData = () => {

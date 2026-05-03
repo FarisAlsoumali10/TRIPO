@@ -5,7 +5,7 @@ import { Button, Input } from '../components/ui';
 import { authAPI, socialAuthAPI } from '../services/api';
 
 // Isolated so `useGoogleLogin` hook only runs when a real clientId is available
-const GoogleLoginButton = ({ onSocialAuth, isLoading }: { onSocialAuth: (token: string) => void; isLoading: boolean }) => {
+const GoogleLoginButton = ({ onSocialAuth, isLoading, t }: { onSocialAuth: (token: string) => void; isLoading: boolean; t?: any }) => {
   const handleGoogleLogin = useGoogleLogin({
     onSuccess: (res) => onSocialAuth(res.access_token),
     onError: () => { /* silently ignore */ },
@@ -16,7 +16,7 @@ const GoogleLoginButton = ({ onSocialAuth, isLoading }: { onSocialAuth: (token: 
       type="button"
       onClick={() => handleGoogleLogin()}
       disabled={isLoading}
-      className="flex items-center justify-center gap-2.5 px-4 py-3 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 transition-all hover:border-slate-300 disabled:opacity-50 shadow-sm w-full"
+      className="flex items-center justify-center gap-2.5 px-8 py-3 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 transition-all hover:border-slate-300 disabled:opacity-50 shadow-sm"
     >
       <svg className="w-5 h-5 flex-shrink-0" viewBox="0 0 24 24">
         <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
@@ -24,7 +24,7 @@ const GoogleLoginButton = ({ onSocialAuth, isLoading }: { onSocialAuth: (token: 
         <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"/>
         <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
       </svg>
-      <span className="text-sm font-semibold text-slate-700">Google</span>
+      <span className="text-sm font-semibold text-slate-700">{t?.continueWithGoogle || 'Continue with Google'}</span>
     </button>
   );
 };
@@ -47,6 +47,7 @@ export const AuthScreen = ({ onLogin, onRegister, onGuestLogin, t, lang, onToggl
     try {
       const response = await socialAuthAPI.login(provider, token);
       localStorage.setItem('token', response.token);
+      if ((response as any).refreshToken) localStorage.setItem('refreshToken', (response as any).refreshToken);
       localStorage.setItem('user', JSON.stringify(response.user));
       if (!isLoginView && onRegister) {
         onRegister();
@@ -65,17 +66,17 @@ export const AuthScreen = ({ onLogin, onRegister, onGuestLogin, t, lang, onToggl
     setError(''); // تنظيف الأخطاء السابقة
 
     if (!isLoginView && !name) {
-      setError('الرجاء إدخال الاسم الكامل');
+      setError(t?.fullNameRequired || 'Please enter your full name');
       return;
     }
 
     if (!email || !password) {
-      setError('الرجاء إدخال البريد الإلكتروني وكلمة المرور');
+      setError(t?.emailPasswordRequired || 'Please enter your email and password');
       return;
     }
 
     if (!isLoginView && password !== confirmPassword) {
-      setError('Passwords do not match. Please try again.');
+      setError(t?.passwordsMismatchMsg || 'Passwords do not match. Please try again.');
       return;
     }
 
@@ -87,8 +88,8 @@ export const AuthScreen = ({ onLogin, onRegister, onGuestLogin, t, lang, onToggl
         ? await authAPI.login({ email, password })
         : await authAPI.register({ name, email, password, language: 'en' });
 
-      // حفظ تذكرة المرور (Token) وبيانات المستخدم في المتصفح
       localStorage.setItem('token', response.token);
+      if ((response as any).refreshToken) localStorage.setItem('refreshToken', (response as any).refreshToken);
       localStorage.setItem('user', JSON.stringify(response.user));
 
       // After registration, trigger onboarding wizard; after login, go straight to main
@@ -105,7 +106,7 @@ export const AuthScreen = ({ onLogin, onRegister, onGuestLogin, t, lang, onToggl
         data?.errors?.[0]?.message ||
         data?.error ||
         data?.message ||
-        (isLoginView ? 'Login failed. Check your email and password.' : 'Could not create account. Make sure your password is at least 8 characters.');
+        (isLoginView ? (t?.loginFailedMsg || 'Login failed. Check your email and password.') : (t?.registerFailedMsg || 'Could not create account. Make sure your password is at least 8 characters.'));
       setError(errorMessage);
     } finally {
       setIsLoading(false);
@@ -124,7 +125,7 @@ export const AuthScreen = ({ onLogin, onRegister, onGuestLogin, t, lang, onToggl
             <div className="w-8 h-8 bg-emerald-600 rounded-lg flex items-center justify-center shadow-lg shadow-emerald-200">
               <MapPin className="text-white w-5 h-5" />
             </div>
-            <span className="font-bold text-xl text-slate-800 tracking-tight">Tripo</span>
+            <span className="font-bold text-xl text-slate-800 tracking-tight">{lang === 'en' ? 'Tripo' : 'تريبو'}</span>
           </div>
         </div>
 
@@ -135,14 +136,14 @@ export const AuthScreen = ({ onLogin, onRegister, onGuestLogin, t, lang, onToggl
             className="flex items-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 transition-colors rounded-full text-sm font-bold text-slate-700 shadow-sm shadow-slate-200"
           >
             <Globe className="w-4 h-4 text-emerald-600" />
-            {lang === 'en' ? 'Arabic' : 'English'}
+            {lang === 'en' ? 'العربية' : 'English'}
           </button>
         </div>
 
         <div className="max-w-md w-full mx-auto mt-12 lg:mt-0">
           <div className="mb-10 text-center lg:text-left">
-            <h1 className="text-4xl font-extrabold text-slate-900 mb-3 tracking-wide">{isLoginView ? t.welcome : t.signUp || 'Create Account'}</h1>
-            <p className="text-lg text-slate-500">{isLoginView ? t.tagline : 'Sign up to discover new places and experiences'}</p>
+            <h1 className="text-4xl font-extrabold text-slate-900 mb-3 tracking-wide">{isLoginView ? t.welcome : (t?.createAccount || 'Create Account')}</h1>
+            <p className="text-lg text-slate-500">{isLoginView ? t.tagline : (t?.signUpTagline || 'Sign up to discover new places and experiences')}</p>
           </div>
 
           {/* Error Message UI */}
@@ -159,7 +160,7 @@ export const AuthScreen = ({ onLogin, onRegister, onGuestLogin, t, lang, onToggl
                 <Input
                   label={t.nameLabel || "Full Name"}
                   type="text"
-                  placeholder="John Doe"
+                  placeholder={t?.fullNamePlaceholder || "Full name"}
                   value={name}
                   onChange={(e: any) => setName(e.target.value)}
                   className="w-full"
@@ -195,7 +196,7 @@ export const AuthScreen = ({ onLogin, onRegister, onGuestLogin, t, lang, onToggl
             {!isLoginView && (
               <div>
                 <Input
-                  label="Confirm Password"
+                  label={t?.confirmPasswordLabel || "Confirm Password"}
                   type="password"
                   placeholder="••••••••"
                   value={confirmPassword}
@@ -223,18 +224,19 @@ export const AuthScreen = ({ onLogin, onRegister, onGuestLogin, t, lang, onToggl
                 <span className="text-xs text-slate-400 font-medium">{t?.continueWith || 'or continue with'}</span>
                 <div className="flex-1 h-px bg-slate-200" />
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="flex justify-center">
                 {import.meta.env.VITE_GOOGLE_CLIENT_ID ? (
                   <GoogleLoginButton
                     isLoading={isLoading}
                     onSocialAuth={(token) => handleSocialAuth('google', token)}
+                    t={t}
                   />
                 ) : (
                   <button
                     type="button"
                     onClick={() => setError(t?.googleSignIn || 'Google sign-in is not configured yet.')}
                     disabled={isLoading}
-                    className="flex items-center justify-center gap-2.5 px-4 py-3 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 transition-all hover:border-slate-300 disabled:opacity-50 shadow-sm w-full"
+                    className="flex items-center justify-center gap-2.5 px-8 py-3 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 transition-all hover:border-slate-300 disabled:opacity-50 shadow-sm"
                   >
                     <svg className="w-5 h-5 flex-shrink-0" viewBox="0 0 24 24">
                       <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
@@ -242,7 +244,7 @@ export const AuthScreen = ({ onLogin, onRegister, onGuestLogin, t, lang, onToggl
                       <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"/>
                       <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
                     </svg>
-                    <span className="text-sm font-semibold text-slate-700">Google</span>
+                    <span className="text-sm font-semibold text-slate-700">{t?.continueWithGoogle || 'Continue with Google'}</span>
                   </button>
                 )}
               </div>
@@ -255,7 +257,7 @@ export const AuthScreen = ({ onLogin, onRegister, onGuestLogin, t, lang, onToggl
             </p>
           ) : (
             <p className="mt-10 text-center text-sm text-slate-500 font-medium">
-              Already have an account? <span onClick={() => { setIsLoginView(true); setError(''); setConfirmPassword(''); }} className="text-emerald-600 font-bold cursor-pointer hover:underline">{t.loginBtn || "Login"}</span>
+              {t?.alreadyHaveAccount || "Already have an account?"} <span onClick={() => { setIsLoginView(true); setError(''); setConfirmPassword(''); }} className="text-emerald-600 font-bold cursor-pointer hover:underline">{t.loginBtn || "Login"}</span>
             </p>
           )}
           <div className="mt-4 text-center">
@@ -266,48 +268,42 @@ export const AuthScreen = ({ onLogin, onRegister, onGuestLogin, t, lang, onToggl
         </div>
       </div>
 
-      {/* Right Half: Blue Gradient Backdrop with Messaging */}
-      <div className="flex-[1] flex flex-col justify-center relative overflow-hidden bg-gradient-to-br from-emerald-600 via-emerald-700 to-teal-800 p-8 lg:p-24 text-white order-1 lg:order-2 min-h-[30vh] lg:min-h-0">
-        <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-10 min-h-full min-w-full"></div>
-        <div className="absolute -top-32 -right-32 w-[30rem] h-[30rem] bg-emerald-400 rounded-full mix-blend-multiply filter blur-[100px] opacity-50 transition-transform duration-1000 animate-pulse"></div>
-        <div className="absolute -bottom-32 -left-32 w-[30rem] h-[30rem] bg-teal-400 rounded-full mix-blend-multiply filter blur-[100px] opacity-40 transition-transform duration-1000 delay-500 animate-pulse"></div>
+      {/* Right Half: Saudi landmark photo */}
+      <div className="flex-[1] relative overflow-hidden order-1 lg:order-2 min-h-[30vh] lg:min-h-0">
+        {/* Al-Ula / Hegra landmark photo */}
+        <img
+          src="https://images.unsplash.com/photo-1586724237569-f3d0c1dee8c6?w=1200&q=80&auto=format&fit=crop"
+          alt="Hegra, AlUla — Saudi Arabia"
+          className="absolute inset-0 w-full h-full object-cover"
+        />
+        {/* Dark gradient overlay so text is readable */}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-black/10" />
 
-        <div className="relative z-10 max-w-lg mx-auto transform transition-all hover:scale-105 duration-700 hidden lg:flex flex-col h-full justify-center">
-          <div>
-            <div className="mb-10 inline-flex items-center justify-center p-5 bg-white/10 backdrop-blur-md rounded-3xl ring-1 ring-white/20 shadow-2xl">
-              <MapPin className="w-14 h-14 text-emerald-100" />
-            </div>
-            <h2 className="text-5xl lg:text-7xl font-black mb-6 leading-[1.1] tracking-tight text-white drop-shadow-md">
-              Discover Your Next<br />
-              <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-300 to-cyan-300 drop-shadow-none">Micro-Escape.</span>
-            </h2>
-            <p className="text-xl text-emerald-100/90 leading-relaxed font-medium mb-12 max-w-md drop-shadow-sm">
-              Join thousands of travelers exploring the hidden gems and breathtaking landscapes of Saudi Arabia with Tripo.
-            </p>
+        {/* Desktop text content */}
+        <div className="absolute inset-0 hidden lg:flex flex-col justify-end p-10 text-white">
+          <div className="mb-3 inline-flex items-center gap-2 bg-white/15 backdrop-blur-sm border border-white/20 rounded-full px-3 py-1.5 w-fit">
+            <MapPin className="w-3.5 h-3.5 text-emerald-300" />
+            <span className="text-xs font-bold text-emerald-200 uppercase tracking-wider">{lang === 'ar' ? 'الحِجر · العُلا، المملكة العربية السعودية' : 'Hegra · AlUla, Saudi Arabia'}</span>
           </div>
-
-          <div className="flex items-center gap-4 text-sm font-semibold text-emerald-100 mt-auto">
-            <div className="flex -space-x-3">
-              <img className="w-10 h-10 rounded-full border-2 border-emerald-800 object-cover shadow-sm" src="https://i.pravatar.cc/100?img=33" alt="User 1" />
-              <img className="w-10 h-10 rounded-full border-2 border-emerald-800 object-cover shadow-sm" src="https://i.pravatar.cc/100?img=47" alt="User 2" />
-              <img className="w-10 h-10 rounded-full border-2 border-emerald-800 object-cover shadow-sm" src="https://i.pravatar.cc/100?img=12" alt="User 3" />
-              <div className="w-10 h-10 rounded-full border-2 border-emerald-800 bg-emerald-600 flex items-center justify-center text-xs font-bold shadow-md z-10 text-white">
-                +2k
-              </div>
-            </div>
-            <p className="opacity-90 tracking-wide">Active explorers today</p>
+          <h2 className="text-5xl lg:text-6xl font-black mb-4 leading-[1.05] tracking-tight drop-shadow-lg">
+            {t?.heroTitle || 'Discover Your Next'}<br />
+            <span className="text-emerald-300">{t?.heroHighlight || 'Micro-Escape.'}</span>
+          </h2>
+          <p className="text-base text-white/80 leading-relaxed font-medium max-w-sm mb-6">
+            {t?.heroDesc || 'Explore the hidden gems and breathtaking landscapes of Saudi Arabia with Tripo.'}
+          </p>
+          <div className="flex items-center gap-3 text-sm text-white/70">
+            <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+            <span>{t?.heroExplorers || 'Thousands of explorers discovering Saudi Arabia'}</span>
           </div>
         </div>
 
-        {/* Mobile Title View */}
-        <div className="relative z-10 lg:hidden text-center flex flex-col items-center justify-center flex-1">
-          <div className="mb-6 inline-flex items-center justify-center p-4 bg-white/10 backdrop-blur-md rounded-2xl ring-1 ring-white/20 shadow-xl">
-            <MapPin className="w-8 h-8 text-emerald-100" />
-          </div>
-          <h2 className="text-3xl font-black mb-2 leading-tight tracking-tight text-white">
-            Discover Your Next<br />
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-300 to-cyan-300">Micro-Escape.</span>
+        {/* Mobile compact overlay */}
+        <div className="absolute inset-0 lg:hidden flex flex-col justify-end p-6 text-white">
+          <h2 className="text-2xl font-black mb-1 leading-tight drop-shadow-md">
+            {t?.heroMobileTitle || 'Discover Saudi Arabia'}
           </h2>
+          <p className="text-sm text-white/70">{t?.heroMobileJoin || 'Join Tripo and start exploring.'}</p>
         </div>
       </div>
 

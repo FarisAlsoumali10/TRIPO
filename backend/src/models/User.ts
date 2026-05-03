@@ -13,24 +13,35 @@ export interface ISmartProfile extends SmartProfile {
   favoriteSeason?: 'winter' | 'spring' | 'summer' | 'autumn'; // الموسم المفضل
 }
 
+export interface IUserPreferences {
+  notifications: boolean;
+  locationSharing: boolean;
+  analytics: boolean;
+}
+
 export interface IUser extends Document {
   email: string;
   passwordHash: string;
   googleId?: string;
   facebookId?: string;
   name: string;
-  bio?: string; // ✅ نبذة قصيرة أو اقتباس مفضل للمستخدم
+  bio?: string;
   avatar?: string;
   role: UserRole | 'user' | 'admin' | 'host';
   language: Language | 'en' | 'ar';
-  appTheme: 'light' | 'dark' | 'system'; // ✅ دعم الـ Dark Mode المريح للعين
-  tripoPoints: number; // ✅ نظام نقاط لتشجيع المستخدمين (Gamification)
-  explorerLevel: string; // ✅ لقب المستخدم (مثال: رحال مبتدئ، خبير كشتات)
+  appTheme: 'light' | 'dark' | 'system';
+  tripoPoints: number;
+  explorerLevel: string;
+  walletBalance: number;
+  preferences: IUserPreferences;
   smartProfile: ISmartProfile;
-  isEmailVerified: boolean; // ✅ لمسة أمنية احترافية
+  isEmailVerified: boolean;
   lastActiveAt?: Date;
   createdAt: Date;
   updatedAt: Date;
+  refreshToken?: string;
+  resetPasswordToken?: string;
+  resetPasswordExpires?: Date;
 }
 
 const smartProfileSchema = new Schema({
@@ -109,11 +120,20 @@ const userSchema = new Schema({
   },
   tripoPoints: {
     type: Number,
-    default: 0 // تبدأ رحلة جمع النقاط من الصفر!
+    default: 0,
   },
   explorerLevel: {
     type: String,
-    default: 'Newcomer' // القادم الجديد
+    default: 'Newcomer',
+  },
+  walletBalance: {
+    type: Number,
+    default: 0,
+  },
+  preferences: {
+    notifications:     { type: Boolean, default: true },
+    locationSharing:   { type: Boolean, default: true },
+    analytics:         { type: Boolean, default: true },
   },
   isEmailVerified: {
     type: Boolean,
@@ -125,7 +145,10 @@ const userSchema = new Schema({
   smartProfile: {
     type: smartProfileSchema,
     required: false
-  }
+  },
+  refreshToken:          { type: String, select: false },
+  resetPasswordToken:    { type: String, select: false },
+  resetPasswordExpires:  { type: Date,   select: false },
 }, {
   timestamps: true
 });

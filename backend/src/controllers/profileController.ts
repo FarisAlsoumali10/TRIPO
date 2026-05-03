@@ -17,8 +17,11 @@ export const getProfile = async (req: AuthRequest, res: Response) => {
       avatar: user.avatar,
       role: user.role,
       language: user.language,
+      preferences: user.preferences,
+      walletBalance: user.walletBalance ?? 0,
+      tripoPoints: user.tripoPoints,
       smartProfile: user.smartProfile,
-      createdAt: user.createdAt
+      createdAt: user.createdAt,
     });
   } catch (error: any) {
     console.error('❌ Error in getProfile:', error);
@@ -29,11 +32,28 @@ export const getProfile = async (req: AuthRequest, res: Response) => {
 
 export const updateProfile = async (req: AuthRequest, res: Response) => {
   try {
-    const { name, avatar, language } = req.body;
+    const { name, avatar, language, preferences } = req.body;
+
+    const updateFields: Record<string, any> = {};
+    if (name !== undefined) updateFields.name = name;
+    if (avatar !== undefined) updateFields.avatar = avatar;
+    if (language !== undefined) updateFields.language = language;
+
+    if (preferences && typeof preferences === 'object') {
+      if (typeof preferences.notifications === 'boolean') {
+        updateFields['preferences.notifications'] = preferences.notifications;
+      }
+      if (typeof preferences.locationSharing === 'boolean') {
+        updateFields['preferences.locationSharing'] = preferences.locationSharing;
+      }
+      if (typeof preferences.analytics === 'boolean') {
+        updateFields['preferences.analytics'] = preferences.analytics;
+      }
+    }
 
     const user = await User.findByIdAndUpdate(
       req.user?.userId,
-      { name, avatar, language },
+      { $set: updateFields },
       { new: true, runValidators: true }
     ).select('-passwordHash');
 
@@ -48,7 +68,8 @@ export const updateProfile = async (req: AuthRequest, res: Response) => {
       avatar: user.avatar,
       role: user.role,
       language: user.language,
-      smartProfile: user.smartProfile
+      preferences: user.preferences,
+      smartProfile: user.smartProfile,
     });
   } catch (error: any) {
     console.error('❌ Error in updateProfile:', error);

@@ -14,6 +14,7 @@ export interface IEvent extends Document {
   isFree?: boolean;
   fee?: number;
   currency?: string;
+  attendees?: mongoose.Types.ObjectId[];
   attendeesCount?: number;
   communityId?: mongoose.Types.ObjectId;
   color?: string;
@@ -37,6 +38,7 @@ const EventSchema: Schema = new Schema({
   isFree:        { type: Boolean, default: false },
   fee:           { type: Number, default: 0 },
   currency:      { type: String, default: 'SAR' },
+  attendees:      { type: [{ type: Schema.Types.ObjectId, ref: 'User' }], default: [] },
   attendeesCount: { type: Number, default: 0 },
   communityId:   { type: Schema.Types.ObjectId, ref: 'Community' },
   color:         { type: String },

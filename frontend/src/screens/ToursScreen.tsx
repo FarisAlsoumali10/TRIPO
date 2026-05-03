@@ -17,9 +17,17 @@ import { FeaturedSlideshow, SlideItem } from '../components/FeaturedSlideshow';
 // ==========================================
 // Types & Constants
 // ==========================================
-type QuickFilter = 'budget' | 'trending' | 'highest_rated' | 'near_me' | null;
+type QuickFilter = 'budget' | 'trending' | 'highest_rated' | 'near_me' | 'new' | null;
 
-const TOUR_CITY_PILLS = ['All Cities', 'Riyadh', 'Jeddah', 'AlUla', 'Taif', 'Abha', 'Tabuk'];
+const TOUR_CITY_PILLS = [
+  { en: 'All Cities', ar: 'كل المدن' },
+  { en: 'Riyadh', ar: 'الرياض' },
+  { en: 'Jeddah', ar: 'جدة' },
+  { en: 'AlUla', ar: 'العُلا' },
+  { en: 'Taif', ar: 'الطائف' },
+  { en: 'Abha', ar: 'أبها' },
+  { en: 'Tabuk', ar: 'تبوك' },
+];
 
 interface TourFilterState {
   priceMin: number;
@@ -66,9 +74,11 @@ interface FilterPanelProps {
   filter: TourFilterState;
   onChange: (f: TourFilterState) => void;
   onClose: () => void;
+  lang?: 'en' | 'ar';
 }
 
-const FilterPanel: React.FC<FilterPanelProps> = ({ filter, onChange, onClose }) => {
+const FilterPanel: React.FC<FilterPanelProps> = ({ filter, onChange, onClose, lang }) => {
+  const ar = lang === 'ar';
   const [local, setLocal] = useState<TourFilterState>(filter);
 
   useEffect(() => { setLocal(filter); }, [filter]);
@@ -94,7 +104,7 @@ const FilterPanel: React.FC<FilterPanelProps> = ({ filter, onChange, onClose }) 
       <div className="relative bg-white rounded-t-3xl px-5 pt-5 pb-8 shadow-2xl max-h-[80vh] overflow-y-auto animate-in slide-in-from-bottom-8">
         {/* Header */}
         <div className="flex items-center justify-between mb-5">
-          <h2 className="font-extrabold text-slate-900 text-base">Filter Tours</h2>
+          <h2 className="font-extrabold text-slate-900 text-base">{ar ? 'تصفية الجولات' : 'Filter Tours'}</h2>
           <button
             onClick={() => { onChange(local); onClose(); }}
             className="w-8 h-8 bg-slate-100 hover:bg-slate-200 rounded-full flex items-center justify-center transition-colors"
@@ -105,10 +115,10 @@ const FilterPanel: React.FC<FilterPanelProps> = ({ filter, onChange, onClose }) 
 
         {/* Price Range */}
         <div className="mb-6">
-          <p className="text-sm font-bold text-slate-800 mb-3">Price Range (SAR)</p>
+          <p className="text-sm font-bold text-slate-800 mb-3">{ar ? 'نطاق السعر (ريال)' : 'Price Range (SAR)'}</p>
           <div className="flex items-end gap-3">
             <div className="flex-1">
-              <label className="text-xs text-slate-500 mb-1 block">Min</label>
+              <label className="text-xs text-slate-500 mb-1 block">{ar ? 'الحد الأدنى' : 'Min'}</label>
               <input
                 type="number"
                 min={0}
@@ -120,7 +130,7 @@ const FilterPanel: React.FC<FilterPanelProps> = ({ filter, onChange, onClose }) 
             </div>
             <span className="text-slate-400 pb-2">—</span>
             <div className="flex-1">
-              <label className="text-xs text-slate-500 mb-1 block">Max</label>
+              <label className="text-xs text-slate-500 mb-1 block">{ar ? 'الحد الأقصى' : 'Max'}</label>
               <input
                 type="number"
                 min={local.priceMin}
@@ -135,25 +145,30 @@ const FilterPanel: React.FC<FilterPanelProps> = ({ filter, onChange, onClose }) 
 
         {/* Difficulty */}
         <div className="mb-6">
-          <p className="text-sm font-bold text-slate-800 mb-3">Difficulty</p>
+          <p className="text-sm font-bold text-slate-800 mb-3">{ar ? 'مستوى الصعوبة' : 'Difficulty'}</p>
           <div className="flex gap-2 flex-wrap">
-            {['easy', 'moderate', 'challenging'].map(d => (
-              <button
-                key={d}
-                onClick={() => toggleDifficulty(d)}
-                className={`px-4 py-2 rounded-full text-sm font-bold capitalize transition-colors border ${diffBtnClass(d, local.difficulties.includes(d))}`}
-              >
-                {d}
-              </button>
-            ))}
+            {(['easy', 'moderate', 'challenging'] as const).map(d => {
+              const diffLabelMap: Record<string, string> = ar
+                ? { easy: 'سهل', moderate: 'متوسط', challenging: 'صعب' }
+                : { easy: 'Easy', moderate: 'Moderate', challenging: 'Challenging' };
+              return (
+                <button
+                  key={d}
+                  onClick={() => toggleDifficulty(d)}
+                  className={`px-4 py-2 rounded-full text-sm font-bold capitalize transition-colors border ${diffBtnClass(d, local.difficulties.includes(d))}`}
+                >
+                  {diffLabelMap[d]}
+                </button>
+              );
+            })}
           </div>
         </div>
 
         {/* Max Duration */}
         <div className="mb-8">
-          <p className="text-sm font-bold text-slate-800 mb-3">Max Duration</p>
+          <p className="text-sm font-bold text-slate-800 mb-3">{ar ? 'أقصى مدة' : 'Max Duration'}</p>
           <div className="flex gap-2 flex-wrap">
-            {[{ label: 'Any', val: 0 }, { label: '≤3h', val: 3 }, { label: '≤6h', val: 6 }, { label: '≤12h', val: 12 }].map(opt => (
+            {[{ labelEn: 'Any', labelAr: 'أي مدة', val: 0 }, { labelEn: '≤3h', labelAr: '≤3 س', val: 3 }, { labelEn: '≤6h', labelAr: '≤6 س', val: 6 }, { labelEn: '≤12h', labelAr: '≤12 س', val: 12 }].map(opt => (
               <button
                 key={opt.val}
                 onClick={() => setLocal(prev => ({ ...prev, maxDuration: opt.val }))}
@@ -162,7 +177,7 @@ const FilterPanel: React.FC<FilterPanelProps> = ({ filter, onChange, onClose }) 
                     : 'bg-white text-slate-600 border-slate-200 hover:border-slate-400'
                   }`}
               >
-                {opt.label}
+                {ar ? opt.labelAr : opt.labelEn}
               </button>
             ))}
           </div>
@@ -174,13 +189,13 @@ const FilterPanel: React.FC<FilterPanelProps> = ({ filter, onChange, onClose }) 
             onClick={() => setLocal(DEFAULT_FILTER)}
             className="flex-1 py-3 border border-slate-300 rounded-2xl font-bold text-slate-600 text-sm hover:bg-slate-50 transition"
           >
-            Clear All
+            {ar ? 'مسح الكل' : 'Clear All'}
           </button>
           <button
             onClick={() => { onChange(local); onClose(); }}
             className="flex-1 py-3 bg-emerald-600 text-white rounded-2xl font-bold text-sm hover:bg-emerald-700 transition"
           >
-            Apply Filters
+            {ar ? 'تطبيق الفلاتر' : 'Apply Filters'}
           </button>
         </div>
       </div>
@@ -193,12 +208,15 @@ const FilterPanel: React.FC<FilterPanelProps> = ({ filter, onChange, onClose }) 
 // ==========================================
 interface ToursScreenProps {
   t: any;
+  lang?: 'en' | 'ar';
   onBookingComplete: (itinerary: Itinerary, groupTrip: GroupTrip) => void;
   initialTourId?: string;
   onTourOpened?: () => void;
+  initialQuickFilter?: QuickFilter;
 }
 
-export const ToursScreen: React.FC<ToursScreenProps> = ({ t, onBookingComplete, initialTourId, onTourOpened }) => {
+export const ToursScreen: React.FC<ToursScreenProps> = ({ t, lang, onBookingComplete, initialTourId, onTourOpened, initialQuickFilter }) => {
+  const ar = lang === 'ar';
   const [tours, setTours] = useState<Tour[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [hasNetworkError, setHasNetworkError] = useState(false);
@@ -267,6 +285,10 @@ export const ToursScreen: React.FC<ToursScreenProps> = ({ t, onBookingComplete, 
     }
   }, [initialTourId, tours]);
 
+  useEffect(() => {
+    if (initialQuickFilter) setQuickFilter(initialQuickFilter);
+  }, [initialQuickFilter]);
+
   // Optimistic Background Sync
   const handleToggleSave = async (id: string) => {
     setSavedIds(prev => {
@@ -307,6 +329,13 @@ export const ToursScreen: React.FC<ToursScreenProps> = ({ t, onBookingComplete, 
     }
     setQuickFilter(f);
   };
+
+  const recentlyAddedTours = useMemo(() =>
+    [...tours]
+      .filter(t => t.ownerId && t.heroImage)
+      .sort((a, b) => +new Date(b.createdAt ?? 0) - +new Date(a.createdAt ?? 0))
+      .slice(0, 8),
+    [tours]);
 
   const trendingItems: TrendingItem[] = useMemo(() =>
     [...tours]
@@ -362,6 +391,7 @@ export const ToursScreen: React.FC<ToursScreenProps> = ({ t, onBookingComplete, 
         return true;
       })
       .sort((a, b) => {
+        if (quickFilter === 'new') return +new Date(b.createdAt ?? 0) - +new Date(a.createdAt ?? 0);
         if (quickFilter === 'budget') return a.pricePerPerson - b.pricePerPerson;
         if (quickFilter === 'trending') return (b.bookingsCount ?? b.reviewCount ?? 0) - (a.bookingsCount ?? a.reviewCount ?? 0);
         if (quickFilter === 'highest_rated') return (b.rating ?? 0) - (a.rating ?? 0);
@@ -421,10 +451,11 @@ export const ToursScreen: React.FC<ToursScreenProps> = ({ t, onBookingComplete, 
   ];
 
   const QUICK_FILTERS: { id: QuickFilter; label: string; icon: React.ReactNode }[] = [
-    { id: 'budget', label: t.filterBudget || 'Budget', icon: <Wallet className="w-3.5 h-3.5" /> },
-    { id: 'trending', label: t.filterTrending || 'Trending', icon: <TrendingUp className="w-3.5 h-3.5" /> },
-    { id: 'highest_rated', label: 'Top Rated', icon: <Award className="w-3.5 h-3.5" /> },
-    { id: 'near_me', label: t.filterNearMe || 'Near Me', icon: <Navigation className="w-3.5 h-3.5" /> },
+    { id: 'new', label: ar ? '🆕 إضافات جديدة' : '🆕 New Listings', icon: null },
+    { id: 'budget', label: t.filterBudget || (ar ? 'اقتصادي' : 'Budget'), icon: <Wallet className="w-3.5 h-3.5" /> },
+    { id: 'trending', label: t.filterTrending || (ar ? 'الأكثر شيوعاً' : 'Trending'), icon: <TrendingUp className="w-3.5 h-3.5" /> },
+    { id: 'highest_rated', label: ar ? 'الأعلى تقييماً' : 'Top Rated', icon: <Award className="w-3.5 h-3.5" /> },
+    { id: 'near_me', label: t.filterNearMe || (ar ? 'قريب مني' : 'Near Me'), icon: <Navigation className="w-3.5 h-3.5" /> },
   ];
 
   if (selectedTour) {
@@ -457,6 +488,7 @@ export const ToursScreen: React.FC<ToursScreenProps> = ({ t, onBookingComplete, 
           filter={filterState}
           onChange={setFilterState}
           onClose={() => setShowFilterPanel(false)}
+          lang={lang}
         />
       )}
 
@@ -468,36 +500,50 @@ export const ToursScreen: React.FC<ToursScreenProps> = ({ t, onBookingComplete, 
         <div className="relative">
           <div className="flex items-center gap-2 mb-3">
             <Compass className="w-6 h-6 text-emerald-200" />
-            <span className="text-emerald-200 text-sm font-bold uppercase tracking-widest">Discover Saudi Arabia</span>
+            <span className="text-emerald-200 text-sm font-bold uppercase tracking-widest">{ar ? 'اكتشف المملكة العربية السعودية' : 'Discover Saudi Arabia'}</span>
           </div>
-          <h1 className="text-3xl font-extrabold text-white mb-2 leading-tight">Guided Adventures</h1>
+          <h1 className="text-3xl font-extrabold text-white mb-2 leading-tight">{ar ? 'مغامرات مع مرشدين' : 'Guided Adventures'}</h1>
           <p className="text-emerald-100 text-sm leading-relaxed max-w-xs">
-            Expert-led tours across the Kingdom — book your spot and join a group chat with fellow travellers.
+            {ar ? 'جولات بإشراف خبراء عبر المملكة — احجز مقعدك وانضم إلى دردشة جماعية مع المسافرين.' : 'Expert-led tours across the Kingdom — book your spot and join a group chat with fellow travellers.'}
           </p>
           <div className="flex items-center gap-5 mt-5">
             <div>
               <p className="text-xl font-extrabold text-white">50+</p>
-              <p className="text-xs text-emerald-200">Tours available</p>
+              <p className="text-xs text-emerald-200">{ar ? 'جولة متاحة' : 'Tours available'}</p>
             </div>
             <div className="w-px h-8 bg-white/20" />
             <div>
               <p className="text-xl font-extrabold text-white">4.8★</p>
-              <p className="text-xs text-emerald-200">Avg. rating</p>
+              <p className="text-xs text-emerald-200">{ar ? 'متوسط التقييم' : 'Avg. rating'}</p>
             </div>
             <div className="w-px h-8 bg-white/20" />
             <div>
               <p className="text-xl font-extrabold text-white">1200+</p>
-              <p className="text-xs text-emerald-200">Happy travellers</p>
+              <p className="text-xs text-emerald-200">{ar ? 'مسافر سعيد' : 'Happy travellers'}</p>
             </div>
             {savedIds.size > 0 && (
               <>
                 <div className="w-px h-8 bg-white/20" />
                 <div>
                   <p className="text-xl font-extrabold text-white">{savedIds.size}</p>
-                  <p className="text-xs text-emerald-200">Saved</p>
+                  <p className="text-xs text-emerald-200">{ar ? 'محفوظة' : 'Saved'}</p>
                 </div>
               </>
             )}
+          </div>
+          <div className="flex gap-2 mt-5">
+            <button
+              onClick={() => document.getElementById('tours-list')?.scrollIntoView({ behavior: 'smooth' })}
+              className="px-5 py-2.5 bg-white text-emerald-700 font-black text-sm rounded-2xl active:scale-95 transition-transform shadow-lg"
+            >
+              {ar ? 'تصفح الجولات ←' : 'Browse Tours →'}
+            </button>
+            <button
+              onClick={() => window.dispatchEvent(new CustomEvent('tripo:navigate', { detail: 'ai_planner' }))}
+              className="px-5 py-2.5 bg-white/20 text-white font-black text-sm rounded-2xl active:scale-95 transition-transform border border-white/30"
+            >
+              ✨ {ar ? 'المخطط الذكي' : 'AI Planner'}
+            </button>
           </div>
         </div>
       </div>
@@ -514,13 +560,46 @@ export const ToursScreen: React.FC<ToursScreenProps> = ({ t, onBookingComplete, 
         />
       )}
 
+      {/* Recently Added — user-published tours */}
+      {recentlyAddedTours.length > 0 && (
+        <div className="bg-white pt-4 pb-2">
+          <div className="flex items-center justify-between px-4 mb-2.5">
+            <div>
+              <h2 className="font-black text-base text-slate-900">✨ {ar ? 'أُضيفت مؤخراً' : 'Recently Added'}</h2>
+              <p className="text-xs text-slate-400">{ar ? 'جولات جديدة من مرشدين محليين' : 'New tours by local hosts'}</p>
+            </div>
+          </div>
+          <div className="flex gap-3 overflow-x-auto no-scrollbar px-4 pb-1">
+            {recentlyAddedTours.map(tour => {
+              const tourId = tour.id || (tour as any)._id || '';
+              return (
+                <button
+                  key={tourId}
+                  onClick={() => setSelectedTour(tour)}
+                  className="flex-shrink-0 w-40 rounded-2xl overflow-hidden border border-slate-100 shadow-sm hover:shadow-md transition-shadow bg-white active:scale-95"
+                >
+                  <div className="relative h-24">
+                    <img src={tour.heroImage} alt={tour.title} className="w-full h-full object-cover" />
+                    <span className="absolute top-1.5 left-1.5 bg-emerald-500 text-white text-[9px] font-black px-1.5 py-0.5 rounded-full">NEW</span>
+                  </div>
+                  <div className="p-2 text-left">
+                    <p className="text-xs font-black text-slate-900 line-clamp-2 leading-tight mb-1">{tour.title}</p>
+                    <p className="text-[11px] font-bold text-emerald-600">SAR {tour.pricePerPerson}/person</p>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* Search bar */}
-      <div className="bg-white px-4 pt-3 pb-2 border-b border-slate-100">
+      <div id="tours-list" className="bg-white px-4 pt-3 pb-2 border-b border-slate-100">
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
           <input
             type="text"
-            placeholder="Search tours, guides, highlights…"
+            placeholder={ar ? 'ابحث عن جولات، مرشدين، معالم…' : 'Search tours, guides, highlights…'}
             value={search}
             onChange={e => setSearch(e.target.value)}
             onFocus={() => setSearchFocused(true)}
@@ -545,7 +624,7 @@ export const ToursScreen: React.FC<ToursScreenProps> = ({ t, onBookingComplete, 
             }`}
         >
           <SlidersHorizontal className="w-3.5 h-3.5" />
-          Filter
+          {ar ? 'فلتر' : 'Filter'}
           {isFilterActive && <span className="w-1.5 h-1.5 rounded-full bg-white" />}
         </button>
 
@@ -577,14 +656,14 @@ export const ToursScreen: React.FC<ToursScreenProps> = ({ t, onBookingComplete, 
         <div className="flex gap-2 overflow-x-auto no-scrollbar">
           {TOUR_CITY_PILLS.map(city => (
             <button
-              key={city}
-              onClick={() => setCityFilter(city)}
-              className={`flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-bold transition-colors ${cityFilter === city
+              key={city.en}
+              onClick={() => setCityFilter(city.en)}
+              className={`flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-bold transition-colors ${cityFilter === city.en
                   ? 'bg-teal-600 text-white shadow-sm'
                   : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                 }`}
             >
-              {city}
+              {ar ? city.ar : city.en}
             </button>
           ))}
         </div>
@@ -621,7 +700,7 @@ export const ToursScreen: React.FC<ToursScreenProps> = ({ t, onBookingComplete, 
                   }`}
               >
                 {f.icon}
-                {f.id === 'near_me' && locating ? 'Locating…' : f.label}
+                {f.id === 'near_me' && locating ? (ar ? 'جارٍ التحديد…' : 'Locating…') : f.label}
               </button>
             ))}
           </div>

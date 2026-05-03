@@ -30,6 +30,52 @@ export const createItinerary = async (req: AuthRequest, res: Response) => {
   }
 };
 
+export const getItinerary = async (req: AuthRequest, res: Response) => {
+  try {
+    const itinerary = await Itinerary.findById(req.params.id)
+      .populate('userId', 'name avatar')
+      .populate('places.placeId');
+    if (!itinerary) return res.status(404).json({ error: 'Itinerary not found' });
+    return res.status(200).json(itinerary);
+  } catch (error: any) {
+    console.error('❌ Error in getItinerary:', error);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+export const updateItinerary = async (req: AuthRequest, res: Response) => {
+  try {
+    if (!req.user?.userId) return res.status(401).json({ error: 'User must be authenticated' });
+    const itinerary = await Itinerary.findById(req.params.id);
+    if (!itinerary) return res.status(404).json({ error: 'Itinerary not found' });
+    if (itinerary.userId.toString() !== req.user.userId) {
+      return res.status(403).json({ error: 'Not authorized to update this itinerary' });
+    }
+    Object.assign(itinerary, req.body);
+    await itinerary.save();
+    return res.status(200).json(itinerary);
+  } catch (error: any) {
+    console.error('❌ Error in updateItinerary:', error);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+export const deleteItinerary = async (req: AuthRequest, res: Response) => {
+  try {
+    if (!req.user?.userId) return res.status(401).json({ error: 'User must be authenticated' });
+    const itinerary = await Itinerary.findById(req.params.id);
+    if (!itinerary) return res.status(404).json({ error: 'Itinerary not found' });
+    if (itinerary.userId.toString() !== req.user.userId) {
+      return res.status(403).json({ error: 'Not authorized to delete this itinerary' });
+    }
+    await itinerary.deleteOne();
+    return res.status(200).json({ message: 'Itinerary deleted' });
+  } catch (error: any) {
+    console.error('❌ Error in deleteItinerary:', error);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
 export const getAllItineraries = async (req: AuthRequest, res: Response) => {
   try {
     // ✅ دعم نظام الصفحات (Pagination) الذي يطلبه الـ Frontend

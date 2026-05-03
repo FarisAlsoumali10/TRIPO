@@ -1,0 +1,219 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-04-25T00:00:00.000Z",
+  "title": "Design System: Tripo",
+  "extensions": {
+    "colorMeta": {
+      "midnight-interior": {
+        "role": "neutral",
+        "displayName": "Midnight Interior",
+        "canonical": "oklch(9% 0.02 260)",
+        "tonalRamp": ["#020510", "#050B1E", "#081229", "#101B36", "#1a2848", "#253460", "#334175", "#4a5a8a"]
+      },
+      "deep-chamber": {
+        "role": "neutral",
+        "displayName": "Deep Chamber",
+        "canonical": "oklch(11% 0.025 260)",
+        "tonalRamp": ["#020510", "#050B1E", "#081229", "#101B36", "#1a2848", "#253460", "#334175", "#4a5a8a"]
+      },
+      "lifted-surface": {
+        "role": "neutral",
+        "displayName": "Lifted Surface",
+        "canonical": "oklch(14% 0.03 260)",
+        "tonalRamp": ["#050B1E", "#081229", "#101B36", "#1a2848", "#253460", "#334175", "#4a5a8a", "#6070a0"]
+      },
+      "oasis-spring": {
+        "role": "primary",
+        "displayName": "Oasis Spring",
+        "canonical": "oklch(90% 0.13 165)",
+        "tonalRamp": ["#0a4030", "#0d6048", "#10825f", "#13a378", "#16c490", "#1EC99A", "#4de0b4", "#7CF7C8", "#a8fcd9", "#d4feec"]
+      },
+      "oasis-deep": {
+        "role": "primary",
+        "displayName": "Oasis Deep",
+        "canonical": "oklch(72% 0.16 165)",
+        "tonalRamp": ["#0a4030", "#0d6048", "#10825f", "#13a378", "#1EC99A", "#28d4a8", "#4de0b4", "#7CF7C8"]
+      },
+      "karam-gold": {
+        "role": "secondary",
+        "displayName": "Karam Gold",
+        "canonical": "oklch(84% 0.18 90)",
+        "tonalRamp": ["#5a4000", "#7a5800", "#a07400", "#c49000", "#e8ad00", "#F7C948", "#fad46b", "#fce090", "#fdedb8", "#fef7e0"]
+      },
+      "waypoint-red": {
+        "role": "tertiary",
+        "displayName": "Waypoint Red",
+        "canonical": "oklch(70% 0.18 15)",
+        "tonalRamp": ["#600010", "#880020", "#a81030", "#cc2044", "#e84060", "#FF6B7A", "#ff8f9a", "#ffb0b8", "#ffd0d5", "#ffebee"]
+      },
+      "desert-moon": {
+        "role": "neutral",
+        "displayName": "Desert Moon",
+        "canonical": "oklch(75% 0.025 250)",
+        "tonalRamp": ["#2a3450", "#3d4e6a", "#506883", "#64829c", "#7a98b5", "#96afc8", "#B8C2D6", "#cdd5e3", "#e0e6ef", "#f0f3f8"]
+      },
+      "dusk-sand": {
+        "role": "neutral",
+        "displayName": "Dusk Sand",
+        "canonical": "oklch(55% 0.03 250)",
+        "tonalRamp": ["#1e2840", "#2c3855", "#3a4870", "#4a5880", "#5c6a92", "#7F8AA3", "#98a3b8", "#b5bece", "#d0d7e2", "#eaeef4"]
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Display",
+        "purpose": "Place names in hero cards, greeting headlines. One per section maximum."
+      },
+      "headline": {
+        "displayName": "Headline",
+        "purpose": "Section headers and featured card titles."
+      },
+      "title": {
+        "displayName": "Title",
+        "purpose": "Card names in horizontal scroll, dialog headings."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "Descriptions, metadata, community text. 65-75ch max on desktop."
+      },
+      "label": {
+        "displayName": "Label",
+        "purpose": "Navigation, badge text, price chips, filter pills."
+      }
+    },
+    "shadows": [
+      {
+        "name": "glass-depth",
+        "value": "0 10px 30px -10px rgba(0,0,0,0.55)",
+        "purpose": "Glass cards floating over photography only. Not for flat content cards."
+      },
+      {
+        "name": "mint-glow",
+        "value": "0 8px 24px -6px rgba(124,247,200,0.45)",
+        "purpose": "Primary CTA button and center FAB only. Communicates the single action on screen."
+      }
+    ],
+    "motion": [
+      {
+        "name": "ease-standard",
+        "value": "cubic-bezier(0.25, 0, 0.1, 1)",
+        "purpose": "State transitions: color, opacity, border. 150-200ms."
+      },
+      {
+        "name": "ease-entrance",
+        "value": "cubic-bezier(0.0, 0.0, 0.2, 1)",
+        "purpose": "Elements entering the viewport. 250-350ms."
+      },
+      {
+        "name": "pulse-soft",
+        "value": "pulseSoft 2.4s ease-in-out infinite",
+        "purpose": "FAB glow breathing. One instance per screen. Defined in tailwind.config.js."
+      }
+    ],
+    "breakpoints": [
+      { "name": "mobile-max", "value": "430px", "purpose": "Primary design target. All mobile layouts designed at 390-430px." },
+      { "name": "lg", "value": "1024px", "purpose": "Sidebar appears. Bottom nav hides. Content centers with max-w-[430px] phone frame." }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary CTA Button (Mint)",
+      "kind": "button",
+      "refersTo": "button-mint",
+      "description": "Full-pill, Oasis Spring background. The single action on any given surface.",
+      "html": "<button class=\"ds-btn-mint\">View &amp; Book</button>",
+      "css": ".ds-btn-mint { display: inline-flex; align-items: center; justify-content: center; gap: 6px; background: #7CF7C8; color: #050B1E; border: none; border-radius: 9999px; padding: 10px 20px; font-family: Inter, ui-sans-serif, sans-serif; font-size: 10px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; cursor: pointer; box-shadow: 0 8px 24px -6px rgba(124,247,200,0.45); transition: background 150ms cubic-bezier(0.25,0,0.1,1), transform 150ms cubic-bezier(0.25,0,0.1,1); } .ds-btn-mint:hover { background: #1EC99A; transform: scale(1.02); } .ds-btn-mint:active { transform: scale(0.97); } .ds-btn-mint:focus-visible { outline: 2px solid #7CF7C8; outline-offset: 2px; }"
+    },
+    {
+      "name": "Ghost Button",
+      "kind": "button",
+      "refersTo": "button-ghost",
+      "description": "Secondary action on dark backgrounds. Glass surface, Desert Moon text.",
+      "html": "<button class=\"ds-btn-ghost\">See all</button>",
+      "css": ".ds-btn-ghost { display: inline-flex; align-items: center; justify-content: center; gap: 6px; background: rgba(255,255,255,0.08); color: #B8C2D6; border: 1px solid rgba(255,255,255,0.14); border-radius: 9999px; padding: 8px 16px; font-family: Inter, ui-sans-serif, sans-serif; font-size: 11px; font-weight: 700; cursor: pointer; transition: background 150ms; } .ds-btn-ghost:hover { background: rgba(255,255,255,0.12); } .ds-btn-ghost:focus-visible { outline: 2px solid rgba(124,247,200,0.6); outline-offset: 2px; }"
+    },
+    {
+      "name": "Category Filter Pill",
+      "kind": "chip",
+      "refersTo": "pill-active",
+      "description": "Horizontal-scroll filter row. Active state in Oasis Spring; inactive in glass.",
+      "html": "<div class=\"ds-filter-row\"><button class=\"ds-pill ds-pill--active\"><svg width=\"12\" height=\"12\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.5\"><circle cx=\"12\" cy=\"12\" r=\"10\"/><line x1=\"2\" y1=\"12\" x2=\"22\" y2=\"12\"/><path d=\"M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z\"/></svg>All</button><button class=\"ds-pill\"><svg width=\"12\" height=\"12\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.5\"><path d=\"M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2\"/><circle cx=\"9\" cy=\"7\" r=\"4\"/><path d=\"M23 21v-2a4 4 0 0 0-3-3.87\"/><path d=\"M16 3.13a4 4 0 0 1 0 7.75\"/></svg>Nature</button><button class=\"ds-pill\">Heritage</button></div>",
+      "css": ".ds-filter-row { display: flex; gap: 8px; overflow-x: auto; padding: 8px 16px; scrollbar-width: none; } .ds-filter-row::-webkit-scrollbar { display: none; } .ds-pill { display: inline-flex; align-items: center; gap: 6px; flex-shrink: 0; padding: 8px 14px; border-radius: 9999px; font-family: Inter, ui-sans-serif, sans-serif; font-size: 11px; font-weight: 700; cursor: pointer; border: 1px solid rgba(255,255,255,0.10); background: rgba(255,255,255,0.08); color: #B8C2D6; transition: background 150ms, color 150ms, border-color 150ms; } .ds-pill:hover { background: rgba(255,255,255,0.12); border-color: rgba(124,247,200,0.40); } .ds-pill--active { background: #7CF7C8; color: #050B1E; border-color: transparent; box-shadow: 0 4px 12px -3px rgba(124,247,200,0.45); }"
+    },
+    {
+      "name": "Content Card (Place / Tour / Rental)",
+      "kind": "card",
+      "refersTo": "card-glass",
+      "description": "Horizontal-scroll item. Image-first with rating badge, type tag, title, metadata.",
+      "html": "<div class=\"ds-content-card\"><div class=\"ds-content-card__img\"><span class=\"ds-rating-badge\"><svg width=\"10\" height=\"10\" viewBox=\"0 0 24 24\" fill=\"#F7C948\" stroke=\"none\"><path d=\"M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z\"/></svg>4.9</span><span class=\"ds-type-tag\">Heritage</span></div><div class=\"ds-content-card__body\"><p class=\"ds-content-card__name\">Al-Turaif District</p><p class=\"ds-content-card__meta\">Riyadh</p></div></div>",
+      "css": ".ds-content-card { display: flex; flex-direction: column; flex-shrink: 0; width: 176px; background: #081229; border: 1px solid rgba(255,255,255,0.08); border-radius: 1.25rem; overflow: hidden; cursor: pointer; transition: transform 150ms cubic-bezier(0.25,0,0.1,1); } .ds-content-card:active { transform: scale(0.96); } .ds-content-card__img { position: relative; height: 112px; background: #101B36; } .ds-rating-badge { position: absolute; top: 8px; right: 8px; display: flex; align-items: center; gap: 3px; background: rgba(0,0,0,0.55); backdrop-filter: blur(8px); border-radius: 9999px; padding: 3px 8px; font-family: Inter, sans-serif; font-size: 10px; font-weight: 700; color: #fff; } .ds-type-tag { position: absolute; bottom: 8px; left: 8px; background: rgba(0,0,0,0.55); backdrop-filter: blur(8px); border-radius: 9999px; padding: 3px 8px; font-family: Inter, sans-serif; font-size: 9px; font-weight: 700; color: #fff; } .ds-content-card__body { padding: 12px; } .ds-content-card__name { font-family: Inter, sans-serif; font-size: 13px; font-weight: 700; color: #fff; line-height: 1.35; margin: 0 0 4px; } .ds-content-card__meta { font-family: Inter, sans-serif; font-size: 11px; font-weight: 400; color: #7F8AA3; margin: 0; }"
+    },
+    {
+      "name": "Rating Badge",
+      "kind": "custom",
+      "refersTo": "card-glass",
+      "description": "Absolute-positioned overlay on card images. The only gold foreground element.",
+      "html": "<div class=\"ds-rating-pill\"><svg width=\"11\" height=\"11\" viewBox=\"0 0 24 24\" fill=\"#F7C948\" stroke=\"none\"><path d=\"M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z\"/></svg><span>4.9</span></div>",
+      "css": ".ds-rating-pill { display: inline-flex; align-items: center; gap: 4px; background: rgba(0,0,0,0.55); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); border: 1px solid rgba(255,255,255,0.10); border-radius: 9999px; padding: 4px 10px; } .ds-rating-pill span { font-family: Inter, sans-serif; font-size: 11px; font-weight: 700; color: #fff; }"
+    },
+    {
+      "name": "Bottom Navigation Bar",
+      "kind": "nav",
+      "refersTo": "button-ghost",
+      "description": "Fixed bottom bar. 2 items left, center FAB elevated above bar, 2 items right.",
+      "html": "<nav class=\"ds-bottom-nav\"><button class=\"ds-nav-item ds-nav-item--active\"><svg width=\"22\" height=\"22\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"12\" cy=\"12\" r=\"10\"/><line x1=\"2\" y1=\"12\" x2=\"22\" y2=\"12\"/><path d=\"M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z\"/></svg><span>Explore</span></button><button class=\"ds-nav-item\"><svg width=\"22\" height=\"22\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z\"/><path d=\"M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z\"/></svg><span>My Trips</span></button><div class=\"ds-fab-wrapper\"><button class=\"ds-fab\"><svg width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.5\" stroke-linecap=\"round\"><line x1=\"12\" y1=\"5\" x2=\"12\" y2=\"19\"/><line x1=\"5\" y1=\"12\" x2=\"19\" y2=\"12\"/></svg></button><span class=\"ds-fab-label\">Quick Plan</span></div><button class=\"ds-nav-item\"><svg width=\"22\" height=\"22\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2\"/><circle cx=\"9\" cy=\"7\" r=\"4\"/><path d=\"M23 21v-2a4 4 0 0 0-3-3.87\"/><path d=\"M16 3.13a4 4 0 0 1 0 7.75\"/></svg><span>Community</span></button><button class=\"ds-nav-item\"><svg width=\"22\" height=\"22\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2\"/><circle cx=\"12\" cy=\"7\" r=\"4\"/></svg><span>Profile</span></button></nav>",
+      "css": ".ds-bottom-nav { position: fixed; bottom: 0; left: 0; right: 0; background: rgba(8,18,41,0.92); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); border-top: 1px solid rgba(255,255,255,0.10); padding-bottom: max(env(safe-area-inset-bottom), 8px); z-index: 40; } .ds-bottom-nav > * { display: flex; align-items: flex-end; justify-content: space-around; padding: 8px 8px 0; } .ds-nav-item { display: flex; flex-direction: column; align-items: center; gap: 2px; flex: 1; padding: 6px 12px; border-radius: 1rem; border: none; background: transparent; color: #7F8AA3; cursor: pointer; transition: color 150ms, background 150ms; } .ds-nav-item span { font-family: Inter, sans-serif; font-size: 10px; font-weight: 700; letter-spacing: 0.04em; } .ds-nav-item--active { color: #7CF7C8; background: rgba(124,247,200,0.10); } .ds-fab-wrapper { display: flex; flex-direction: column; align-items: center; flex-shrink: 0; margin-top: -20px; } .ds-fab { width: 56px; height: 56px; border-radius: 9999px; background: linear-gradient(135deg, #7CF7C8, #1EC99A); border: 4px solid #081229; color: #050B1E; display: flex; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 8px 24px -6px rgba(124,247,200,0.5); transition: transform 150ms; } .ds-fab:hover { transform: scale(1.05); } .ds-fab:active { transform: scale(0.90); } .ds-fab-label { font-family: Inter, sans-serif; font-size: 9px; font-weight: 700; letter-spacing: 0.06em; color: #7CF7C8; margin-top: 2px; text-transform: uppercase; }"
+    },
+    {
+      "name": "Search Bar",
+      "kind": "input",
+      "refersTo": "button-ghost",
+      "description": "Full-width tap target. Opens global search overlay on tap, no inline editing.",
+      "html": "<button class=\"ds-search-bar\"><span class=\"ds-search-bar__placeholder\">Where do you want to go?</span><div class=\"ds-search-bar__icon\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.5\" stroke-linecap=\"round\"><circle cx=\"11\" cy=\"11\" r=\"8\"/><line x1=\"21\" y1=\"21\" x2=\"16.65\" y2=\"16.65\"/></svg></div></button>",
+      "css": ".ds-search-bar { display: flex; align-items: center; gap: 12px; width: 100%; background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.10); border-radius: 9999px; padding: 12px 16px; cursor: pointer; transition: background 150ms, transform 100ms; } .ds-search-bar:active { transform: scale(0.99); } .ds-search-bar__placeholder { flex: 1; text-align: left; font-family: Inter, sans-serif; font-size: 14px; font-weight: 500; color: #7F8AA3; } .ds-search-bar__icon { width: 32px; height: 32px; border-radius: 9999px; background: #7CF7C8; display: flex; align-items: center; justify-content: center; color: #050B1E; flex-shrink: 0; transition: background 150ms; } .ds-search-bar:hover .ds-search-bar__icon { background: #1EC99A; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Night Desert Concierge",
+    "overview": "Tripo is used most often in the evening. A Saudi resident settling into their sofa, phone in hand, deciding where to go this weekend or planning a group escape. The surface needs to feel like a knowledgeable local friend in a warmly-lit room, not a marketplace, not a travel agency, not a dashboard. Deep, quiet backgrounds with precise, luminous accents. The darkness amplifies desire; the city photos pop against navy the same way a destination looks better at night.\n\nThe system runs on a full palette: mint for motion and intent, gold for earned value and reputation, coral for urgency and warnings, all on a foundation of three navy depths that create spatial hierarchy without a single shadow. Glassmorphism appears only when a card genuinely floats over imagery; it is never decorative layering. Typography is a single variable-weight sans at extreme weights, achieving contrast through compression: 900 for names and CTAs, 400 for context.\n\nThis system explicitly rejects: transactional white-card grids with price-first layouts, Airbnb-clone aesthetics with rental-listing sameness, any 'dark mode because cool' justification, and the neon-on-black nightlife aesthetic. Tripo is premium travel, not a nightclub app.",
+    "keyCharacteristics": [
+      "Navy foundation with three elevation steps (950/900/800), no shadows at rest",
+      "Single sans (Inter), heavy weight contrast (900/700/400), no decorative serifs",
+      "Mint is the one action color, reserved for CTAs, active states, and confirmation",
+      "Gold appears only in reputation contexts: ratings, Karam tier, earned rewards",
+      "Glass surfaces are conditional: only when overlaying photography or deep backgrounds",
+      "RTL (Arabic) and LTR (English) are equal first-class design states"
+    ],
+    "rules": [
+      { "name": "The One Mint Rule", "body": "Oasis Spring appears as a CTA, active state, or brand mark only. It is never used as a decorative background, section divider, or general accent. Every screen has one action, one mint.", "section": "colors" },
+      { "name": "The Gold Gating Rule", "body": "Karam Gold is the color of reputation, not decoration. If an element doesn't represent a rating, tier, or earned achievement, it cannot use gold.", "section": "colors" },
+      { "name": "The Glass Gate Rule", "body": "backdrop-filter blur is permitted only when a card surface sits directly over a photograph or the Midnight Interior background. Cards on white or Lifted Surface never blur. One glass layer per scroll depth maximum.", "section": "colors" },
+      { "name": "The Weight Wall Rule", "body": "The minimum weight contrast between a headline and its supporting text is 200. Never two consecutive elements at the same weight. The eye must know immediately what to read first.", "section": "typography" },
+      { "name": "The Scale Floor Rule", "body": "Nothing below 9px renders in production. Running body text never drops below 14px.", "section": "typography" },
+      { "name": "The Flat-At-Rest Rule", "body": "Cards, list items, and containers have no shadow at rest. Tonal background contrast is the depth signal. A shadow appears only on the active CTA (mint glow) or a glass card floating over photography.", "section": "elevation" },
+      { "name": "The No Nesting Rule", "body": "Glass cards never contain content cards. Content cards never contain cards. One depth signal per container.", "section": "components" }
+    ],
+    "dos": [
+      "Do lead every card with the destination's photograph or imagery. Text and price follow.",
+      "Do use Oasis Spring as the single CTA color across any given screen. One action, one mint.",
+      "Do use the three navy depths (950/900/800) to create spatial hierarchy without adding shadows.",
+      "Do show place names in Arabic and English where both are available.",
+      "Do use Karam Gold only for ratings, tier badges, and earned-value indicators.",
+      "Do keep Inter at 900 or 700 for all heading and interactive label text.",
+      "Do apply glass cards exclusively over photography or the deepest navy backgrounds.",
+      "Do validate that touch targets are ≥44px on all interactive elements."
+    ],
+    "donts": [
+      "Don't use price as the primary information hierarchy on any card.",
+      "Don't use background-clip text with a gradient. All text is a single color.",
+      "Don't apply backdrop-filter blur to a card sitting on a white or light-mode surface.",
+      "Don't use glass cards as a general decorative treatment.",
+      "Don't place Waypoint Red on more than one element per screen.",
+      "Don't use identical same-sized card grids with the same icon-heading-text structure repeated.",
+      "Don't design components in LTR and mirror them for RTL as an afterthought.",
+      "Don't let any feature push a Booking.com or Airbnb-clone information density.",
+      "Don't use Karam Gold decoratively outside rating and earned-value contexts.",
+      "Don't apply the pulse-soft animation to anything other than the center FAB."
+    ]
+  }
+}

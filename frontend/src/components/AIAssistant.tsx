@@ -8,6 +8,7 @@ interface AIAssistantProps {
   user: User;
   t: any;
   lang: 'en' | 'ar';
+  onNavigate?: (tab: string) => void;
 }
 
 interface Message {
@@ -16,7 +17,7 @@ interface Message {
   text: string;
 }
 
-export const AIAssistant = ({ user, t, lang }: AIAssistantProps) => {
+export const AIAssistant = ({ user, t, lang, onNavigate }: AIAssistantProps) => {
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
@@ -105,7 +106,7 @@ export const AIAssistant = ({ user, t, lang }: AIAssistantProps) => {
   };
 
   if (!isOpen) return (
-    <button onClick={() => setIsOpen(true)} className="fixed bottom-24 right-4 w-14 h-14 bg-gradient-to-tr from-emerald-500 to-teal-400 rounded-full shadow-2xl flex items-center justify-center text-white z-40 animate-bounce-slow hover:scale-110 transition-transform">
+    <button onClick={() => onNavigate ? onNavigate('ai_planner') : setIsOpen(true)} className="fixed bottom-24 right-4 w-14 h-14 bg-gradient-to-tr from-emerald-500 to-teal-400 rounded-full shadow-2xl flex items-center justify-center text-white z-40 animate-bounce-slow hover:scale-110 transition-transform">
       <Sparkles className="w-7 h-7" />
     </button>
   );

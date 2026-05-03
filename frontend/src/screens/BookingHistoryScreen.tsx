@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
-import { Calendar, Users, MapPin, Star, Clock, CheckCircle2, XCircle, ChevronDown, ChevronUp, Share2, ReceiptText } from 'lucide-react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Calendar, Users, MapPin, Star, Clock, CheckCircle2, XCircle, ChevronDown, ChevronUp, Share2, ReceiptText, RefreshCw } from 'lucide-react';
 import { User } from '../types/index';
+import { bookingAPI } from '../services/api';
 
 export interface BookingRecord {
   id: string;
@@ -15,91 +16,17 @@ export interface BookingRecord {
   currency: string;
   status: 'confirmed' | 'cancelled' | 'completed' | 'pending';
   departureLocation: string;
-  duration: number; // hours
+  duration: number;
   bookedAt: number;
   rating?: number;
 }
 
-const BOOKINGS_KEY = 'tripo_booking_history';
-
-export function loadBookings(): BookingRecord[] {
-  try { return JSON.parse(localStorage.getItem(BOOKINGS_KEY) || '[]'); } catch { return []; }
-}
-
-export function saveBooking(booking: BookingRecord) {
-  const existing = loadBookings();
-  const updated = [booking, ...existing.filter(b => b.id !== booking.id)];
-  localStorage.setItem(BOOKINGS_KEY, JSON.stringify(updated));
-}
-
-export function cancelBooking(id: string) {
-  const existing = loadBookings();
-  const updated = existing.map(b => b.id === id ? { ...b, status: 'cancelled' as const } : b);
-  localStorage.setItem(BOOKINGS_KEY, JSON.stringify(updated));
-}
-
 const STATUS_CONFIG = {
-  confirmed:  { label: 'مؤكد',    color: 'text-emerald-600', bg: 'bg-emerald-50',  icon: <CheckCircle2 className="w-3 h-3" /> },
-  completed:  { label: 'مكتمل',   color: 'text-blue-600',    bg: 'bg-blue-50',     icon: <CheckCircle2 className="w-3 h-3" /> },
-  cancelled:  { label: 'ملغي',    color: 'text-red-500',     bg: 'bg-red-50',      icon: <XCircle className="w-3 h-3" /> },
-  pending:    { label: 'في الانتظار', color: 'text-amber-600', bg: 'bg-amber-50',  icon: <Clock className="w-3 h-3" /> },
+  confirmed:  { label: 'مؤكد',        color: 'text-emerald-600', bg: 'bg-emerald-50',  icon: <CheckCircle2 className="w-3 h-3" /> },
+  completed:  { label: 'مكتمل',       color: 'text-blue-600',    bg: 'bg-blue-50',     icon: <CheckCircle2 className="w-3 h-3" /> },
+  cancelled:  { label: 'ملغي',        color: 'text-red-500',     bg: 'bg-red-50',      icon: <XCircle className="w-3 h-3" /> },
+  pending:    { label: 'في الانتظار', color: 'text-amber-600',   bg: 'bg-amber-50',    icon: <Clock className="w-3 h-3" /> },
 };
-
-// Seed demo bookings
-function seedIfEmpty(): BookingRecord[] {
-  const existing = loadBookings();
-  if (existing.length > 0) return existing;
-  const demos: BookingRecord[] = [
-    {
-      id: 'b1',
-      tourId: 'tour-1',
-      tourTitle: 'جولة حافة العالم',
-      tourImage: 'https://images.unsplash.com/photo-1609137144813-7d9921338f24?w=400&q=80',
-      guideName: 'فيصل الدوسري',
-      date: new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0],
-      guests: 2,
-      totalPrice: 450,
-      currency: 'SAR',
-      status: 'confirmed',
-      departureLocation: 'الرياض',
-      duration: 8,
-      bookedAt: Date.now() - 3600000,
-    },
-    {
-      id: 'b2',
-      tourId: 'tour-2',
-      tourTitle: 'جولة الدرعية التراثية',
-      tourImage: 'https://images.unsplash.com/photo-1539622106114-e0df812097e6?w=400&q=80',
-      guideName: 'أحمد الغامدي',
-      date: new Date(Date.now() - 14 * 86400000).toISOString().split('T')[0],
-      guests: 3,
-      totalPrice: 360,
-      currency: 'SAR',
-      status: 'completed',
-      departureLocation: 'الدرعية',
-      duration: 3,
-      bookedAt: Date.now() - 20 * 86400000,
-      rating: 5,
-    },
-    {
-      id: 'b3',
-      tourId: 'tour-3',
-      tourTitle: 'جولة الهجرة الأثرية',
-      tourImage: 'https://images.unsplash.com/photo-1509023464722-18d996393ca8?w=400&q=80',
-      guideName: 'سارة الخالد',
-      date: new Date(Date.now() - 30 * 86400000).toISOString().split('T')[0],
-      guests: 1,
-      totalPrice: 295,
-      currency: 'SAR',
-      status: 'cancelled',
-      departureLocation: 'العُلا',
-      duration: 6,
-      bookedAt: Date.now() - 40 * 86400000,
-    },
-  ];
-  localStorage.setItem(BOOKINGS_KEY, JSON.stringify(demos));
-  return demos;
-}
 
 interface BookingHistoryScreenProps {
   t: any;
@@ -108,10 +35,27 @@ interface BookingHistoryScreenProps {
 }
 
 export const BookingHistoryScreen = ({ t, lang, user }: BookingHistoryScreenProps) => {
-  const [bookings, setBookings] = useState<BookingRecord[]>(() => seedIfEmpty());
+  const [bookings, setBookings] = useState<BookingRecord[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
   const [filter, setFilter] = useState<'all' | 'upcoming' | 'completed' | 'cancelled'>('all');
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [ratingMap, setRatingMap] = useState<Record<string, number>>({});
+
+  const fetchBookings = useCallback(async () => {
+    setLoading(true);
+    setError(false);
+    try {
+      const data = await bookingAPI.getMyBookings();
+      setBookings(data as BookingRecord[]);
+    } catch {
+      setError(true);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { fetchBookings(); }, [fetchBookings]);
 
   const today = new Date().toISOString().split('T')[0];
 
@@ -122,16 +66,18 @@ export const BookingHistoryScreen = ({ t, lang, user }: BookingHistoryScreenProp
     return true;
   });
 
-  const handleCancel = (id: string) => {
-    cancelBooking(id);
-    setBookings(prev => prev.map(b => b.id === id ? { ...b, status: 'cancelled' } : b));
+  const handleCancel = async (id: string) => {
+    try {
+      await bookingAPI.cancel(id);
+      setBookings(prev => prev.map(b => b.id === id ? { ...b, status: 'cancelled' as const } : b));
+    } catch {
+      // Optimistic rollback not needed — no change was made
+    }
   };
 
   const handleRate = (id: string, rating: number) => {
     setRatingMap(p => ({ ...p, [id]: rating }));
     setBookings(prev => prev.map(b => b.id === id ? { ...b, rating } : b));
-    const updated = bookings.map(b => b.id === id ? { ...b, rating } : b);
-    localStorage.setItem(BOOKINGS_KEY, JSON.stringify(updated));
   };
 
   const totalSpent = bookings.filter(b => b.status !== 'cancelled').reduce((s, b) => s + b.totalPrice, 0);
@@ -149,15 +95,31 @@ export const BookingHistoryScreen = ({ t, lang, user }: BookingHistoryScreenProp
       {/* Stats row */}
       <div className="grid grid-cols-3 gap-3 px-4 mb-4">
         {[
-          { label: 'إجمالي الإنفاق',   value: `${totalSpent} ر.س`, color: 'text-slate-900' },
-          { label: 'جولات مكتملة',     value: completedCount,       color: 'text-blue-600' },
-          { label: 'قادمة',            value: upcomingCount,        color: 'text-emerald-600' },
+          { label: 'إجمالي الإنفاق', value: `${totalSpent} ر.س`, color: 'text-slate-900' },
+          { label: 'جولات مكتملة',   value: completedCount,      color: 'text-blue-600' },
+          { label: 'قادمة',          value: upcomingCount,        color: 'text-emerald-600' },
         ].map(s => (
           <div key={s.label} className="bg-white rounded-2xl border border-slate-100 p-3 text-center">
             <p className={`text-lg font-black ${s.color}`}>{s.value}</p>
             <p className="text-[10px] text-slate-400 font-bold mt-0.5">{s.label}</p>
           </div>
         ))}
+      </div>
+
+      {/* CTA Banner */}
+      <div className="mx-4 mb-4 rounded-3xl overflow-hidden" style={{ background: 'linear-gradient(135deg, #0f172a, #1e293b)' }}>
+        <div className="p-4 flex items-center gap-4">
+          <div className="flex-1">
+            <p className="text-white font-black text-sm leading-tight">{(t as any).bookingsNextAdventure || 'Ready for your next adventure?'}</p>
+            <p className="text-slate-400 text-xs mt-0.5">{(t as any).bookingsExploreDesc || 'Explore tours, stays & events across Saudi Arabia.'}</p>
+          </div>
+          <button
+            onClick={() => window.dispatchEvent(new CustomEvent('tripo:navigate', { detail: 'tours' }))}
+            className="shrink-0 px-4 py-2.5 bg-emerald-500 text-white font-black text-xs rounded-2xl active:scale-95 transition-transform shadow-lg shadow-emerald-900/40"
+          >
+            {(t as any).bookingsBrowseTours || 'Browse Tours →'}
+          </button>
+        </div>
       </div>
 
       {/* Filter tabs */}
@@ -178,9 +140,32 @@ export const BookingHistoryScreen = ({ t, lang, user }: BookingHistoryScreenProp
         ))}
       </div>
 
-      {/* Bookings */}
+      {/* Content */}
       <div className="px-4 space-y-3">
-        {filtered.length === 0 ? (
+        {loading ? (
+          <div className="space-y-3">
+            {[1, 2, 3].map(i => (
+              <div key={i} className="bg-white rounded-3xl border border-slate-100 overflow-hidden animate-pulse">
+                <div className="h-32 bg-slate-100" />
+                <div className="p-4 space-y-3">
+                  <div className="h-3 bg-slate-100 rounded w-3/4" />
+                  <div className="h-3 bg-slate-100 rounded w-1/2" />
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : error ? (
+          <div className="text-center py-20">
+            <ReceiptText className="w-12 h-12 text-slate-200 mx-auto mb-3" />
+            <p className="text-slate-400 font-bold text-sm">تعذّر تحميل الحجوزات</p>
+            <button
+              onClick={fetchBookings}
+              className="mt-4 flex items-center gap-2 mx-auto px-4 py-2 bg-slate-900 text-white text-xs font-black rounded-2xl active:scale-95 transition-transform"
+            >
+              <RefreshCw className="w-3.5 h-3.5" /> إعادة المحاولة
+            </button>
+          </div>
+        ) : filtered.length === 0 ? (
           <div className="text-center py-20">
             <ReceiptText className="w-12 h-12 text-slate-200 mx-auto mb-3" />
             <p className="text-slate-400 font-bold text-sm">لا توجد حجوزات</p>
@@ -194,7 +179,6 @@ export const BookingHistoryScreen = ({ t, lang, user }: BookingHistoryScreenProp
 
           return (
             <div key={booking.id} className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
-              {/* Tour image + main info */}
               <div className="relative">
                 <img src={booking.tourImage} className="w-full h-32 object-cover" alt={booking.tourTitle} />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
@@ -206,7 +190,6 @@ export const BookingHistoryScreen = ({ t, lang, user }: BookingHistoryScreenProp
                 </div>
               </div>
 
-              {/* Details */}
               <div className="p-4">
                 <div className="grid grid-cols-2 gap-2 mb-3">
                   <div className="flex items-center gap-2 text-xs text-slate-600">
@@ -237,7 +220,6 @@ export const BookingHistoryScreen = ({ t, lang, user }: BookingHistoryScreenProp
                   </button>
                 </div>
 
-                {/* Expanded details */}
                 {isExpanded && (
                   <div className="bg-slate-50 rounded-2xl p-4 mb-3 space-y-2 text-xs">
                     <div className="flex justify-between">
@@ -250,12 +232,11 @@ export const BookingHistoryScreen = ({ t, lang, user }: BookingHistoryScreenProp
                     </div>
                     <div className="flex justify-between">
                       <span className="text-slate-500">رقم الحجز</span>
-                      <span className="font-mono text-slate-400 text-[10px]">#{booking.id.toUpperCase()}</span>
+                      <span className="font-mono text-slate-400 text-[10px]">#{String(booking.id).toUpperCase().slice(-8)}</span>
                     </div>
                   </div>
                 )}
 
-                {/* Actions */}
                 <div className="flex gap-2">
                   {isUpcoming && (
                     <button
@@ -269,12 +250,8 @@ export const BookingHistoryScreen = ({ t, lang, user }: BookingHistoryScreenProp
                     <div className="flex-1">
                       <p className="text-[10px] text-slate-400 font-bold mb-1 text-center">قيّم تجربتك</p>
                       <div className="flex justify-center gap-1">
-                        {[1,2,3,4,5].map(s => (
-                          <button
-                            key={s}
-                            onClick={() => handleRate(booking.id, s)}
-                            className="active:scale-90 transition-transform"
-                          >
+                        {[1, 2, 3, 4, 5].map(s => (
+                          <button key={s} onClick={() => handleRate(booking.id, s)} className="active:scale-90 transition-transform">
                             <Star className={`w-6 h-6 ${s <= (ratingMap[booking.id] || 0) ? 'text-amber-400 fill-amber-400' : 'text-slate-200'}`} />
                           </button>
                         ))}
@@ -283,7 +260,7 @@ export const BookingHistoryScreen = ({ t, lang, user }: BookingHistoryScreenProp
                   )}
                   {booking.status === 'completed' && existingRating && (
                     <div className="flex-1 flex items-center justify-center gap-1 py-2.5 bg-amber-50 rounded-2xl">
-                      {[1,2,3,4,5].map(s => (
+                      {[1, 2, 3, 4, 5].map(s => (
                         <Star key={s} className={`w-4 h-4 ${s <= existingRating ? 'text-amber-400 fill-amber-400' : 'text-slate-200'}`} />
                       ))}
                     </div>

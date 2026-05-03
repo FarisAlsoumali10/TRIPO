@@ -10,10 +10,9 @@ import rateLimit from 'express-rate-limit';
 import mongoose from 'mongoose';
 import { connectDatabase } from './config/database';
 import routes from './routes';
-import itineraryRoutes from './routes/itineraryRoutes';
 import { errorHandler, notFound } from './middleware/errorHandler';
 import { verifyToken } from './utils/jwt';
-import { handleStripeWebhook } from './controllers/paymentController';
+import { handleWebhook } from './controllers/paymentController';
 
 const app = express();
 
@@ -68,7 +67,7 @@ app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev'));
 // 💳 Stripe Webhook — MUST be BEFORE express.json()
 // express.raw preserves the raw Buffer Stripe needs for signature verification
 // ==========================================
-app.post('/api/v1/payments/webhook', express.raw({ type: 'application/json' }), handleStripeWebhook as any);
+app.post('/api/v1/payments/webhook', express.raw({ type: 'application/json' }), handleWebhook as any);
 
 // ✅ حماية السيرفر من هجمات الـ Payload الضخمة
 app.use(express.json({ limit: '10mb' }));
@@ -106,7 +105,6 @@ app.get('/health', (req: Request, res: Response) => {
 app.set('io', io);
 
 app.use('/api/v1', routes);
-app.use('/api/v1/itineraries', itineraryRoutes);
 
 // ==========================================
 // 🚨 Error Handling (معالجة الأخطاء)

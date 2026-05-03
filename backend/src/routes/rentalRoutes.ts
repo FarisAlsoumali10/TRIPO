@@ -6,21 +6,24 @@ import {
     updateRental,
     deleteRental,
     bookRental,
+    getMyRentals,
+    getMyRentalBookings,
 } from '../controllers/rentalController';
-import { authenticate, requireRole } from '../middleware/auth';
+import { authenticate } from '../middleware/auth';
 
 const router = Router();
 
-const adminOnly = [authenticate, requireRole('admin')];
-
 router.route('/')
     .get(getAllRentals)
-    .post(adminOnly, createRental);
+    .post(authenticate, createRental);
+
+router.get('/mine', authenticate, getMyRentals);
+router.get('/mine/bookings', authenticate, getMyRentalBookings);
 
 router.route('/:rentalId')
     .get(getRental)
-    .patch(adminOnly, updateRental)
-    .delete(adminOnly, deleteRental);
+    .patch(authenticate, updateRental)
+    .delete(authenticate, deleteRental);
 
 router.route('/:rentalId/book')
     .post(authenticate, bookRental);

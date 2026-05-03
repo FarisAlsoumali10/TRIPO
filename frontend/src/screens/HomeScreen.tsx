@@ -1,25 +1,18 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
-  Star, Clock, MapPin, Camera, Plus, ChevronRight, ChevronLeft,
-  Sparkles, Search, Calendar, Tent, Mountain, Utensils, Waves,
-  Landmark, Compass, Users,
+  Star, MapPin, Camera, Plus, ChevronRight, ChevronLeft,
+  Sparkles, Search, Compass, Menu, Heart,
 } from 'lucide-react';
 import { User, Itinerary, Place, Tour, Rental } from '../types/index';
 import { placeAPI, tourAPI, rentalAPI, communityAPI, eventAPI } from '../services/api';
-import { SkeletonCard, SkeletonList } from '../components/ui';
+import { SkeletonCard, SkeletonList, GlassCard, Skeleton } from '../components/ui';
 import { FeaturedSlideshow, SlideItem } from '../components/FeaturedSlideshow';
+import { NotificationPanel } from '../components/NotificationPanel';
 
-// ── Module-scope constants (never recreated) ──────────────────────────────────
+// ── Module-scope constants ────────────────────────────────────────────────────
 
-const CATEGORY_KEYS = ['All', 'Nature', 'Heritage', 'Adventure', 'Food', 'Urban', 'Beach', 'Desert'];
 
-const CATEGORY_ICONS: Record<string, React.ElementType> = {
-  All: Compass, Nature: Mountain, Heritage: Landmark,
-  Adventure: Sparkles, Food: Utensils, Urban: MapPin,
-  Beach: Waves, Desert: Tent,
-};
 
-// Normalize backend event to expected shape
 function normalizeEvent(e: any) {
   return {
     ...e,
@@ -30,77 +23,6 @@ function normalizeEvent(e: any) {
   };
 }
 
-// Fallbacks — only used when API fails
-const FALLBACK_PLACES: Place[] = [];
-const FALLBACK_TOURS: Tour[] = [];
-const FALLBACK_RENTALS: Rental[] = [];
-const FALLBACK_COMMUNITIES: any[] = [];
-const FALLBACK_EVENTS: any[] = [];
-
-// Keep MOCK_PLACES export for other screens that import it
-export const MOCK_PLACES: Place[] = [
-  {
-    id: 'mp-1', name: 'Edge of the World', city: 'Riyadh',
-    description: 'Dramatic escarpment with panoramic desert views stretching to the horizon.',
-    categoryTags: ['Nature', 'Adventure'],
-    photos: [
-      'https://images.unsplash.com/photo-1509316785289-025f5b846b35?w=800&q=80',
-      'https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?w=800&q=80',
-    ],
-    ratingSummary: { avgRating: 4.9, reviewCount: 312 },
-  },
-  {
-    id: 'mp-2', name: 'Al-Turaif District', city: 'Riyadh',
-    description: 'UNESCO World Heritage Site — birthplace of the Saudi state.',
-    categoryTags: ['Heritage', 'Cultural'],
-    photos: ['https://images.unsplash.com/photo-1564769625392-651b89c75c0a?w=800&q=80'],
-    ratingSummary: { avgRating: 4.8, reviewCount: 198 },
-  },
-  {
-    id: 'mp-3', name: 'Hegra (Madain Saleh)', city: 'AlUla',
-    description: 'Ancient Nabataean city with monumental rock-cut tombs.',
-    categoryTags: ['Heritage', 'Desert'],
-    photos: ['https://images.unsplash.com/photo-1631217073612-e1f270b45958?w=800&q=80'],
-    ratingSummary: { avgRating: 4.9, reviewCount: 427 },
-  },
-  {
-    id: 'mp-4', name: 'Al-Balad Historic District', city: 'Jeddah',
-    description: 'UNESCO-listed old town with coral-stone buildings and traditional souqs.',
-    categoryTags: ['Heritage', 'Urban'],
-    photos: ['https://images.unsplash.com/photo-1578895101408-1a36b834405b?w=800&q=80'],
-    ratingSummary: { avgRating: 4.7, reviewCount: 283 },
-  },
-  {
-    id: 'mp-5', name: 'Aseer National Park', city: 'Abha',
-    description: 'Green mountain forests, wildlife, and cool highland air.',
-    categoryTags: ['Nature', 'Adventure'],
-    photos: ['https://images.unsplash.com/photo-1602940659805-770d1b3b9911?w=800&q=80'],
-    ratingSummary: { avgRating: 4.8, reviewCount: 156 },
-  },
-  {
-    id: 'mp-6', name: 'Red Sea Coral Reefs', city: 'Jeddah',
-    description: 'World-class snorkelling and diving in crystal-clear Red Sea waters.',
-    categoryTags: ['Beach', 'Nature'],
-    photos: ['https://images.unsplash.com/photo-1559128010-7c1ad6e1b6a5?w=800&q=80'],
-    ratingSummary: { avgRating: 4.9, reviewCount: 341 },
-  },
-  {
-    id: 'mp-7', name: 'Souq Al-Zal', city: 'Riyadh',
-    description: 'Bustling traditional market with antiques, spices, and local crafts.',
-    categoryTags: ['Urban', 'Food'],
-    photos: ['https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=800&q=80'],
-    ratingSummary: { avgRating: 4.5, reviewCount: 89 },
-  },
-  {
-    id: 'mp-8', name: 'Wadi Disah', city: 'Tabuk',
-    description: 'Lush canyon oasis cutting through towering sandstone cliffs.',
-    categoryTags: ['Nature', 'Desert'],
-    photos: ['https://images.unsplash.com/photo-1547234935-80c7145ec969?w=800&q=80'],
-    ratingSummary: { avgRating: 4.8, reviewCount: 122 },
-  },
-];
-
-// ── City hero lookup ──────────────────────────────────────────────────────────
 
 const CITY_LANDMARKS: Record<string, { url: string; label: string }> = {
   riyadh: { url: 'https://images.unsplash.com/photo-1586724237569-f3d0c1dee8c6?w=1200', label: 'Kingdom Centre Tower, Riyadh' },
@@ -128,6 +50,18 @@ const FALLBACK_HERO = {
   label: 'Saudi Arabia',
 };
 
+const CITY_NAME_AR: Record<string, string> = {
+  riyadh: 'الرياض', jeddah: 'جدة', mecca: 'مكة المكرمة', makkah: 'مكة المكرمة',
+  medina: 'المدينة المنورة', madinah: 'المدينة المنورة', alula: 'العُلا', 'al ula': 'العُلا',
+  abha: 'أبها', tabuk: 'تبوك', dammam: 'الدمام', khobar: 'الخبر', 'al khobar': 'الخبر',
+  yanbu: 'ينبع', taif: 'الطائف', neom: 'نيوم', hail: 'حائل', najran: 'نجران',
+};
+
+function translateCity(city: string, ar: boolean): string {
+  if (!ar) return city;
+  return CITY_NAME_AR[city.trim().toLowerCase()] ?? city;
+}
+
 function getCityHero(city?: string): { url: string; label: string } {
   if (!city) return FALLBACK_HERO;
   const key = city.trim().toLowerCase();
@@ -136,18 +70,25 @@ function getCityHero(city?: string): { url: string; label: string } {
   return match ? CITY_LANDMARKS[match] : FALLBACK_HERO;
 }
 
+function getKaramLevel(pts: number): string {
+  if (pts >= 1000) return 'Legend';
+  if (pts >= 500) return 'Pathfinder';
+  if (pts >= 200) return 'Adventurer';
+  return 'Explorer';
+}
+
 // ── Pure sub-components ───────────────────────────────────────────────────────
 
 const ImgPlaceholder = React.memo(({ icon: Icon }: { icon: React.ElementType }) => (
-  <div className="w-full h-full bg-gradient-to-br from-emerald-50 via-slate-100 to-teal-50 dark:from-slate-800 dark:via-slate-700 dark:to-emerald-900 flex flex-col items-center justify-center gap-2">
-    <Icon className="w-8 h-8 text-emerald-500/60 dark:text-emerald-400/50" />
-    <span className="text-emerald-500/50 dark:text-emerald-400/30 text-[8px] font-black uppercase tracking-[0.3em]">Tripo</span>
+  <div className="w-full h-full bg-gradient-to-br from-emerald-50 via-slate-100 to-teal-50 dark:from-navy-800 dark:via-navy-900 dark:to-navy-800 flex flex-col items-center justify-center gap-2">
+    <Icon className="w-8 h-8 text-emerald-500/60 dark:text-mint/40" />
+    <span className="text-emerald-500/50 dark:text-mint/30 text-[8px] font-black uppercase tracking-[0.3em]">Tripo</span>
   </div>
 ));
 
 const RatingPill = React.memo(({ rating }: { rating: number | string }) => (
   <div className="absolute top-2 right-2 flex items-center gap-0.5 bg-black/50 backdrop-blur-sm px-2 py-0.5 rounded-full z-10">
-    <Star className="w-2.5 h-2.5 fill-amber-400 text-amber-400" />
+    <Star className="w-2.5 h-2.5 fill-gold text-gold" />
     <span className="text-[10px] font-black text-white">{Number(rating).toFixed(1)}</span>
   </div>
 ));
@@ -161,7 +102,7 @@ const DIFFICULTY_STYLES: Record<string, string> = {
 const DifficultyBadge = React.memo(({ level }: { level?: string }) => {
   if (!level) return null;
   return (
-    <span className={`absolute bottom-2 left-2 text-[9px] font-black px-2 py-0.5 rounded-full uppercase z-10 ${DIFFICULTY_STYLES[level.toLowerCase()] ?? 'bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-white'}`}>
+    <span className={`absolute bottom-2 left-2 text-[9px] font-black px-2 py-0.5 rounded-full uppercase z-10 ${DIFFICULTY_STYLES[level.toLowerCase()] ?? 'bg-slate-200 text-slate-700 dark:bg-navy-800 dark:text-white'}`}>
       {level}
     </span>
   );
@@ -171,11 +112,11 @@ const SectionHeader = React.memo(({ title, onSeeAll, seeAllLabel, isRTL }: {
   title: string; onSeeAll?: () => void; seeAllLabel: string; isRTL: boolean;
 }) => (
   <div className={`flex items-center justify-between mb-4 ${isRTL ? 'flex-row-reverse' : ''}`}>
-    <h2 className={`text-lg font-extrabold text-slate-900 dark:text-slate-100 tracking-tight ${isRTL ? 'text-right' : 'text-left'}`}>
+    <h2 className={`text-lg font-extrabold text-slate-900 dark:text-white tracking-tight ${isRTL ? 'text-right' : 'text-left'}`}>
       {title}
     </h2>
     {onSeeAll && (
-      <button onClick={onSeeAll} className={`flex items-center gap-1 text-xs font-bold text-emerald-600 active:opacity-70 transition-opacity ${isRTL ? 'flex-row-reverse' : ''}`}>
+      <button onClick={onSeeAll} className={`flex items-center gap-1 text-xs font-bold text-emerald-600 dark:text-mint active:opacity-70 transition-opacity ${isRTL ? 'flex-row-reverse' : ''}`}>
         {seeAllLabel}
         {isRTL ? <ChevronLeft className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
       </button>
@@ -183,10 +124,60 @@ const SectionHeader = React.memo(({ title, onSeeAll, seeAllLabel, isRTL }: {
   </div>
 ));
 
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
+function isOpenNow(p: Place): boolean | null {
+  if (!p.openingHours) return null;
+  const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+  const day = days[new Date().getDay()];
+  const h = (p.openingHours as any)[day];
+  if (!h || h.closed) return false;
+  const [oh, om] = h.open.split(':').map(Number);
+  const [ch, cm] = h.close.split(':').map(Number);
+  const now = new Date().getHours() * 60 + new Date().getMinutes();
+  const open = oh * 60 + om, close = ch * 60 + cm;
+  if (close < open) return now >= open || now < close;
+  return now >= open && now < close;
+}
+
+const SectionTile = ({ label, emoji, countLabel, thumbs, onTap, accentColor = '#0f172a', wide = false }: {
+  label: string; emoji: string; countLabel: string;
+  thumbs: (string | undefined)[]; onTap: () => void; accentColor?: string; wide?: boolean;
+}) => (
+  <button
+    onClick={onTap}
+    className={`h-40 rounded-2xl shadow-md active:scale-[0.97] hover:scale-[1.02] hover:shadow-xl transition-[transform,box-shadow] duration-200 overflow-hidden relative${wide ? ' col-span-2' : ''}`}
+    style={{ backgroundColor: accentColor }}
+  >
+    {thumbs.filter(Boolean).length >= 2 ? (
+      <>
+        <div className="absolute inset-0 grid grid-cols-2 grid-rows-2">
+          {Array.from({ length: 4 }).map((_, i) => (
+            thumbs[i]
+              ? <img key={i} src={thumbs[i]} loading="lazy" className="w-full h-full object-cover" alt="" />
+              : <div key={i} style={{ background: `${accentColor}99` }} />
+          ))}
+        </div>
+        <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
+      </>
+    ) : (
+      <div className="absolute inset-0 flex items-start justify-end p-4"
+        style={{ background: `linear-gradient(135deg, ${accentColor} 0%, ${accentColor}cc 100%)` }}>
+        <span className="text-5xl opacity-90">{emoji}</span>
+      </div>
+    )}
+    <div className="absolute bottom-0 left-0 right-0 p-3 text-right">
+      <p className="text-white font-black text-base leading-tight drop-shadow-sm">{label}</p>
+      <p className="text-white/75 text-xs font-semibold mt-0.5 drop-shadow-sm">{countLabel}</p>
+    </div>
+  </button>
+);
+
 // ── HomeScreen ────────────────────────────────────────────────────────────────
 
 export const HomeScreen = ({
   user, onOpenItinerary, t, onOpenAR, onNavigate, lang = 'en',
+  onOpenSearch, karamPoints = 0, onOpenMenu,
 }: {
   user: User;
   onOpenItinerary: (i: Itinerary) => void;
@@ -194,24 +185,29 @@ export const HomeScreen = ({
   onOpenAR: () => void;
   onNavigate?: (tab: string, id?: string) => void;
   lang?: string;
+  onOpenSearch?: () => void;
+  karamPoints?: number;
+  onOpenMenu?: () => void;
 }) => {
   const isRTL = lang === 'ar';
 
-  const [activeCategory, setActiveCategory] = useState('All');
   const [places, setPlaces] = useState<Place[]>([]);
   const [tours, setTours] = useState<Tour[]>([]);
   const [featuredRentals, setFeaturedRentals] = useState<Rental[]>([]);
   const [communities, setCommunities] = useState<any[]>([]);
-
+  const [events, setEvents] = useState<any[]>([]);
   const [isLoadingPlaces, setIsLoadingPlaces] = useState(true);
   const [isLoadingTours, setIsLoadingTours] = useState(true);
   const [isLoadingRentals, setIsLoadingRentals] = useState(true);
   const [isLoadingCommunities, setIsLoadingCommunities] = useState(true);
-  const [events, setEvents] = useState<any[]>([]);
+  const [errorPlaces, setErrorPlaces] = useState(false);
+  const [errorTours, setErrorTours] = useState(false);
+  const [errorRentals, setErrorRentals] = useState(false);
+  const [errorEvents, setErrorEvents] = useState(false);
 
-  // ── FIX: all 4 calls fire in parallel, none token-gated (public endpoints)
-  useEffect(() => {
-    let cancelled = false;
+  const fetchAllSections = useCallback(() => {
+    setErrorPlaces(false); setErrorTours(false); setErrorRentals(false); setErrorEvents(false);
+    setIsLoadingPlaces(true); setIsLoadingTours(true); setIsLoadingRentals(true); setIsLoadingCommunities(true);
 
     Promise.allSettled([
       placeAPI.getPlaces(),
@@ -220,80 +216,73 @@ export const HomeScreen = ({
       communityAPI.getCommunities(),
       eventAPI.getEvents(),
     ]).then(([placesRes, toursRes, rentalsRes, communitiesRes, eventsRes]) => {
-      if (cancelled) return;
-
-      // Places
       if (placesRes.status === 'fulfilled') {
-        const list = Array.isArray(placesRes.value) ? placesRes.value : [];
-        setPlaces(list.length > 0 ? list : MOCK_PLACES);
-      } else {
-        setPlaces(MOCK_PLACES);
-      }
+        setPlaces(Array.isArray(placesRes.value) ? placesRes.value : []);
+      } else { setPlaces([]); setErrorPlaces(true); }
       setIsLoadingPlaces(false);
 
-      // Tours
       if (toursRes.status === 'fulfilled') {
-        const list = Array.isArray(toursRes.value) ? toursRes.value : [];
-        setTours(list.length > 0 ? list : FALLBACK_TOURS);
-      } else {
-        setTours(FALLBACK_TOURS);
-      }
+        setTours(Array.isArray(toursRes.value) ? toursRes.value : []);
+      } else { setTours([]); setErrorTours(true); }
       setIsLoadingTours(false);
 
-      // Rentals
       if (rentalsRes.status === 'fulfilled') {
-        const list = Array.isArray(rentalsRes.value) ? rentalsRes.value : [];
-        setFeaturedRentals(list.length > 0 ? list.slice(0, 4) : FALLBACK_RENTALS);
-      } else {
-        setFeaturedRentals(FALLBACK_RENTALS);
-      }
+        setFeaturedRentals(Array.isArray(rentalsRes.value) ? rentalsRes.value.slice(0, 4) : []);
+      } else { setFeaturedRentals([]); setErrorRentals(true); }
       setIsLoadingRentals(false);
 
-      // Communities
       if (communitiesRes.status === 'fulfilled') {
-        const list = Array.isArray(communitiesRes.value) ? communitiesRes.value : [];
-        setCommunities(list.length > 0 ? list.slice(0, 6) : FALLBACK_COMMUNITIES);
-      } else {
-        setCommunities(FALLBACK_COMMUNITIES);
-      }
+        setCommunities(Array.isArray(communitiesRes.value) ? communitiesRes.value.slice(0, 6) : []);
+      } else { setCommunities([]); }
       setIsLoadingCommunities(false);
 
-      // Events
       if (eventsRes.status === 'fulfilled') {
-        const list = Array.isArray(eventsRes.value) ? eventsRes.value : [];
-        setEvents(list);
-      }
+        setEvents(Array.isArray(eventsRes.value) ? eventsRes.value : []);
+      } else { setEvents([]); setErrorEvents(true); }
     });
-
-    return () => { cancelled = true; };
   }, []);
 
-  // ── l10n — rebuilt only when lang/t changes
+  useEffect(() => { fetchAllSections(); }, [fetchAllSections]);
+
+  useEffect(() => {
+    const els = document.querySelectorAll<HTMLElement>('.section-reveal');
+    const obs = new IntersectionObserver(
+      (entries) => entries.forEach(e => {
+        if (e.isIntersecting) { e.target.classList.add('is-visible'); obs.unobserve(e.target); }
+      }),
+      { threshold: 0, rootMargin: '0px 0px -24px 0px' }
+    );
+    els.forEach(el => obs.observe(el));
+    return () => obs.disconnect();
+  }, []);
+
+  const [displayPoints, setDisplayPoints] = useState(0);
+  useEffect(() => {
+    if (!karamPoints) return;
+    const duration = 750;
+    const startTime = performance.now();
+    const tick = (now: number) => {
+      const t = Math.min((now - startTime) / duration, 1);
+      const eased = 1 - Math.pow(1 - t, 3);
+      setDisplayPoints(Math.round(eased * karamPoints));
+      if (t < 1) requestAnimationFrame(tick);
+    };
+    const id = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(id);
+  }, [karamPoints]);
+
   const l10n = useMemo(() => ({
     sar: isRTL ? 'ر.س' : 'SAR',
     perNight: isRTL ? '/ ليلة' : '/ night',
     seeAll: (t as any).seeAll || (isRTL ? 'عرض الكل' : 'See all'),
-    noPlaces: isRTL ? 'لا توجد أماكن' : 'No places found',
-    noTours: isRTL ? 'لا توجد جولات' : 'No tours found',
-    tryOther: isRTL ? 'جرب فئة أخرى' : 'Try a different category',
     qaLabel: isRTL ? '✨ إجراءات سريعة' : '✨ Quick Actions',
     sections: {
       popularSpots: (t as any).sectionPopularSpots || (isRTL ? '🌟 أبرز الأماكن' : '🌟 Popular Spots'),
       popularPlaces: (t as any).sectionPopularPlaces || (isRTL ? '📍 أماكن رائجة' : '📍 Popular Places'),
       popularTours: (t as any).sectionPopularTours || (isRTL ? '🧭 جولات مميزة' : '🧭 Popular Tours'),
       events: (t as any).sectionEvents || (isRTL ? '🎉 الفعاليات القادمة' : '🎉 Upcoming Events'),
-      rentals: (t as any).sectionRentals || (isRTL ? '🏕️ إيجارات مميزة' : '🏕️ Popular Rentals'),
+      rentals: (t as any).sectionRentals || (isRTL ? '🏕️ إيجارات مميزة' : '🏕️ Available Stays'),
       communities: (t as any).sectionCommunities || (isRTL ? '👥 مجتمعات نشطة' : '👥 Popular Communities'),
-    },
-    catLabels: {
-      All: (t as any).catAll || (isRTL ? 'الكل' : 'All'),
-      Nature: (t as any).catNature || (isRTL ? 'طبيعة' : 'Nature'),
-      Heritage: (t as any).catHeritage || (isRTL ? 'تراث' : 'Heritage'),
-      Adventure: (t as any).catAdventure || (isRTL ? 'مغامرة' : 'Adventure'),
-      Food: (t as any).catFood || (isRTL ? 'مأكولات' : 'Food'),
-      Urban: (t as any).catUrban || (isRTL ? 'مدني' : 'Urban'),
-      Beach: (t as any).catBeach || (isRTL ? 'شواطئ' : 'Beach'),
-      Desert: (t as any).catDesert || (isRTL ? 'صحراء' : 'Desert'),
     },
   }), [isRTL, t]);
 
@@ -305,6 +294,7 @@ export const HomeScreen = ({
   }, [isRTL, t]);
 
   const cityHero = useMemo(() => getCityHero(user.smartProfile?.city), [user.smartProfile?.city]);
+  const city = user.smartProfile?.city || 'Riyadh';
 
   const membersLabel = useCallback((n: number) =>
     isRTL ? `${n.toLocaleString('ar-SA')} عضو` : `${n.toLocaleString()} members`,
@@ -314,7 +304,6 @@ export const HomeScreen = ({
     Number(n).toLocaleString(isRTL ? 'ar-SA' : 'en-US'),
     [isRTL]);
 
-  // Featured slideshow — interleaved top places + tours + rentals
   const slideshowItems = useMemo((): SlideItem[] => {
     const topPlaces = [...places]
       .sort((a, b) => (b.ratingSummary?.avgRating ?? b.rating ?? 0) - (a.ratingSummary?.avgRating ?? a.rating ?? 0))
@@ -326,7 +315,7 @@ export const HomeScreen = ({
         image: p.photos?.[0] || p.image || '',
         subtitle: p.city || p.categoryTags?.[0] || 'Saudi Arabia',
         rating: p.ratingSummary?.avgRating || p.rating,
-        badge: 'Place', badgeColor: '#0d9488',
+        badge: 'Place', badgeColor: '#1EC99A',
       }));
 
     const topTours = [...tours]
@@ -352,7 +341,7 @@ export const HomeScreen = ({
         image: r.images?.[0] || r.image || '',
         subtitle: r.locationName || r.type || 'Saudi Arabia',
         rating: Number(r.rating) || undefined,
-        badge: r.type || 'Rental', badgeColor: '#d97706',
+        badge: r.type || 'Rental', badgeColor: '#F7C948',
       }));
 
     const result: SlideItem[] = [];
@@ -362,20 +351,9 @@ export const HomeScreen = ({
       if (topTours[i]) result.push(topTours[i]);
       if (topRentals[i]) result.push(topRentals[i]);
     }
+
     return result.filter(s => s.image);
   }, [places, tours, featuredRentals]);
-
-  const filteredPlaces = useMemo(() =>
-    activeCategory === 'All' ? places : places.filter(p =>
-      p.categoryTags?.some(tag => tag.toLowerCase().includes(activeCategory.toLowerCase())) ||
-      p.category?.toLowerCase().includes(activeCategory.toLowerCase())
-    ), [places, activeCategory]);
-
-  const filteredTours = useMemo(() =>
-    activeCategory === 'All' ? tours : tours.filter(tour =>
-      tour.category?.toLowerCase().includes(activeCategory.toLowerCase()) ||
-      tour.title?.toLowerCase().includes(activeCategory.toLowerCase())
-    ), [tours, activeCategory]);
 
   const upcomingEvents = useMemo(() => {
     const now = new Date();
@@ -390,26 +368,32 @@ export const HomeScreen = ({
     {
       icon: Search,
       label: isRTL ? 'استكشاف الخريطة' : 'Explore Map',
-      color: 'bg-blue-50 text-blue-600 border-blue-100 dark:from-blue-600/20 dark:to-blue-900/20 dark:text-blue-400 dark:border-blue-500/20',
+      color: 'bg-blue-50 text-blue-600 border-blue-100 dark:bg-blue-500/15 dark:text-blue-300 dark:border-blue-400/30',
       action: () => onNavigate?.('explore'),
     },
     {
       icon: Sparkles,
       label: isRTL ? 'مخطط الذكاء الاصطناعي' : 'AI Planner',
-      color: 'bg-purple-50 text-purple-600 border-purple-100 dark:from-purple-600/20 dark:to-purple-900/20 dark:text-purple-400 dark:border-purple-500/20',
+      color: 'bg-purple-50 text-purple-600 border-purple-100 dark:bg-purple-500/15 dark:text-purple-300 dark:border-purple-400/30',
       action: () => onNavigate?.('ai_planner'),
     },
     {
       icon: Plus,
       label: isRTL ? 'رحلة جديدة' : 'New Trip',
-      color: 'bg-emerald-50 text-emerald-600 border-emerald-100 dark:from-emerald-600/20 dark:to-emerald-900/20 dark:text-emerald-400 dark:border-emerald-500/20',
+      color: 'bg-emerald-50 text-emerald-600 border-emerald-100 dark:bg-mint/15 dark:text-mint dark:border-mint/30',
       action: () => onNavigate?.('create'),
     },
     {
       icon: Camera,
-      label: isRTL ? 'دليل الواقع المعزز' : 'AR Guide',
-      color: 'bg-orange-50 text-orange-600 border-orange-100 dark:from-orange-600/20 dark:to-orange-900/20 dark:text-orange-400 dark:border-orange-500/20',
+      label: isRTL ? 'دليل الواقع المعزز' : 'Use AR Guide',
+      color: 'bg-orange-50 text-orange-600 border-orange-100 dark:bg-orange-500/15 dark:text-orange-300 dark:border-orange-400/30',
       action: onOpenAR,
+    },
+    {
+      icon: Heart,
+      label: isRTL ? 'مزاجي' : 'Your Mood',
+      color: 'bg-rose-50 text-rose-600 border-rose-100 dark:bg-rose-500/15 dark:text-rose-300 dark:border-rose-400/30',
+      action: () => onNavigate?.('your_mood'),
     },
   ], [isRTL, onNavigate, onOpenAR]);
 
@@ -419,63 +403,203 @@ export const HomeScreen = ({
     else if (item.type === 'rental') onNavigate?.('rentals', item.id);
   }, [onNavigate]);
 
-  const { catLabels, seeAll, sections, sar, perNight, noPlaces, noTours, tryOther, qaLabel } = l10n;
+  const { seeAll, sections, sar, perNight, qaLabel } = l10n;
+
+  const avatarUrl = (user as any).avatar;
+  const userFirstName = user.name?.split(' ')[0] || 'Traveller';
+  const tierLabel = getKaramLevel(karamPoints);
+
+  const smartCounts = useMemo(() => ({
+    open: places.filter(p => isOpenNow(p) === true).length,
+    trending: places.filter(p => p.isTrending).length,
+    family: places.filter(p => p.isFamilySuitable).length,
+  }), [places]);
+
+  const moodState = useMemo(() => {
+    try {
+      const raw = localStorage.getItem('tripo_mood');
+      if (!raw) return { hasMood: false } as const;
+      const parsed = JSON.parse(raw);
+      const today = new Date().toISOString().split('T')[0];
+      if (parsed.date !== today) return { hasMood: false } as const;
+      return { hasMood: true, vibe: parsed.vibe, budget: parsed.budget, hours: parsed.hours } as const;
+    } catch { return { hasMood: false } as const; }
+  }, []);
+
+  const moodStreak = useMemo(() => {
+    try {
+      const raw = localStorage.getItem('tripo_mood_streak_dates');
+      return raw ? (JSON.parse(raw) as string[]).length : 0;
+    } catch { return 0; }
+  }, []);
 
   return (
-    <div className="bg-white dark:bg-slate-950 min-h-full pb-28 transition-colors duration-300" dir={isRTL ? 'rtl' : 'ltr'}>
+    <div className="bg-white dark:bg-navy-950 min-h-full pb-32 transition-colors duration-300" dir={isRTL ? 'rtl' : 'ltr'}>
+
+      {/* ── New Top Header ──────────────────────────────────────────────── */}
+      <div className="relative overflow-hidden bg-white dark:bg-gradient-to-b dark:from-navy-900 dark:to-navy-950 px-4 pt-5 pb-4">
+        {/* Ambient mint bloom — color anchors the header without competing with content */}
+        <span className="pointer-events-none select-none absolute -top-10 -right-10 w-44 h-44 rounded-full bg-emerald-400/[0.06] dark:bg-mint/[0.07] blur-2xl" aria-hidden="true" />
+
+        {/* Brand row */}
+        <div className={`flex items-center justify-between mb-3 ${isRTL ? 'flex-row-reverse' : ''}`}>
+          {/* Hamburger + Notifications */}
+          <div className="flex items-center gap-1">
+            {onOpenMenu && (
+              <button
+                onClick={onOpenMenu}
+                className="lg:hidden p-2 -ml-2 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/10 rounded-full transition-colors"
+                aria-label="Open menu"
+              >
+                <Menu className="w-5 h-5" />
+              </button>
+            )}
+            <NotificationPanel />
+          </div>
+
+          {/* Tripo wordmark */}
+          <div className="flex items-center gap-1.5">
+            <span className="text-xl font-black text-slate-900 dark:text-white tracking-tight">{isRTL ? 'تريبو' : 'Tripo'}</span>
+            <span className="w-2 h-2 rounded-full bg-mint shadow-mint-glow" aria-hidden="true" />
+          </div>
+
+          {/* User pill */}
+          <button
+            onClick={() => onNavigate?.('profile')}
+            className={`flex items-center gap-2 bg-slate-100 dark:bg-white/10 rounded-pill px-2.5 py-1.5 active:scale-95 transition-transform ${isRTL ? 'flex-row-reverse' : ''}`}
+          >
+            <div className="w-7 h-7 rounded-full overflow-hidden bg-emerald-100 dark:bg-mint/20 flex items-center justify-center shrink-0">
+              {avatarUrl ? (
+                <img src={avatarUrl} alt={userFirstName} className="w-full h-full object-cover" />
+              ) : (
+                <span className="text-xs font-black text-emerald-700 dark:text-mint">{userFirstName[0]?.toUpperCase()}</span>
+              )}
+            </div>
+            <div className={`${isRTL ? 'text-right' : 'text-left'}`}>
+              <p className="text-[11px] font-bold text-slate-800 dark:text-white leading-none">{userFirstName}</p>
+              <p className={`text-[9px] font-semibold leading-none mt-0.5 flex items-center gap-0.5 ${
+                karamPoints >= 1000 ? 'text-gold' :
+                karamPoints >= 500  ? 'text-amber-500 dark:text-amber-300' :
+                karamPoints >= 200  ? 'text-orange-500 dark:text-orange-300' :
+                'text-emerald-600 dark:text-mint'
+              }`}>
+                <Star className="w-2.5 h-2.5 fill-gold text-gold" aria-hidden="true" />
+                {tierLabel} · {displayPoints.toLocaleString()}
+              </p>
+            </div>
+          </button>
+        </div>
+
+        {/* Weather / location row */}
+        {/* TODO: wire to a real weather API */}
+        <div className={`flex items-center gap-1.5 mb-4 text-xs text-slate-500 dark:text-ink-secondary ${isRTL ? 'flex-row-reverse' : ''}`}>
+          <MapPin className="w-3.5 h-3.5 text-mint shrink-0" aria-hidden="true" />
+          <span className="font-medium">{translateCity(city, isRTL)}</span>
+          <span className="opacity-50">·</span>
+          <span>
+            {isRTL ? '28°م · مشمس ' : '28°C · Sunny '}
+            <span className="animate-weather-sway inline-block" aria-hidden="true">☀️</span>
+          </span>
+        </div>
+
+        {/* Search bar */}
+        <button
+          onClick={onOpenSearch}
+          className={`w-full flex items-center gap-3 bg-slate-100 hover:bg-slate-200 dark:bg-white/[0.08] dark:border dark:border-white/10 dark:hover:bg-white/[0.13] dark:hover:border-mint/25 rounded-pill px-4 py-3 group active:scale-[0.98] transition-[background-color,border-color,transform] duration-200 ${isRTL ? 'flex-row-reverse' : ''}`}
+          aria-label="Search"
+        >
+          <span className="flex-1 text-start text-sm text-slate-400 dark:text-ink-muted font-medium">
+            {isRTL ? 'إلى أين تريد الذهاب؟' : 'Where do you want to go?'}
+          </span>
+          <div className="w-8 h-8 rounded-full bg-emerald-600 dark:bg-mint flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+            <Search className="w-4 h-4 text-white dark:text-navy-950" aria-hidden="true" />
+          </div>
+        </button>
+      </div>
 
       {/* ── Hero Banner ──────────────────────────────────────────────────── */}
-      <div className="relative h-64 lg:h-80 overflow-hidden">
-        <img
-          src={cityHero.url}
-          alt={cityHero.label}
-          width={1200} height={480}
-          className="w-full h-full object-cover"
-          loading="eager"
-        />
-        <div className="absolute inset-x-0 top-0 h-28 bg-gradient-to-b from-black/75 via-black/30 to-transparent pointer-events-none" />
-        <div className="absolute inset-x-0 bottom-0 h-44 bg-gradient-to-t from-white dark:from-slate-950 via-black/50 to-transparent pointer-events-none" />
+      <div className="px-4 pt-4">
+        <div className="relative h-52 lg:h-64 overflow-hidden rounded-xl-card shadow-glass">
+          <img
+            src={cityHero.url}
+            alt={cityHero.label}
+            width={1200} height={480}
+            className="w-full h-full object-cover"
+            loading="eager"
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-navy-950/90 via-navy-950/30 to-transparent pointer-events-none" />
 
-        <button
-          onClick={onOpenAR}
-          className="absolute top-5 end-4 w-10 h-10 bg-white/15 backdrop-blur-md rounded-full flex items-center justify-center text-white border border-white/25 shadow-lg active:scale-90 transition-transform z-10"
-          aria-label="AR Guide"
-        >
-          <Camera className="w-5 h-5" />
-        </button>
+          <button
+            onClick={onOpenAR}
+            className="absolute top-3 end-3 w-9 h-9 bg-white/15 backdrop-blur-md rounded-full flex items-center justify-center text-white border border-white/25 shadow-lg active:scale-90 transition-transform z-10"
+            aria-label="AR Guide"
+          >
+            <Camera className="w-4 h-4" />
+          </button>
 
-        <div className={`absolute bottom-6 px-5 z-10 w-full ${isRTL ? 'text-right' : 'text-left'}`}>
-          <p className="text-white/70 text-sm font-medium tracking-wide">{greeting},</p>
-          <h1 className="text-white text-2xl font-black tracking-tight drop-shadow-md mt-0.5">
-            {user.name?.split(' ')[0]} 👋
-          </h1>
-          <p className="text-white/60 text-xs mt-1 flex items-center gap-1 font-medium">
-            <MapPin className="w-3 h-3 shrink-0" />
-            {cityHero.label}
-          </p>
+          <div className={`absolute bottom-4 px-4 z-10 w-full ${isRTL ? 'text-right' : 'text-left'}`}>
+            <p className="text-white/70 text-xs font-medium tracking-wide animate-fade-up">{greeting},</p>
+            <h1 className="text-white text-xl font-black tracking-tight drop-shadow-md mt-0.5 animate-fade-up-d1">
+              {userFirstName} 👋
+            </h1>
+            <p className="text-white/60 text-xs mt-1 flex items-center gap-1 font-medium animate-fade-up-d2">
+              <MapPin className="w-3 h-3 shrink-0" />
+              {cityHero.label}
+            </p>
+            <button
+              onClick={() => onNavigate?.('explore')}
+              className="mt-3 px-4 py-2 bg-mint text-navy-950 font-bold text-xs rounded-pill shadow-mint-glow active:scale-95 transition-transform hover:bg-mint-600 animate-fade-up-d3"
+            >
+              {isRTL ? 'عرض وحجز ←' : 'View & Book →'}
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* ── Category Filter Pills ─────────────────────────────────────────── */}
-      <div className="sticky top-0 z-20 bg-white/95 dark:bg-slate-950/95 backdrop-blur-md pt-3 pb-2.5 border-b border-slate-200 dark:border-white/5 shadow-sm transition-colors duration-300">
-        <div className={`flex gap-2 overflow-x-auto no-scrollbar px-4 ${isRTL ? 'flex-row-reverse' : ''}`}>
-          {CATEGORY_KEYS.map(cat => {
-            const Icon = CATEGORY_ICONS[cat] || Compass;
-            return (
-              <button
-                key={cat}
-                onClick={() => setActiveCategory(cat)}
-                className={`flex-shrink-0 flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-bold transition-all ${activeCategory === cat
-                  ? 'bg-emerald-500 text-white shadow-md shadow-emerald-500/30'
-                  : 'bg-slate-100 text-slate-600 border border-slate-200 hover:border-emerald-400 dark:bg-white/8 dark:text-slate-300 dark:border-white/10'
-                  }`}
-              >
-                <Icon className="w-3 h-3 shrink-0" />
-                {catLabels[cat as keyof typeof catLabels] || cat}
-              </button>
-            );
-          })}
-        </div>
+      {/* ── Mood Prompt ──────────────────────────────────────────────────── */}
+      <div className="px-4 pt-4 section-reveal">
+        <button
+          onClick={() => onNavigate?.('your_mood')}
+          className="w-full relative overflow-hidden rounded-xl-card shadow-md bg-gradient-to-br from-rose-500 to-pink-500 p-4 text-white active:scale-[0.98] transition-transform"
+        >
+          <span className="pointer-events-none absolute top-0 left-0 h-full w-1/2 bg-gradient-to-r from-transparent via-white/20 to-transparent shimmer-once" aria-hidden="true" />
+          <div className={`flex items-center gap-3 ${isRTL ? 'flex-row-reverse text-right' : 'text-left'}`}>
+            <div className="w-12 h-12 rounded-2xl bg-white/20 backdrop-blur-sm flex items-center justify-center text-2xl shrink-0">✨</div>
+            <div className="flex-1 min-w-0">
+              {moodState.hasMood ? (
+                <>
+                  <p className="text-white/80 text-[10px] font-bold uppercase tracking-widest">
+                    {isRTL ? 'مزاج اليوم' : "Today's mood"}
+                    {moodStreak >= 2 && (
+                      <span className={`ms-2 bg-white/25 px-1.5 py-0.5 rounded-full inline-block${moodStreak >= 3 ? ' animate-streak-fire' : ''}`}>
+                        🔥 {moodStreak}
+                      </span>
+                    )}
+                  </p>
+                  <p className="font-black text-sm leading-snug truncate mt-0.5">
+                    {isRTL
+                      ? `${({ chill: 'هادئ', active: 'نشيط', cultural: 'ثقافي', social: 'اجتماعي' } as Record<string,string>)[moodState.vibe] ?? moodState.vibe} · ${({ free: 'مجاني', low: 'منخفض', medium: 'متوسط', high: 'مرتفع' } as Record<string,string>)[moodState.budget] ?? moodState.budget} · ${moodState.hours}س`
+                      : `${moodState.vibe} · ${moodState.budget} · ${moodState.hours}h`
+                    }
+                  </p>
+                  <p className="text-white/85 text-xs font-semibold mt-0.5">
+                    {isRTL ? 'تغيير المزاج ←' : 'Change mood →'}
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p className="font-black text-sm leading-snug">
+                    {isRTL ? '✨ ما هو مزاجك اليوم؟' : "What's your vibe today?"}
+                  </p>
+                  <p className="text-white/85 text-xs font-semibold mt-0.5">
+                    {isRTL ? 'احصل على أماكن مخصصة لك ←' : 'Get matched to perfect spots →'}
+                  </p>
+                </>
+              )}
+            </div>
+            <ChevronRight className={`w-5 h-5 text-white/80 shrink-0 ${isRTL ? 'rotate-180' : ''}`} />
+          </div>
+        </button>
       </div>
 
       {/* ── Content ──────────────────────────────────────────────────────── */}
@@ -483,288 +607,151 @@ export const HomeScreen = ({
 
         {/* Popular Spots Slideshow */}
         {slideshowItems.length > 0 && (
-          <section>
+          <section className="section-reveal">
             <SectionHeader title={sections.popularSpots} onSeeAll={() => onNavigate?.('places')} seeAllLabel={seeAll} isRTL={isRTL} />
             <FeaturedSlideshow items={slideshowItems} onPress={handleSlidePress} height="h-72" />
           </section>
         )}
 
-        {/* ── Places ───────────────────────────────────────────────────── */}
-        <section>
-          <SectionHeader
-            title={activeCategory === 'All' ? sections.popularPlaces : `📍 ${catLabels[activeCategory as keyof typeof catLabels] || activeCategory}`}
-            onSeeAll={() => onNavigate?.('places')}
-            seeAllLabel={seeAll}
-            isRTL={isRTL}
-          />
-
-          {isLoadingPlaces ? (
-            <div className="flex gap-3 overflow-x-auto no-scrollbar pb-2">
-              {[1, 2, 3].map(i => <div key={i} className="flex-shrink-0 w-44"><SkeletonCard /></div>)}
-            </div>
-          ) : filteredPlaces.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-12 bg-slate-50 rounded-3xl border border-slate-200 dark:bg-white/5 dark:border-white/10">
-              <MapPin className="w-10 h-10 text-slate-300 mb-2" />
-              <p className="text-slate-400 text-sm font-bold">{noPlaces}</p>
-            </div>
-          ) : (
-            <div className={`flex gap-3 overflow-x-auto no-scrollbar pb-2 ${isRTL ? 'flex-row-reverse' : ''}`}>
-              {filteredPlaces.map(place => {
-                const img = place.photos?.[0] || place.image;
-                const rating = place.ratingSummary?.avgRating || place.rating;
-                const tag = place.categoryTags?.[0] || place.category || place.city;
-                return (
-                  <button
-                    key={place._id || place.id}
-                    onClick={() => onNavigate?.('places', place.id || place._id)}
-                    className="flex-shrink-0 w-44 bg-white border border-slate-100 dark:bg-slate-900 dark:border-white/8 rounded-2xl overflow-hidden shadow-md active:scale-95 transition-transform text-start"
-                  >
-                    <div className="h-28 relative overflow-hidden bg-slate-100 dark:bg-slate-800">
-                      {img
-                        ? <img src={img} alt={place.name} width={176} height={112}
-                          className="w-full h-full object-cover" loading="lazy"
-                          onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
-                        : <ImgPlaceholder icon={Mountain} />
-                      }
-                      {rating && <RatingPill rating={rating} />}
-                      {tag && (
-                        <span className="absolute bottom-2 left-2 bg-black/55 backdrop-blur-sm text-white text-[9px] font-bold px-2 py-0.5 rounded-full z-10">
-                          {tag}
-                        </span>
-                      )}
-                    </div>
-                    <div className="p-3">
-                      <p className="font-bold text-slate-900 dark:text-white text-sm leading-snug line-clamp-2">{place.name}</p>
-                      <p className="text-xs text-slate-400 mt-1 truncate">{place.city || ''}</p>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          )}
+        {/* ── Smart context tiles ──────────────────────────────────────── */}
+        <section className="section-reveal">
+          <SectionHeader title={isRTL ? '⚡ اكتشف الآن' : '⚡ Discover Now'} seeAllLabel={seeAll} isRTL={isRTL} />
+          <div className="grid grid-cols-2 gap-3">
+            {[
+              { id: 'near',     nav: ['discover', 'near']     as const, label: isRTL ? 'بالقرب مني' : 'Near Me',   emoji: '📍', bg: 'linear-gradient(135deg,#3b82f6,#2563eb)', count: isRTL ? 'استكشف القريب' : 'Explore nearby' },
+              { id: 'open',     nav: ['places',   'open_now'] as const, label: isRTL ? 'مفتوح الآن' : 'Open Now',  emoji: '🕒', bg: 'linear-gradient(135deg,#10b981,#059669)', count: isRTL ? `${smartCounts.open} مكان` : `${smartCounts.open} places` },
+              { id: 'trending', nav: ['discover', 'trending'] as const, label: isRTL ? 'رائج اليوم' : 'Trending',  emoji: '🔥', bg: 'linear-gradient(135deg,#ef4444,#dc2626)', count: isRTL ? `${smartCounts.trending} مكان` : `${smartCounts.trending} places` },
+              { id: 'family',   nav: ['discover', 'family']   as const, label: isRTL ? 'عائلي' : 'Family',         emoji: '👨‍👩‍👧', bg: 'linear-gradient(135deg,#8b5cf6,#7c3aed)', count: isRTL ? `${smartCounts.family} مكان` : `${smartCounts.family} places` },
+            ].map(tile => (
+              <button
+                key={tile.id}
+                onClick={() => onNavigate?.(tile.nav[0], tile.nav[1])}
+                className="h-24 rounded-2xl shadow-md active:scale-[0.97] hover:scale-[1.015] hover:shadow-xl hover:brightness-110 transition-[transform,box-shadow,filter] duration-200 overflow-hidden relative flex flex-col justify-between p-3"
+                style={{ background: tile.bg }}
+              >
+                {tile.id === 'open' && (
+                  <span className="absolute top-2.5 right-2.5 flex items-center justify-center z-10" aria-label="Live data" aria-hidden="true">
+                    <span className="absolute w-3 h-3 rounded-full bg-mint/55 animate-ping" />
+                    <span className="relative w-2 h-2 rounded-full bg-mint" />
+                  </span>
+                )}
+                <span className="text-3xl self-end">{tile.emoji}</span>
+                <div className="text-right">
+                  <p className="text-white font-black text-sm leading-tight">{tile.label}</p>
+                  <p className="text-white/70 text-[10px] font-semibold mt-0.5">{tile.count}</p>
+                </div>
+              </button>
+            ))}
+          </div>
         </section>
 
-        {/* ── Popular Tours ─────────────────────────────────────────────── */}
-        <section>
-          <SectionHeader
-            title={activeCategory === 'All' ? sections.popularTours : `🧭 ${catLabels[activeCategory as keyof typeof catLabels] || activeCategory}`}
-            onSeeAll={() => onNavigate?.('tours')}
-            seeAllLabel={seeAll}
-            isRTL={isRTL}
-          />
-
-          {isLoadingTours ? (
-            <SkeletonList count={3} />
-          ) : filteredTours.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-12 bg-slate-50 rounded-3xl border border-dashed border-slate-200 dark:bg-white/5 dark:border-white/10">
-              <Sparkles className="w-10 h-10 text-slate-300 mb-3" />
-              <p className="text-slate-400 font-bold text-sm mb-1">{noTours}</p>
-              <p className="text-slate-500 text-xs">{tryOther}</p>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {filteredTours.map(tour => (
-                <button
-                  key={tour.id || (tour as any)._id}
-                  onClick={() => onNavigate?.('tours', tour.id || (tour as any)._id)}
-                  className="w-full bg-white border border-slate-100 dark:bg-slate-900 dark:border-white/8 rounded-2xl overflow-hidden shadow-md active:scale-[0.99] transition-transform flex text-start"
-                >
-                  <div className="w-28 h-28 flex-shrink-0 relative overflow-hidden bg-slate-100 dark:bg-slate-800">
-                    {tour.heroImage
-                      ? <img src={tour.heroImage} alt={tour.title} width={112} height={112}
-                        className="w-full h-full object-cover" loading="lazy"
-                        onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
-                      : <ImgPlaceholder icon={Compass} />
-                    }
-                    <DifficultyBadge level={tour.difficulty} />
-                  </div>
-
-                  <div className="flex-1 p-3 min-w-0">
-                    <div className={`flex items-start gap-2 mb-1 ${isRTL ? 'flex-row-reverse' : ''}`}>
-                      <h3 className="font-bold text-slate-900 dark:text-white text-sm leading-snug line-clamp-2 flex-1">
-                        {tour.title}
-                      </h3>
-                      {tour.rating && (
-                        <div className={`flex items-center gap-0.5 flex-shrink-0 ${isRTL ? 'flex-row-reverse' : ''}`}>
-                          <Star className="w-3 h-3 fill-amber-400 text-amber-400" />
-                          <span className="text-xs font-bold text-slate-600 dark:text-slate-300">{Number(tour.rating).toFixed(1)}</span>
-                        </div>
-                      )}
-                    </div>
-
-                    <p className="text-xs text-slate-500 mb-2 truncate">{tour.departureLocation}</p>
-
-                    <div className={`flex items-center gap-3 text-xs text-slate-500 ${isRTL ? 'flex-row-reverse' : ''}`}>
-                      <span className="flex items-center gap-1">
-                        <Clock className="w-3 h-3 text-emerald-500" />{tour.totalDuration}h
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <MapPin className="w-3 h-3 text-emerald-500" />{tour.stops?.length ?? 0}
-                      </span>
-                      {tour.pricePerPerson && (
-                        <span className={`font-extrabold text-emerald-600 dark:text-emerald-400 ${isRTL ? 'mr-auto' : 'ml-auto'}`}>
-                          {fmtPrice(tour.pricePerPerson)} <span className="font-normal text-slate-500">{sar}</span>
-                        </span>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="flex items-center px-3">
-                    {isRTL ? <ChevronLeft className="w-4 h-4 text-slate-400" /> : <ChevronRight className="w-4 h-4 text-slate-400" />}
-                  </div>
-                </button>
-              ))}
-            </div>
-          )}
+        {/* ── Section tiles ────────────────────────────────────────────── */}
+        <section className="section-reveal">
+          <SectionHeader title={isRTL ? '🗺️ استكشف' : '🗺️ Browse'} seeAllLabel={seeAll} isRTL={isRTL} />
+          <div className="grid grid-cols-2 gap-3">
+            {isLoadingPlaces ? <Skeleton className="h-40 rounded-2xl" /> : (
+              <SectionTile
+                label={isRTL ? 'أماكن' : 'Places'} emoji="📍" accentColor="#0f172a"
+                countLabel={errorPlaces ? (isRTL ? '↻ إعادة المحاولة' : '↻ Retry') : (isRTL ? `${places.length} مكان` : `${places.length} places`)}
+                thumbs={places.slice(0, 4).map(p => p.photos?.[0] || p.image)}
+                onTap={errorPlaces ? fetchAllSections : () => onNavigate?.('places')}
+              />
+            )}
+            {isLoadingTours ? <Skeleton className="h-40 rounded-2xl" /> : (
+              <SectionTile
+                label={isRTL ? 'جولات' : 'Tours'} emoji="🧭" accentColor="#7c3aed"
+                countLabel={errorTours ? (isRTL ? '↻ إعادة المحاولة' : '↻ Retry') : (isRTL ? `${tours.length} جولة` : `${tours.length} tours`)}
+                thumbs={tours.slice(0, 4).map(t => t.heroImage)}
+                onTap={errorTours ? fetchAllSections : () => onNavigate?.('tours')}
+              />
+            )}
+            <SectionTile
+              label={isRTL ? 'فعاليات' : 'Events'} emoji="🎉" accentColor="#059669"
+              countLabel={errorEvents ? (isRTL ? '↻ إعادة المحاولة' : '↻ Retry') : (isRTL ? `${upcomingEvents.length} فعالية` : `${upcomingEvents.length} events`)}
+              thumbs={upcomingEvents.slice(0, 4).map(e => e.image)}
+              onTap={errorEvents ? fetchAllSections : () => onNavigate?.('events')}
+            />
+            {isLoadingRentals ? <Skeleton className="h-40 rounded-2xl" /> : (
+              <SectionTile
+                label={isRTL ? 'إيجارات' : 'Stays'} emoji="🏕️" accentColor="#1d4ed8"
+                countLabel={errorRentals ? (isRTL ? '↻ إعادة المحاولة' : '↻ Retry') : (isRTL ? `${featuredRentals.length} خيار` : `${featuredRentals.length} stays`)}
+                thumbs={featuredRentals.slice(0, 4).map(r => r.images?.[0] || r.image)}
+                onTap={errorRentals ? fetchAllSections : () => onNavigate?.('rentals')}
+              />
+            )}
+            {isLoadingCommunities ? <Skeleton className="h-40 rounded-2xl col-span-2" /> : (
+              <SectionTile
+                label={isRTL ? 'مجتمعات' : 'Communities'} emoji="👥" accentColor="#6d28d9"
+                countLabel={isRTL ? `${communities.length} مجتمع` : `${communities.length} communities`}
+                thumbs={communities.slice(0, 4).map((c: any) => c.image)}
+                onTap={() => onNavigate?.('communities')}
+                wide
+              />
+            )}
+          </div>
         </section>
 
-        {/* ── Upcoming Events ───────────────────────────────────────────── */}
-        {upcomingEvents.length > 0 && (
-          <section>
-            <SectionHeader title={sections.events} onSeeAll={() => onNavigate?.('events')} seeAllLabel={seeAll} isRTL={isRTL} />
-            <div className={`flex gap-3 overflow-x-auto no-scrollbar pb-2 ${isRTL ? 'flex-row-reverse' : ''}`}>
-              {upcomingEvents.map(event => {
-                const startDate = new Date(event.startDate);
-                return (
-                  <button
-                    key={event.id}
-                    onClick={() => onNavigate?.('events', event.id)}
-                    className="flex-shrink-0 w-56 bg-white border border-slate-100 dark:bg-slate-900 dark:border-white/8 rounded-2xl overflow-hidden shadow-md active:scale-95 transition-transform text-start"
-                  >
-                    <div className="relative h-32 bg-slate-100 dark:bg-slate-800 overflow-hidden">
-                      {event.image
-                        ? <img src={event.image} alt={event.title} width={224} height={128}
-                          className="w-full h-full object-cover" loading="lazy"
-                          onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
-                        : <ImgPlaceholder icon={Calendar} />
-                      }
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent" />
-                      <span
-                        className="absolute top-2.5 left-2.5 text-[10px] font-extrabold px-2.5 py-0.5 rounded-full text-white shadow-md z-10"
-                        style={{ backgroundColor: event.color }}
-                      >
-                        {event.category}
-                      </span>
-                      <div className="absolute top-2.5 right-2.5 bg-white/95 backdrop-blur-sm rounded-xl px-2 py-1 text-center min-w-[40px] z-10 shadow-md">
-                        <p className="text-[9px] font-extrabold text-slate-800 leading-none uppercase tracking-wide">
-                          {startDate.toLocaleDateString('en-US', { month: 'short' })}
-                        </p>
-                        <p className="text-base font-black text-slate-900 leading-tight">{startDate.getDate()}</p>
-                      </div>
-                    </div>
-                    <div className="p-3">
-                      <p className="font-bold text-slate-900 dark:text-white text-sm leading-snug line-clamp-2">{event.title}</p>
-                      <div className={`flex items-center gap-1 mt-1.5 ${isRTL ? 'flex-row-reverse' : ''}`}>
-                        <MapPin className="w-3 h-3 text-slate-400 shrink-0" />
-                        <p className="text-xs text-slate-400 truncate">{event.location}</p>
-                      </div>
-                      <div className={`flex items-center gap-1 mt-1 ${isRTL ? 'flex-row-reverse' : ''}`}>
-                        <Calendar className="w-3 h-3 text-emerald-500 shrink-0" />
-                        <p className="text-xs text-emerald-600 dark:text-emerald-400 font-semibold">
-                          {startDate.toLocaleDateString(isRTL ? 'ar-SA' : 'en-US', { month: 'short', day: 'numeric' })}
-                        </p>
-                      </div>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          </section>
-        )}
-
-        {/* ── Popular Rentals ───────────────────────────────────────────── */}
-        <section>
-          <SectionHeader title={sections.rentals} onSeeAll={() => onNavigate?.('rentals')} seeAllLabel={seeAll} isRTL={isRTL} />
-
-          {isLoadingRentals ? (
-            <div className="flex gap-3 overflow-x-auto no-scrollbar pb-2">
-              {[1, 2, 3, 4].map(i => <div key={i} className="flex-shrink-0 w-48"><SkeletonCard /></div>)}
-            </div>
-          ) : (
-            <div className={`flex gap-3 overflow-x-auto no-scrollbar pb-2 ${isRTL ? 'flex-row-reverse' : ''}`}>
-              {featuredRentals.map(rental => {
-                const img = rental.images?.[0] || rental.image;
-                return (
-                  <button
-                    key={rental.id || (rental as any)._id}
-                    onClick={() => onNavigate?.('rentals', rental.id)}
-                    className="flex-shrink-0 w-48 bg-white border border-slate-100 dark:bg-slate-900 dark:border-white/8 rounded-2xl overflow-hidden shadow-md active:scale-95 transition-transform text-start group"
-                  >
-                    <div className="h-32 relative overflow-hidden bg-slate-100 dark:bg-slate-800">
-                      {img
-                        ? <img src={img} alt={rental.title} width={192} height={128}
-                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" loading="lazy"
-                          onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
-                        : <ImgPlaceholder icon={Tent} />
-                      }
-                      {rental.rating && <RatingPill rating={rental.rating} />}
-                      {rental.type && (
-                        <span className="absolute bottom-2 left-2 bg-black/60 backdrop-blur-sm text-white text-[9px] font-black px-2 py-0.5 rounded-full uppercase z-10">
-                          {rental.type}
-                        </span>
-                      )}
-                    </div>
-                    <div className="p-3">
-                      <p className="font-bold text-slate-900 dark:text-white text-sm line-clamp-2 leading-snug">{rental.title}</p>
-                      <p className={`text-xs text-slate-500 flex items-center gap-1 mt-1 truncate ${isRTL ? 'flex-row-reverse' : ''}`}>
-                        <MapPin className="w-3 h-3 shrink-0" />{rental.locationName}
-                      </p>
-                      {rental.price && (
-                        <p className="mt-2 leading-none">
-                          <span className="text-base font-extrabold text-emerald-600 dark:text-emerald-400">{fmtPrice(rental.price)}</span>
-                          <span className="text-xs font-normal text-slate-500"> {sar} {perNight}</span>
-                        </p>
-                      )}
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          )}
-        </section>
-
-        {/* ── Popular Communities ───────────────────────────────────────── */}
-        <section>
-          <SectionHeader title={sections.communities} onSeeAll={() => onNavigate?.('communities')} seeAllLabel={seeAll} isRTL={isRTL} />
-
-          {isLoadingCommunities ? (
-            <div className="flex gap-3 overflow-x-auto no-scrollbar pb-2">
-              {[1, 2, 3].map(i => <div key={i} className="flex-shrink-0 w-40"><SkeletonCard /></div>)}
-            </div>
-          ) : (
-            <div className={`flex gap-3 overflow-x-auto no-scrollbar pb-2 ${isRTL ? 'flex-row-reverse' : ''}`}>
-              {communities.map(community => (
-                <button
-                  key={community.id || community._id}
-                  onClick={() => onNavigate?.('communities', community.id || community._id)}
-                  className="flex-shrink-0 w-40 bg-white border border-slate-100 dark:bg-slate-900 dark:border-white/8 rounded-2xl overflow-hidden shadow-md active:scale-95 transition-transform text-start group"
-                >
-                  <div className="h-24 bg-slate-100 dark:bg-slate-800 relative overflow-hidden">
-                    {community.image
-                      ? <img src={community.image} alt={community.name} width={160} height={96}
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" loading="lazy"
-                        onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
-                      : <ImgPlaceholder icon={Users} />
-                    }
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
-                    <span className="absolute bottom-2 left-2 text-xl z-10">{community.icon}</span>
-                    <span className="absolute top-2 right-2 bg-black/55 backdrop-blur-sm text-white text-[8px] font-black px-2 py-0.5 rounded-full z-10">
-                      {community.category}
-                    </span>
+        {/* ── Live Near You / Map Preview ───────────────────────────────── */}
+        <section className="section-reveal">
+          <SectionHeader title={isRTL ? '📍 بالقرب منك' : '📍 Live Near You'} onSeeAll={() => onNavigate?.('explore', 'near_me')} seeAllLabel={seeAll} isRTL={isRTL} />
+          <div className="bg-white dark:bg-navy-900/70 border border-slate-200 dark:border-white/10 rounded-xl-card overflow-hidden shadow-md dark:shadow-glass">
+            {/* Map illustration */}
+            <button onClick={() => onNavigate?.('explore', 'near_me')} className="relative h-36 w-full overflow-hidden bg-slate-100 dark:bg-navy-800 block">
+              <img
+                src="https://images.unsplash.com/photo-1524661135-423995f22d0b?w=800&q=80"
+                alt="Map preview"
+                className="w-full h-full object-cover opacity-70 dark:opacity-40"
+                loading="lazy"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-navy-900/80 to-transparent dark:from-navy-900/90" />
+              <div className="absolute inset-0 flex items-center justify-center">
+                <div className="flex flex-col items-center gap-2">
+                  <div className="w-10 h-10 rounded-full bg-mint/20 border-2 border-mint flex items-center justify-center animate-pulse">
+                    <MapPin className="w-5 h-5 text-mint" aria-hidden="true" />
                   </div>
-                  <div className={`p-2.5 ${isRTL ? 'text-right' : 'text-left'}`}>
-                    <p className="font-bold text-slate-900 dark:text-white text-xs leading-snug line-clamp-2">{community.name}</p>
-                    <p className="text-[10px] text-slate-400 mt-1 font-medium">{membersLabel(community.memberCount ?? 0)}</p>
-                  </div>
-                </button>
-              ))}
-            </div>
-          )}
+                  <span className="text-white text-xs font-bold bg-navy-900/70 px-3 py-1 rounded-full backdrop-blur-sm">{translateCity(city, isRTL)}</span>
+                </div>
+              </div>
+            </button>
+
+            {/* Nearby events */}
+            {upcomingEvents.slice(0, 2).map((event, i) => (
+              <button
+                key={event.id}
+                onClick={() => onNavigate?.('events', event.id)}
+                className={`w-full flex items-center gap-3 px-4 py-3 text-start hover:bg-slate-50 dark:hover:bg-white/5 transition-colors ${i === 0 ? 'border-b border-slate-100 dark:border-white/8' : ''}`}
+              >
+                <div className="w-8 h-8 rounded-xl overflow-hidden bg-slate-100 dark:bg-navy-800 shrink-0">
+                  {event.image && <img src={event.image} alt="" className="w-full h-full object-cover" />}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-bold text-slate-900 dark:text-white truncate">{event.title}</p>
+                  <p className="text-xs text-slate-400 dark:text-ink-muted truncate">{event.location}</p>
+                </div>
+                <span className="text-[10px] font-bold text-mint bg-mint/15 px-2 py-0.5 rounded-full shrink-0">
+                  ~2 km
+                </span>
+              </button>
+            ))}
+            {upcomingEvents.length === 0 && (
+              <div className="px-4 py-3 text-center text-xs text-slate-400 dark:text-ink-muted">
+                {isRTL ? 'لا توجد فعاليات قريبة' : 'No nearby events right now'}
+              </div>
+            )}
+
+            <button
+              onClick={() => onNavigate?.('explore', 'near_me')}
+              className="w-full py-3.5 text-sm font-bold text-emerald-600 dark:text-mint flex items-center justify-center gap-2 border-t border-slate-100 dark:border-white/8 hover:bg-slate-50 dark:hover:bg-white/5 transition-colors"
+            >
+              <MapPin className="w-4 h-4" aria-hidden="true" />
+              {isRTL ? 'توسيع الخريطة واستكشاف الفعاليات' : 'Expand Map & Explore Events'}
+            </button>
+          </div>
         </section>
 
         {/* ── Quick Actions ─────────────────────────────────────────────── */}
-        <section>
-          <h2 className={`text-lg font-extrabold text-slate-900 dark:text-slate-200 mb-4 ${isRTL ? 'text-right' : 'text-left'}`}>
+        <section className="section-reveal">
+          <h2 className={`text-lg font-extrabold text-slate-900 dark:text-white mb-4 ${isRTL ? 'text-right' : 'text-left'}`}>
             {qaLabel}
           </h2>
           <div className="grid grid-cols-2 gap-3">
@@ -772,7 +759,7 @@ export const HomeScreen = ({
               <button
                 key={i}
                 onClick={item.action}
-                className={`flex items-center gap-3 p-4 bg-gradient-to-br border rounded-2xl shadow-sm active:scale-95 transition-transform ${item.color} ${isRTL ? 'flex-row-reverse text-right' : 'text-left'}`}
+                className={`flex items-center gap-3 p-4 bg-gradient-to-br border rounded-card shadow-sm active:scale-95 hover:-translate-y-0.5 hover:shadow-md transition-[transform,box-shadow] duration-200 ${item.color} ${isRTL ? 'flex-row-reverse text-right' : 'text-left'}`}
               >
                 <div className="w-10 h-10 rounded-xl bg-black/5 dark:bg-white/10 flex items-center justify-center shrink-0">
                   <item.icon className="w-5 h-5" />

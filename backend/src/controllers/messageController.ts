@@ -49,7 +49,7 @@ export const getMessages = async (req: AuthRequest, res: Response) => {
 
 export const sendMessage = async (req: AuthRequest, res: Response) => {
   try {
-    const { groupTripId, content } = req.body;
+    const { groupTripId, content, type = 'text' } = req.body;
 
     // Verify user is member
     const groupTrip = await GroupTrip.findById(groupTripId);
@@ -69,7 +69,7 @@ export const sendMessage = async (req: AuthRequest, res: Response) => {
       groupTripId,
       senderId: req.user?.userId,
       content,
-      type: 'text'
+      type,
     });
 
     const populatedMessage = await Message.findById(message._id)

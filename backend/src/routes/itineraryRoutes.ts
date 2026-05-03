@@ -1,13 +1,21 @@
 import { Router } from 'express';
-import { createItinerary, getAllItineraries } from '../controllers/itineraryController';
+import {
+  createItinerary,
+  getAllItineraries,
+  getItinerary,
+  updateItinerary,
+  deleteItinerary,
+} from '../controllers/itineraryController';
 import { authMiddleware } from '../middleware/authMiddleware';
 
 const router = Router();
 
-// Apply auth middleware to protect all routes
 router.use(authMiddleware);
 
 router.post('/', createItinerary);
 router.get('/', getAllItineraries);
+router.get('/:id', getItinerary);
+router.patch('/:id', updateItinerary);
+router.delete('/:id', deleteItinerary);
 
 export default router;

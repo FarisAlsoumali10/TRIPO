@@ -4,7 +4,7 @@ import React, {
 import {
   Search, X, MapPin, FileText, Tent, Compass, Clock, TrendingUp,
 } from 'lucide-react';
-import { placeAPI, itineraryAPI, rentalAPI, tourAPI } from '../services/api';
+import { searchAPI } from '../services/api';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface SearchResult {
@@ -23,11 +23,18 @@ const TYPE_TAB: Record<SearchResult['type'], string> = {
   itinerary: 'my_trips',
 };
 
-const TYPE_LABEL: Record<SearchResult['type'], string> = {
+const TYPE_LABEL_EN: Record<SearchResult['type'], string> = {
   place: 'Place',
   tour: 'Tour',
   rental: 'Rental',
   itinerary: 'Trip',
+};
+
+const TYPE_LABEL_AR: Record<SearchResult['type'], string> = {
+  place: 'مكان',
+  tour: 'جولة',
+  rental: 'إيجار',
+  itinerary: 'رحلة',
 };
 
 const TYPE_BADGE: Record<SearchResult['type'], string> = {
@@ -45,14 +52,23 @@ const TYPE_ICON: Record<SearchResult['type'], React.ComponentType<{ className?: 
   itinerary: FileText,
 };
 
-const POPULAR_QUERIES = [
+const POPULAR_QUERIES_EN = [
   { label: 'Edge of the World', tab: 'places' },
   { label: 'Diriyah', tab: 'places' },
   { label: 'Heritage tours', tab: 'tours' },
   { label: 'Beach chalets', tab: 'rentals' },
   { label: 'Desert camps', tab: 'rentals' },
   { label: 'Riyadh hikes', tab: 'tours' },
-] as const;
+];
+
+const POPULAR_QUERIES_AR = [
+  { label: 'حافة العالم', tab: 'places' },
+  { label: 'الدرعية', tab: 'places' },
+  { label: 'جولات تراثية', tab: 'tours' },
+  { label: 'شاليهات بحرية', tab: 'rentals' },
+  { label: 'مخيمات صحراوية', tab: 'rentals' },
+  { label: 'مشي الرياض', tab: 'tours' },
+];
 
 // ── localStorage helpers ───────────────────────────────────────────────────────
 const RECENT_KEY = 'tripo_recent_searches';
@@ -67,100 +83,16 @@ const persistRecent = (searches: string[]): void => {
   catch { /* storage full — ignore */ }
 };
 
-// ── Module-level data cache (singleton — fetched ONCE per session) ─────────────
-// FIX #1 — all searches are synchronous client-side filters against this cache
-interface DataCache {
-  places: any[];
-  tours: any[];
-  rentals: any[];
-  itineraries: any[];
-  loaded: boolean;
-  loading: boolean;
-}
-
-const dataCache: DataCache = {
-  places: [], tours: [], rentals: [], itineraries: [],
-  loaded: false, loading: false,
-};
-
-async function primeCache(): Promise<void> {
-  if (dataCache.loaded || dataCache.loading) return;
-  dataCache.loading = true;
-  // FIX #2 — allSettled: one failing API never breaks the rest
-  const [placesRes, toursRes, rentalsRes, itinerariesRes] = await Promise.allSettled([
-    placeAPI.getPlaces(),
-    tourAPI.getTours(),
-    rentalAPI.getRentals(),
-    itineraryAPI.getItineraries({ limit: 200 }),
-  ]);
-  if (placesRes.status === 'fulfilled') dataCache.places = Array.isArray(placesRes.value) ? placesRes.value : [];
-  if (toursRes.status === 'fulfilled') dataCache.tours = Array.isArray(toursRes.value) ? toursRes.value : [];
-  if (rentalsRes.status === 'fulfilled') dataCache.rentals = Array.isArray(rentalsRes.value) ? rentalsRes.value : [];
-  if (itinerariesRes.status === 'fulfilled') dataCache.itineraries = Array.isArray(itinerariesRes.value) ? itinerariesRes.value : [];
-  dataCache.loaded = true;
-  dataCache.loading = false;
-}
-
-// Pure synchronous search — zero network calls after first load
-function searchCache(lower: string): SearchResult[] {
-  const out: SearchResult[] = [];
-
-  dataCache.places
-    .filter(p =>
-      p.title?.toLowerCase().includes(lower) ||
-      p.name?.toLowerCase().includes(lower) ||
-      p.city?.toLowerCase().includes(lower))
-    .slice(0, 3)
-    .forEach(p => out.push({
-      id: p._id || p.id || '',
-      type: 'place',
-      title: p.title || p.name || '',
-      subtitle: [p.city, p.category].filter(Boolean).join(' · '),
-      image: p.images?.[0] || p.image || p.coverImage,
-    }));
-
-  dataCache.tours
-    .filter(t =>
-      t.title?.toLowerCase().includes(lower) ||
-      t.category?.toLowerCase().includes(lower) ||
-      t.departureLocation?.toLowerCase().includes(lower))
-    .slice(0, 3)
-    .forEach(t => out.push({
-      id: t._id || t.id || '',
-      type: 'tour',
-      title: t.title || '',
-      subtitle: [t.category, t.departureLocation].filter(Boolean).join(' · '),
-      image: t.heroImage || t.image,
-    }));
-
-  dataCache.rentals
-    .filter(r =>
-      r.title?.toLowerCase().includes(lower) ||
-      r.type?.toLowerCase().includes(lower) ||
-      r.locationName?.toLowerCase().includes(lower))
-    .slice(0, 3)
-    .forEach(r => out.push({
-      id: r._id || r.id || '',
-      type: 'rental',
-      title: r.title || '',
-      subtitle: [r.price != null ? `${r.price} SAR` : null, r.type].filter(Boolean).join(' · '),
-      image: r.images?.[0] || r.image,
-    }));
-
-  dataCache.itineraries
-    .filter(i =>
-      i.title?.toLowerCase().includes(lower) ||
-      i.city?.toLowerCase().includes(lower))
-    .slice(0, 3)
-    .forEach(i => out.push({
-      id: i._id || i.id || '',
-      type: 'itinerary',
-      title: i.title || '',
-      subtitle: [i.city, `${i.places?.length ?? i.stops?.length ?? 0} stops`].filter(Boolean).join(' · '),
-      image: i.heroImage || i.image,
-    }));
-
-  return out;
+// Backend-powered search — no client-side cache needed
+async function runSearch(query: string): Promise<SearchResult[]> {
+  const raw = await searchAPI.search(query, undefined, 12);
+  return raw.map(r => ({
+    id: r._id,
+    type: r.resultType as SearchResult['type'],
+    title: r.title,
+    subtitle: r.subtitle,
+    image: r.image,
+  }));
 }
 
 // ── ResultIcon — map-based (FIX #12) ──────────────────────────────────────────
@@ -175,10 +107,12 @@ const ResultIcon = React.memo(({ type }: { type: SearchResult['type'] }) => {
 interface ResultRowProps {
   result: SearchResult;
   onSelect: (r: SearchResult) => void;
+  lang?: 'en' | 'ar';
 }
 
-const ResultRow = React.memo(({ result, onSelect }: ResultRowProps) => {
+const ResultRow = React.memo(({ result, onSelect, lang = 'ar' }: ResultRowProps) => {
   const [imgError, setImgError] = useState(false);
+  const TYPE_LABEL = lang === 'ar' ? TYPE_LABEL_AR : TYPE_LABEL_EN;
 
   return (
     <button
@@ -221,8 +155,12 @@ const ResultRow = React.memo(({ result, onSelect }: ResultRowProps) => {
 // ── GlobalSearch ──────────────────────────────────────────────────────────────
 export const GlobalSearch = ({
   onNavigate,
+  inline = false,
+  lang = 'ar',
 }: {
   onNavigate: (tab: string, id?: string) => void;
+  inline?: boolean;
+  lang?: 'en' | 'ar';
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [query, setQuery] = useState('');
@@ -233,32 +171,33 @@ export const GlobalSearch = ({
   const inputRef = useRef<HTMLInputElement>(null);
   const rafRef = useRef<number>(0);
 
-  // FIX #9 — computed once per render, not 5 separate .trim() calls
   const trimmedQuery = useMemo(() => query.trim(), [query]);
 
   // ── Open / Close ──────────────────────────────────────────────────────────
 
-  // FIX #7 — stable reference: empty deps
   const close = useCallback(() => {
     setIsOpen(false);
     setQuery('');
     setResults([]);
   }, []);
 
-  const open = useCallback(() => {
-    setIsOpen(true);
-    primeCache(); // no-op if already loaded
-  }, []);
+  const open = useCallback(() => { setIsOpen(true); }, []);
 
-  // FIX #11 — prime cache on hover/focus so data is ready before user opens modal
-  const handleTriggerPointerEnter = useCallback(() => { primeCache(); }, []);
+  const handleTriggerPointerEnter = useCallback(() => {}, []);
 
-  // FIX #4 — rAF focus with cleanup (no setTimeout leak)
+  // Auto-focus when used inline (modal already open on mount)
   useEffect(() => {
-    if (!isOpen) return;
+    if (!inline) return;
     rafRef.current = requestAnimationFrame(() => inputRef.current?.focus());
     return () => cancelAnimationFrame(rafRef.current);
-  }, [isOpen]);
+  }, [inline]);
+
+  // Focus when internal modal opens
+  useEffect(() => {
+    if (inline || !isOpen) return;
+    rafRef.current = requestAnimationFrame(() => inputRef.current?.focus());
+    return () => cancelAnimationFrame(rafRef.current);
+  }, [isOpen, inline]);
 
   // FIX #5 — Escape key dismisses modal
   useEffect(() => {
@@ -268,26 +207,21 @@ export const GlobalSearch = ({
     return () => document.removeEventListener('keydown', onKey);
   }, [isOpen, close]);
 
-  // ── Search — instant when cached, debounced only on first load ────────────
+  // ── Search — debounced call to backend ────────────────────────────────────
   useEffect(() => {
-    if (!trimmedQuery) { setResults([]); setIsSearching(false); return; }
+    if (!trimmedQuery || trimmedQuery.length < 2) { setResults([]); setIsSearching(false); return; }
 
-    const lower = trimmedQuery.toLowerCase();
-
-    // FIX #1 + #2 — cache ready: synchronous filter, no spinner, no race condition
-    if (dataCache.loaded) {
-      setResults(searchCache(lower));
-      setIsSearching(false);
-      return;
-    }
-
-    // FIX #3 — no dead outer try/catch; allSettled handles failures internally
     setIsSearching(true);
     const timer = setTimeout(async () => {
-      await primeCache();
-      setResults(searchCache(lower));
-      setIsSearching(false);
-    }, 280);
+      try {
+        const data = await runSearch(trimmedQuery);
+        setResults(data);
+      } catch {
+        setResults([]);
+      } finally {
+        setIsSearching(false);
+      }
+    }, 300);
 
     return () => { clearTimeout(timer); setIsSearching(false); };
   }, [trimmedQuery]);
@@ -322,10 +256,114 @@ export const GlobalSearch = ({
     requestAnimationFrame(() => inputRef.current?.focus());
   }, []);
 
+  const ar = lang === 'ar';
+  const popularQueries = ar ? POPULAR_QUERIES_AR : POPULAR_QUERIES_EN;
+  const placeholder = ar ? 'ابحث عن أماكن، جولات، إيجارات، رحلات…' : 'Search places, tours, rentals, trips…';
+
+  // ── Shared input + results body ───────────────────────────────────────────
+  const searchBody = (
+    <>
+      <div className="flex items-center gap-3 px-4 py-3.5 border-b border-slate-100 dark:border-white/8">
+        <Search className="w-5 h-5 text-slate-400 flex-shrink-0" aria-hidden="true" />
+        <input
+          ref={inputRef}
+          role="combobox"
+          aria-expanded={results.length > 0}
+          aria-autocomplete="list"
+          aria-controls="search-results-list"
+          aria-label={placeholder}
+          value={query}
+          onChange={e => setQuery(e.target.value)}
+          placeholder={placeholder}
+          className="flex-1 outline-none text-slate-800 dark:text-slate-100 font-medium placeholder-slate-400 dark:placeholder-slate-500 text-sm bg-transparent"
+        />
+        {trimmedQuery && (
+          <button
+            onClick={clearQuery}
+            className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors p-0.5 rounded focus:outline-none focus:ring-2 focus:ring-emerald-500"
+            aria-label="Clear search"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        )}
+      </div>
+
+      <div
+        id="search-results-list"
+        className="max-h-[60vh] overflow-y-auto"
+        role="listbox"
+        aria-label="Search results"
+      >
+        {isSearching && (
+          <div className="py-8 flex items-center justify-center gap-2 text-sm text-slate-400 dark:text-slate-500">
+            <div className="w-4 h-4 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" role="status" aria-label="Searching" />
+            {ar ? 'جاري البحث…' : 'Searching…'}
+          </div>
+        )}
+
+        {!isSearching && trimmedQuery && results.length === 0 && (
+          <div className="py-12 text-center">
+            <Search className="w-10 h-10 mx-auto mb-3 text-slate-200 dark:text-slate-700" aria-hidden="true" />
+            <p className="text-slate-500 dark:text-slate-400 font-semibold text-sm">{ar ? `لا نتائج لـ "${query}"` : `No results for "${query}"`}</p>
+            <p className="text-slate-400 dark:text-slate-500 text-xs mt-1">{ar ? 'جرّب اسماً أو كلمة مختلفة' : 'Try a different name or keyword'}</p>
+          </div>
+        )}
+
+        {!isSearching && !trimmedQuery && (
+          <div className="py-4 px-4">
+            {recentSearches.length > 0 && (
+              <div className="mb-5">
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest flex items-center gap-1">
+                    <Clock className="w-3 h-3" aria-hidden="true" /> {ar ? 'الأخيرة' : 'Recent'}
+                  </p>
+                  <button onClick={clearRecent} className="text-[10px] text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors font-bold" aria-label="Clear recent searches">
+                    {ar ? 'مسح' : 'Clear'}
+                  </button>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {recentSearches.map(s => (
+                    <button key={s} onClick={() => handleRecentClick(s)} className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 dark:bg-white/8 hover:bg-slate-200 dark:hover:bg-white/12 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-300 transition-colors active:scale-95">
+                      <Clock className="w-3 h-3 text-slate-400 dark:text-slate-500" aria-hidden="true" />
+                      {s}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+            <div>
+              <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2 flex items-center gap-1">
+                <TrendingUp className="w-3 h-3" aria-hidden="true" /> {ar ? 'الأكثر بحثاً' : 'Popular'}
+              </p>
+              <div className="space-y-1">
+                {popularQueries.map(p => (
+                  <button key={p.label} onClick={() => handlePopularClick(p.label)} className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-slate-50 dark:hover:bg-white/5 rounded-xl transition-colors active:bg-slate-100 dark:active:bg-white/10 text-left">
+                    <TrendingUp className="w-4 h-4 text-emerald-400 flex-shrink-0" aria-hidden="true" />
+                    <span className="text-sm font-medium text-slate-700 dark:text-slate-300">{p.label}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {!isSearching && results.map(r => (
+          <ResultRow key={`${r.type}-${r.id}`} result={r} onSelect={handleSelect} lang={lang} />
+        ))}
+      </div>
+    </>
+  );
+
   // ── Render ────────────────────────────────────────────────────────────────
+
+  // Inline mode: render input+results directly (no trigger, no second modal)
+  if (inline) {
+    return <div role="search" aria-label="Search Tripo">{searchBody}</div>;
+  }
+
+  // Standalone mode: trigger button + own modal
   return (
     <>
-      {/* Trigger — FIX #11: primes cache on hover | FIX #18: aria-haspopup */}
       <button
         onClick={open}
         onPointerEnter={handleTriggerPointerEnter}
@@ -335,15 +373,11 @@ export const GlobalSearch = ({
         aria-haspopup="dialog"
       >
         <Search className="w-4 h-4 flex-shrink-0" aria-hidden="true" />
-        <span>Search places, tours, rentals…</span>
+        <span>{ar ? 'ابحث عن أماكن، جولات، إيجارات…' : 'Search places, tours, rentals…'}</span>
       </button>
 
-      {/* Modal — FIX #16: role="dialog" aria-modal */}
       {isOpen && (
-        <div
-          className="fixed inset-0 z-[300] bg-slate-900/50 backdrop-blur-sm flex flex-col items-center pt-14 px-4"
-          onClick={close}
-        >
+        <div className="fixed inset-0 z-[300] bg-slate-900/50 backdrop-blur-sm flex flex-col items-center pt-14 px-4" onClick={close}>
           <div
             className="bg-white dark:bg-slate-900 w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden border border-slate-100 dark:border-white/8"
             onClick={e => e.stopPropagation()}
@@ -351,115 +385,7 @@ export const GlobalSearch = ({
             aria-modal="true"
             aria-label="Search Tripo"
           >
-            {/* Input — FIX #17: combobox role, aria attrs */}
-            <div className="flex items-center gap-3 px-4 py-3.5 border-b border-slate-100 dark:border-white/8">
-              <Search className="w-5 h-5 text-slate-400 flex-shrink-0" aria-hidden="true" />
-              <input
-                ref={inputRef}
-                role="combobox"
-                aria-expanded={results.length > 0}
-                aria-autocomplete="list"
-                aria-controls="search-results-list"
-                aria-label="Search places, tours, rentals, trips"
-                value={query}
-                onChange={e => setQuery(e.target.value)}
-                placeholder="Search places, tours, rentals, trips…"
-                className="flex-1 outline-none text-slate-800 dark:text-slate-100 font-medium placeholder-slate-400 dark:placeholder-slate-500 text-sm bg-transparent"
-              />
-              <button
-                onClick={trimmedQuery ? clearQuery : close}
-                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors p-0.5 rounded focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                aria-label={trimmedQuery ? 'Clear search' : 'Close search'}
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            {/* Body */}
-            <div
-              id="search-results-list"
-              className="max-h-[60vh] overflow-y-auto"
-              role="listbox"
-              aria-label="Search results"
-            >
-              {/* Spinner */}
-              {isSearching && (
-                <div className="py-8 flex items-center justify-center gap-2 text-sm text-slate-400 dark:text-slate-500">
-                  <div
-                    className="w-4 h-4 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin"
-                    role="status"
-                    aria-label="Searching"
-                  />
-                  Searching…
-                </div>
-              )}
-
-              {/* No results */}
-              {!isSearching && trimmedQuery && results.length === 0 && (
-                <div className="py-12 text-center">
-                  <Search className="w-10 h-10 mx-auto mb-3 text-slate-200 dark:text-slate-700" aria-hidden="true" />
-                  <p className="text-slate-500 dark:text-slate-400 font-semibold text-sm">No results for "{query}"</p>
-                  <p className="text-slate-400 dark:text-slate-500 text-xs mt-1">Try a different name or keyword</p>
-                </div>
-              )}
-
-              {/* Recent + Popular */}
-              {!isSearching && !trimmedQuery && (
-                <div className="py-4 px-4">
-                  {recentSearches.length > 0 && (
-                    <div className="mb-5">
-                      <div className="flex items-center justify-between mb-2">
-                        <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest flex items-center gap-1">
-                          <Clock className="w-3 h-3" aria-hidden="true" /> Recent
-                        </p>
-                        <button
-                          onClick={clearRecent}
-                          className="text-[10px] text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors font-bold"
-                          aria-label="Clear recent searches"
-                        >
-                          Clear
-                        </button>
-                      </div>
-                      <div className="flex flex-wrap gap-2">
-                        {recentSearches.map(s => (
-                          <button
-                            key={s}
-                            onClick={() => handleRecentClick(s)}
-                            className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 dark:bg-white/8 hover:bg-slate-200 dark:hover:bg-white/12 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-300 transition-colors active:scale-95"
-                          >
-                            <Clock className="w-3 h-3 text-slate-400 dark:text-slate-500" aria-hidden="true" />
-                            {s}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  <div>
-                    <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2 flex items-center gap-1">
-                      <TrendingUp className="w-3 h-3" aria-hidden="true" /> Popular
-                    </p>
-                    <div className="space-y-1">
-                      {POPULAR_QUERIES.map(p => (
-                        <button
-                          key={p.label}
-                          onClick={() => handlePopularClick(p.label)}
-                          className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-slate-50 dark:hover:bg-white/5 rounded-xl transition-colors active:bg-slate-100 dark:active:bg-white/10 text-left"
-                        >
-                          <TrendingUp className="w-4 h-4 text-emerald-400 flex-shrink-0" aria-hidden="true" />
-                          <span className="text-sm font-medium text-slate-700 dark:text-slate-300">{p.label}</span>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Results — FIX #10: stable memoized component */}
-              {!isSearching && results.map(r => (
-                <ResultRow key={`${r.type}-${r.id}`} result={r} onSelect={handleSelect} />
-              ))}
-            </div>
+            {searchBody}
           </div>
         </div>
       )}

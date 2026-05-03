@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { TravelPost } from '../models/TravelPost';
+import { Notification } from '../models/Notification';
 import { AuthRequest } from '../types';
 
 /** GET /api/v1/travel-posts?communityId=xxx */
@@ -56,6 +57,15 @@ export const joinTravelPost = async (req: AuthRequest, res: Response) => {
     }
 
     await post.save();
+
+    // Notify post author when someone new joins (skip if author joins their own post)
+    if (!alreadyJoined && post.authorId && post.authorId.toString() !== userId) {
+      const payload = { postId: post._id, placeName: post.placeName, joinerId: userId };
+      await Notification.create({ userId: post.authorId, type: 'new_joiner', payload, read: false });
+      const io = (req as any).app?.get('io');
+      if (io) io.to(`user:${post.authorId.toString()}`).emit('notification', { type: 'new_joiner', payload });
+    }
+
     return res.status(200).json({ success: true, data: post, joined: !alreadyJoined });
   } catch (error) {
     console.error('❌ joinTravelPost error:', error);

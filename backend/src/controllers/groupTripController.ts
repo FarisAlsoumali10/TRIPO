@@ -2,6 +2,7 @@ import { Response } from 'express';
 import { AuthRequest } from '../types';
 import { GroupTrip, Itinerary, Notification, User } from '../models';
 import { Types } from 'mongoose';
+import crypto from 'crypto';
 
 export const createGroupTrip = async (req: AuthRequest, res: Response) => {
   try {
@@ -276,17 +277,20 @@ export const leaveGroupTrip = async (req: AuthRequest, res: Response) => {
 
 export const createPrivateTrip = async (req: AuthRequest, res: Response) => {
   try {
-    const { title, startDate, endDate, inviteIds = [] } = req.body;
+    const { title, startDate, endDate, destination, coverImage } = req.body;
     if (!title) return res.status(400).json({ error: 'Title is required' });
 
-    const memberIds = [req.user?.userId, ...inviteIds].filter(Boolean).map(id => new Types.ObjectId(id as string));
+    const inviteToken = crypto.randomBytes(12).toString('hex');
 
     const groupTrip = await GroupTrip.create({
       organizerId: req.user?.userId,
       title,
+      description: destination,
+      coverImage,
       startDate: startDate ? new Date(startDate) : undefined,
       endDate: endDate ? new Date(endDate) : undefined,
-      memberIds,
+      memberIds: [new Types.ObjectId(req.user?.userId as string)],
+      inviteToken,
       isPrivate: true,
       status: 'planning',
     });
@@ -295,6 +299,43 @@ export const createPrivateTrip = async (req: AuthRequest, res: Response) => {
   } catch (error: any) {
     console.error('❌ Error in createPrivateTrip:', error);
     res.status(500).json({ error: 'Failed to create private trip' });
+  }
+};
+
+export const getInviteLink = async (req: AuthRequest, res: Response) => {
+  try {
+    const trip = await GroupTrip.findById(req.params.groupTripId);
+    if (!trip) return res.status(404).json({ error: 'Trip not found' });
+    if (trip.organizerId.toString() !== req.user?.userId)
+      return res.status(403).json({ error: 'Only the organizer can get the invite link' });
+    res.json({ inviteToken: trip.inviteToken });
+  } catch (error: any) {
+    console.error('❌ Error in getInviteLink:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+};
+
+export const joinByToken = async (req: AuthRequest, res: Response) => {
+  try {
+    const { token } = req.params;
+    const trip = await GroupTrip.findOne({ inviteToken: token });
+    if (!trip) return res.status(404).json({ error: 'Invalid or expired invite link' });
+
+    const userId = new Types.ObjectId(req.user?.userId as string);
+    const alreadyMember = trip.memberIds.some(id => id.equals(userId));
+    if (!alreadyMember) {
+      trip.memberIds.push(userId);
+      await trip.save();
+    }
+
+    const populated = await GroupTrip.findById(trip._id)
+      .populate('organizerId', 'name avatar email')
+      .populate('memberIds', 'name avatar email');
+
+    res.json(populated);
+  } catch (error: any) {
+    console.error('❌ Error in joinByToken:', error);
+    res.status(500).json({ error: 'Server error' });
   }
 };
 

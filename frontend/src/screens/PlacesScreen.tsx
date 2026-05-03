@@ -18,6 +18,10 @@ import { FeaturedSlideshow, SlideItem } from '../components/FeaturedSlideshow';
 
 const CATEGORY_KEYS = ['All', 'Nature', 'Heritage', 'Adventure', 'Food', 'Urban', 'Beach', 'Desert', 'Cultural'];
 const CITY_LIST = ['All', 'Riyadh', 'Jeddah', 'Mecca', 'Medina', 'AlUla', 'Abha', 'Dammam', 'Taif', 'Yanbu'];
+const CITY_LIST_AR: Record<string, string> = {
+  All: 'الكل', Riyadh: 'الرياض', Jeddah: 'جدة', Mecca: 'مكة', Medina: 'المدينة',
+  AlUla: 'العُلا', Abha: 'أبها', Dammam: 'الدمام', Taif: 'الطائف', Yanbu: 'ينبع',
+};
 const DAY_KEYS = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
 
 const PRICE_LEVEL_OPTIONS = [
@@ -42,7 +46,7 @@ const CITY_COORDS: Record<string, [number, number]> = {
   najran: [17.4930, 44.1277], jizan: [16.8892, 42.5611], al_ula: [26.6081, 37.9162],
 };
 
-type QuickFilter = 'budget' | 'trending' | 'highest_rated' | 'near_me' | 'open_now' | null;
+type QuickFilter = 'budget' | 'trending' | 'highest_rated' | 'near_me' | 'open_now' | 'family';
 type ViewMode = 'grid' | 'list' | 'map';
 
 interface Trip { id: string; name: string; placeIds: string[]; }
@@ -136,10 +140,11 @@ function readLocalSet(key: string): Set<string> {
 
 // ── MapView ───────────────────────────────────────────────────────────────────
 
-const MapView = React.memo(({ places, userCoords, onSelectPlace }: {
+const MapView = React.memo(({ places, userCoords, onSelectPlace, ar }: {
   places: Place[];
   userCoords: [number, number] | null;
   onSelectPlace: (p: Place) => void;
+  ar?: boolean;
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
@@ -180,7 +185,7 @@ const MapView = React.memo(({ places, userCoords, onSelectPlace }: {
     userMarkerRef.current?.remove(); // FIX: remove previous before adding new
     userMarkerRef.current = L.circleMarker(userCoords, {
       radius: 8, fillColor: '#3b82f6', color: '#fff', weight: 2, fillOpacity: 1,
-    }).addTo(mapRef.current).bindTooltip('You', { permanent: false });
+    }).addTo(mapRef.current).bindTooltip(ar ? 'أنت' : 'You', { permanent: false });
   }, [userCoords]);
 
   useEffect(() => () => {
@@ -196,7 +201,7 @@ const MapView = React.memo(({ places, userCoords, onSelectPlace }: {
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
           <div className="bg-white/90 backdrop-blur rounded-2xl px-4 py-3 text-center shadow-md">
             <MapPin className="w-8 h-8 text-slate-300 mx-auto mb-1" />
-            <p className="text-xs font-semibold text-slate-500">No map coordinates for these places</p>
+            <p className="text-xs font-semibold text-slate-500">{ar ? 'لا توجد إحداثيات لهذه الأماكن' : 'No map coordinates for these places'}</p>
           </div>
         </div>
       )}
@@ -305,24 +310,28 @@ const AddToTripModal = ({ placeId, placeName, onClose, trips, onTripsChange }: {
 
 // ── Filter Panel ──────────────────────────────────────────────────────────────
 
-const PlaceFilterPanel = ({ open, onClose, filters, onChange }: {
+const PlaceFilterPanel = ({ open, onClose, filters, onChange, categories, onCategoriesChange, lang }: {
   open: boolean; onClose: () => void;
   filters: PlaceFilterState; onChange: (f: PlaceFilterState) => void;
+  categories: Set<string>; onCategoriesChange: (c: Set<string>) => void;
+  lang?: 'en' | 'ar';
 }) => {
+  const ar = lang === 'ar';
   const [local, setLocal] = useState<PlaceFilterState>(filters);
-  useEffect(() => { if (open) setLocal(filters); }, [open, filters]);
+  const [localCats, setLocalCats] = useState<Set<string>>(categories);
+  useEffect(() => { if (open) { setLocal(filters); setLocalCats(new Set(categories)); } }, [open, filters, categories]);
 
-  const activeCount = countActiveFilters(local); // reuse shared helper
+  const activeCount = countActiveFilters(local) + localCats.size;
 
   if (!open) return null;
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center">
+    <div className="fixed inset-0 z-[1000] flex items-end justify-center">
       <div className="absolute inset-0 bg-black/40" onClick={onClose} />
       <div className="relative bg-white w-full max-w-lg rounded-t-3xl shadow-2xl max-h-[80vh] flex flex-col">
         <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-slate-100 flex-shrink-0">
           <div className="flex items-center gap-2">
             <SlidersHorizontal className="w-5 h-5 text-emerald-600" />
-            <h3 className="font-bold text-lg">Filters</h3>
+            <h3 className="font-bold text-lg">{ar ? 'الفلاتر' : 'Filters'}</h3>
             {activeCount > 0 && (
               <span className="bg-emerald-600 text-white text-xs font-bold px-2 py-0.5 rounded-full">{activeCount}</span>
             )}
@@ -333,51 +342,81 @@ const PlaceFilterPanel = ({ open, onClose, filters, onChange }: {
         </div>
 
         <div className="overflow-y-auto flex-1 px-5 py-4 space-y-5">
+          {/* Category multi-select */}
           <div>
-            <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">Price Level</p>
+            <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">{ar ? 'التصنيفات' : 'Categories'}</p>
             <div className="flex gap-2 flex-wrap">
-              {PRICE_LEVEL_OPTIONS.map(({ v, l }) => (
-                <button key={v} onClick={() => setLocal(f => ({ ...f, priceLevel: v }))}
-                  className={`px-3 py-1.5 rounded-full text-xs font-bold border transition-all ${local.priceLevel === v ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white text-slate-600 border-slate-200 hover:border-emerald-400'}`}>
-                  {l}
-                </button>
-              ))}
+              {CATEGORY_KEYS.filter(c => c !== 'All').map(cat => {
+                const catLabelAr: Record<string, string> = {
+                  Nature: 'طبيعة', Heritage: 'تراث', Adventure: 'مغامرة',
+                  Food: 'طعام', Urban: 'حضري', Beach: 'شاطئ', Desert: 'صحراء', Cultural: 'ثقافي',
+                };
+                const on = localCats.has(cat);
+                return (
+                  <button key={cat}
+                    onClick={() => setLocalCats(prev => { const s = new Set(prev); if (s.has(cat)) s.delete(cat); else s.add(cat); return s; })}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold border transition-all active:scale-95 ${on ? 'bg-emerald-600 text-white border-emerald-600 ring-2 ring-emerald-300/40' : 'bg-white text-slate-600 border-slate-200 hover:border-emerald-400'}`}>
+                    {on && '✓ '}{ar ? (catLabelAr[cat] ?? cat) : cat}
+                  </button>
+                );
+              })}
             </div>
           </div>
 
           <div>
-            <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">Best Season to Visit</p>
+            <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">{ar ? 'مستوى السعر' : 'Price Level'}</p>
             <div className="flex gap-2 flex-wrap">
-              {SEASON_OPTIONS.map(({ v, emoji }) => (
-                <button key={v} onClick={() => setLocal(f => ({ ...f, season: v }))}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold border capitalize transition-all ${local.season === v ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white text-slate-600 border-slate-200 hover:border-emerald-400'}`}>
-                  {emoji} {v}
-                </button>
-              ))}
+              {PRICE_LEVEL_OPTIONS.map(({ v, l }) => {
+                const priceLabelAr: Record<string, string> = { Any: 'الكل', Free: 'مجاني', '$ Budget': 'اقتصادي $', '$$ Mid': 'متوسط $$', '$$$ Premium': 'فاخر $$$' };
+                return (
+                  <button key={v} onClick={() => setLocal(f => ({ ...f, priceLevel: v }))}
+                    className={`px-3 py-1.5 rounded-full text-xs font-bold border transition-all ${local.priceLevel === v ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white text-slate-600 border-slate-200 hover:border-emerald-400'}`}>
+                    {ar ? (priceLabelAr[l] ?? l) : l}
+                  </button>
+                );
+              })}
             </div>
           </div>
 
           <div>
-            <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">Accessibility</p>
+            <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">{ar ? 'أفضل موسم للزيارة' : 'Best Season to Visit'}</p>
             <div className="flex gap-2 flex-wrap">
-              {ACCESSIBILITY_OPTIONS.map(({ k, icon, l }) => (
-                <button key={k} onClick={() => setLocal(f => ({ ...f, [k]: !f[k] }))}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold border transition-all ${local[k] ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white text-slate-600 border-slate-200 hover:border-emerald-400'}`}>
-                  {icon} {l}
-                </button>
-              ))}
+              {SEASON_OPTIONS.map(({ v, emoji }) => {
+                const seasonLabelAr: Record<string, string> = { All: 'الكل', spring: 'ربيع', summer: 'صيف', autumn: 'خريف', winter: 'شتاء' };
+                return (
+                  <button key={v} onClick={() => setLocal(f => ({ ...f, season: v }))}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold border capitalize transition-all ${local.season === v ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white text-slate-600 border-slate-200 hover:border-emerald-400'}`}>
+                    {emoji} {ar ? (seasonLabelAr[v] ?? v) : v}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div>
+            <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">{ar ? 'إمكانية الوصول' : 'Accessibility'}</p>
+            <div className="flex gap-2 flex-wrap">
+              {ACCESSIBILITY_OPTIONS.map(({ k, icon, l }) => {
+                const accessLabelAr: Record<string, string> = { Wheelchair: 'كراسي متحركة', Family: 'مناسب للعائلة', Parking: 'موقف سيارات' };
+                return (
+                  <button key={k} onClick={() => setLocal(f => ({ ...f, [k]: !f[k] }))}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold border transition-all ${local[k] ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white text-slate-600 border-slate-200 hover:border-emerald-400'}`}>
+                    {icon} {ar ? (accessLabelAr[l] ?? l) : l}
+                  </button>
+                );
+              })}
             </div>
           </div>
         </div>
 
         <div className="px-5 pb-6 pt-3 border-t border-slate-100 flex gap-3 flex-shrink-0">
-          <button onClick={() => setLocal(DEFAULT_PLACE_FILTER)}
+          <button onClick={() => { setLocal(DEFAULT_PLACE_FILTER); setLocalCats(new Set()); }}
             className="flex-1 py-3 rounded-xl border border-slate-200 text-sm font-bold text-slate-600 hover:bg-slate-50 transition">
-            Reset
+            {ar ? 'إعادة تعيين' : 'Reset'}
           </button>
-          <button onClick={() => { onChange(local); onClose(); }}
+          <button onClick={() => { onChange(local); onCategoriesChange(localCats); onClose(); }}
             className="flex-1 py-3 rounded-xl bg-emerald-600 text-white text-sm font-bold hover:bg-emerald-700 transition">
-            Apply
+            {ar ? 'تطبيق' : 'Apply'}
           </button>
         </div>
       </div>
@@ -387,18 +426,19 @@ const PlaceFilterPanel = ({ open, onClose, filters, onChange }: {
 
 // ── Main screen ───────────────────────────────────────────────────────────────
 
-export const PlacesScreen = ({ t, initialPlaceId, onPlaceOpened }: {
-  t: any; initialPlaceId?: string; onPlaceOpened?: () => void;
+export const PlacesScreen = ({ t, lang, initialPlaceId, onPlaceOpened, initialQuickFilter }: {
+  t: any; lang?: 'en' | 'ar'; initialPlaceId?: string; onPlaceOpened?: () => void; initialQuickFilter?: QuickFilter;
 }) => {
+  const ar = lang === 'ar';
   const [places, setPlaces] = useState<Place[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [hasNetworkError, setHasNetworkError] = useState(false);
   const [selectedPlace, setSelectedPlace] = useState<Place | null>(null);
-  const [category, setCategory] = useState('All');
+  const [categories, setCategories] = useState<Set<string>>(new Set());
   const [cityFilter, setCityFilter] = useState('All');
   const [search, setSearch] = useState('');
   const [searchFocused, setSearchFocused] = useState(false);
-  const [quickFilter, setQuickFilter] = useState<QuickFilter>(null);
+  const [quickFilters, setQuickFilters] = useState<Set<QuickFilter>>(new Set());
   const [userCoords, setUserCoords] = useState<[number, number] | null>(null);
   const [locating, setLocating] = useState(false);
   const [showFilterPanel, setShowFilterPanel] = useState(false);
@@ -406,6 +446,17 @@ export const PlacesScreen = ({ t, initialPlaceId, onPlaceOpened }: {
   const [viewMode, setViewMode] = useState<ViewMode>('grid');
 
   const [savedIds, setSavedIds] = useState<Set<string>>(() => readLocalSet('tripo_saved_places'));
+
+  // Sync saved places from API on mount
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (!token) return;
+    placeAPI.getSavedPlaces().then(ids => {
+      const s = new Set<string>(ids);
+      setSavedIds(s);
+      try { localStorage.setItem('tripo_saved_places', JSON.stringify(ids)); } catch {}
+    }).catch(() => {});
+  }, []);
   const [visitedIds, setVisitedIds] = useState<Set<string>>(() => readLocalSet('tripo_visited_places'));
   const [trips, setTrips] = useState<Trip[]>(() => {
     try { return JSON.parse(localStorage.getItem('tripo_custom_trips') || '[]'); } catch { return []; }
@@ -438,6 +489,10 @@ export const PlacesScreen = ({ t, initialPlaceId, onPlaceOpened }: {
     }
   }, [initialPlaceId, places, onPlaceOpened]);
 
+  useEffect(() => {
+    if (initialQuickFilter) setQuickFilters(new Set([initialQuickFilter]));
+  }, [initialQuickFilter]);
+
   // Re-sync saved state when modal closes
   useEffect(() => {
     if (!selectedPlace) setSavedIds(readLocalSet('tripo_saved_places'));
@@ -451,27 +506,41 @@ export const PlacesScreen = ({ t, initialPlaceId, onPlaceOpened }: {
   }, [recentSearches]);
 
   const handleQuickFilter = useCallback((f: QuickFilter) => {
-    if (f === quickFilter) { setQuickFilter(null); return; }
     if (f === 'near_me') {
+      if (quickFilters.has('near_me')) {
+        setQuickFilters(prev => { const s = new Set(prev); s.delete('near_me'); return s; });
+        return;
+      }
       if (!navigator.geolocation) { showToast('Geolocation not supported by your browser', 'error'); return; }
       setLocating(true);
       navigator.geolocation.getCurrentPosition(
-        pos => { setUserCoords([pos.coords.latitude, pos.coords.longitude]); setQuickFilter('near_me'); setLocating(false); },
+        pos => {
+          setUserCoords([pos.coords.latitude, pos.coords.longitude]);
+          setQuickFilters(prev => new Set([...prev, 'near_me']));
+          setLocating(false);
+        },
         () => { showToast('Could not get your location', 'error'); setLocating(false); }
       );
       return;
     }
-    setQuickFilter(f);
-  }, [quickFilter]);
+    setQuickFilters(prev => {
+      const s = new Set(prev);
+      if (s.has(f)) s.delete(f); else s.add(f);
+      return s;
+    });
+  }, [quickFilters]);
 
-  // FIX: use shared toggleLocalSet utility — replaces duplicate read-parse-save blocks
-  const toggleSaved = useCallback((placeId: string, e: React.MouseEvent) => {
+  const toggleSaved = useCallback(async (placeId: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    try {
-      const isNowSaved = savedIds.has(placeId);
-      setSavedIds(toggleLocalSet('tripo_saved_places', placeId, savedIds));
-      showToast(isNowSaved ? 'Removed from saved' : 'Saved!', 'success');
-    } catch { }
+    const isNowSaved = savedIds.has(placeId);
+    setSavedIds(toggleLocalSet('tripo_saved_places', placeId, savedIds));
+    showToast(isNowSaved ? 'Removed from saved' : 'Saved!', 'success');
+    const token = localStorage.getItem('token');
+    if (token) {
+      try { await placeAPI.toggleSavedPlace(placeId); } catch {
+        setSavedIds(prev => toggleLocalSet('tripo_saved_places', placeId, prev));
+      }
+    }
   }, [savedIds]);
 
   const toggleVisited = useCallback((placeId: string, e: React.MouseEvent) => {
@@ -492,9 +561,11 @@ export const PlacesScreen = ({ t, initialPlaceId, onPlaceOpened }: {
   // FIX: filtered is now memoized — no re-sort/filter on unrelated state changes
   const filtered = useMemo(() => places
     .filter(p => {
-      const matchCat = category === 'All' ||
-        p.categoryTags?.some(tag => tag.toLowerCase().includes(category.toLowerCase())) ||
-        p.category?.toLowerCase().includes(category.toLowerCase());
+      const matchCat = categories.size === 0 ||
+        [...categories].some(cat =>
+          p.categoryTags?.some(tag => tag.toLowerCase().includes(cat.toLowerCase())) ||
+          p.category?.toLowerCase().includes(cat.toLowerCase())
+        );
 
       const matchSearch = !search ||
         p.name?.toLowerCase().includes(search.toLowerCase()) ||
@@ -506,23 +577,31 @@ export const PlacesScreen = ({ t, initialPlaceId, onPlaceOpened }: {
       const matchPrice = placeFilters.priceLevel === 0 || getPriceLevel(p) === placeFilters.priceLevel;
       const matchSeason = placeFilters.season === 'All' || p.bestSeasons?.includes(placeFilters.season as any);
       const matchWheelchair = !placeFilters.wheelchair || p.accessibility?.wheelchair;
-      const matchFamily = !placeFilters.family || p.accessibility?.family;
+      const matchFamily = (!placeFilters.family && !quickFilters.has('family')) || p.accessibility?.family;
       const matchParking = !placeFilters.parking || p.accessibility?.parking;
-      const matchOpenNow = quickFilter !== 'open_now' || isOpenNow(p.openingHours) === true;
+      const matchOpenNow = !quickFilters.has('open_now') || isOpenNow(p.openingHours) === true;
 
       return matchCat && matchSearch && matchCity && matchPrice && matchSeason &&
         matchWheelchair && matchFamily && matchParking && matchOpenNow;
     })
     .sort((a, b) => {
-      if (quickFilter === 'highest_rated') return (b.ratingSummary?.avgRating ?? b.rating ?? 0) - (a.ratingSummary?.avgRating ?? a.rating ?? 0);
-      if (quickFilter === 'trending') return (b.ratingSummary?.reviewCount ?? 0) - (a.ratingSummary?.reviewCount ?? 0);
-      if (quickFilter === 'budget') return (getPriceLevel(a)) - (getPriceLevel(b));
-      if (quickFilter === 'near_me' && userCoords) {
-        return cityDistanceKm(a.city ?? '', userCoords[0], userCoords[1]) -
+      // Priority: near_me > highest_rated > trending > budget
+      if (quickFilters.has('near_me') && userCoords) {
+        const d = cityDistanceKm(a.city ?? '', userCoords[0], userCoords[1]) -
           cityDistanceKm(b.city ?? '', userCoords[0], userCoords[1]);
+        if (d !== 0) return d;
       }
+      if (quickFilters.has('highest_rated')) {
+        const d = (b.ratingSummary?.avgRating ?? b.rating ?? 0) - (a.ratingSummary?.avgRating ?? a.rating ?? 0);
+        if (d !== 0) return d;
+      }
+      if (quickFilters.has('trending')) {
+        const d = (b.ratingSummary?.reviewCount ?? 0) - (a.ratingSummary?.reviewCount ?? 0);
+        if (d !== 0) return d;
+      }
+      if (quickFilters.has('budget')) return getPriceLevel(a) - getPriceLevel(b);
       return 0;
-    }), [places, category, search, cityFilter, placeFilters, quickFilter, userCoords]);
+    }), [places, categories, search, cityFilter, placeFilters, quickFilters, userCoords]);
 
   const suggestions = useMemo(() => {
     if (!search || search.length < 2) return [];
@@ -585,12 +664,49 @@ export const PlacesScreen = ({ t, initialPlaceId, onPlaceOpened }: {
 
   // Dynamic parts of QUICK_FILTERS depend on `t` and `locating`
   const QUICK_FILTERS = useMemo(() => [
-    { id: 'open_now' as QuickFilter, label: t.filterOpenNow || 'Open Now', icon: <span className="w-1.5 h-1.5 bg-current rounded-full animate-pulse" /> },
-    { id: 'budget' as QuickFilter, label: t.filterBudget || 'Budget', icon: <Wallet className="w-3.5 h-3.5" /> },
-    { id: 'trending' as QuickFilter, label: t.filterTrending || 'Trending', icon: <TrendingUp className="w-3.5 h-3.5" /> },
-    { id: 'highest_rated' as QuickFilter, label: t.filterTopRated || 'Top Rated', icon: <Award className="w-3.5 h-3.5" /> },
-    { id: 'near_me' as QuickFilter, label: locating ? (t.filterLocating || 'Locating…') : (t.filterNearMe || 'Near Me'), icon: <Navigation className="w-3.5 h-3.5" /> },
-  ], [t, locating]);
+    {
+      id: 'open_now' as QuickFilter,
+      label: t.filterOpenNow || (ar ? 'مفتوح الآن' : 'Open Now'),
+      icon: <span className="w-2 h-2 bg-current rounded-full animate-pulse" />,
+      inactive: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+      active: 'bg-emerald-500 text-white border-emerald-500 ring-2 ring-emerald-300/50 shadow-sm',
+    },
+    {
+      id: 'family' as QuickFilter,
+      label: t.filterFamily || (ar ? 'عائلي' : 'Family'),
+      icon: <span className="text-sm leading-none">👨‍👩‍👧</span>,
+      inactive: 'bg-violet-50 text-violet-700 border-violet-200',
+      active: 'bg-violet-500 text-white border-violet-500 ring-2 ring-violet-300/50 shadow-sm',
+    },
+    {
+      id: 'trending' as QuickFilter,
+      label: t.filterTrending || (ar ? 'الأكثر رواجاً' : 'Trending'),
+      icon: <TrendingUp className="w-3.5 h-3.5" />,
+      inactive: 'bg-red-50 text-red-600 border-red-200',
+      active: 'bg-red-500 text-white border-red-500 ring-2 ring-red-300/50 shadow-sm',
+    },
+    {
+      id: 'highest_rated' as QuickFilter,
+      label: t.filterTopRated || (ar ? 'الأعلى تقييماً' : 'Top Rated'),
+      icon: <Award className="w-3.5 h-3.5" />,
+      inactive: 'bg-amber-50 text-amber-700 border-amber-200',
+      active: 'bg-amber-500 text-white border-amber-500 ring-2 ring-amber-300/50 shadow-sm',
+    },
+    {
+      id: 'budget' as QuickFilter,
+      label: t.filterBudget || (ar ? 'اقتصادي' : 'Budget'),
+      icon: <Wallet className="w-3.5 h-3.5" />,
+      inactive: 'bg-sky-50 text-sky-700 border-sky-200',
+      active: 'bg-sky-500 text-white border-sky-500 ring-2 ring-sky-300/50 shadow-sm',
+    },
+    {
+      id: 'near_me' as QuickFilter,
+      label: locating ? (t.filterLocating || (ar ? 'جارٍ التحديد…' : 'Locating…')) : (t.filterNearMe || (ar ? 'قريب مني' : 'Near Me')),
+      icon: <Navigation className="w-3.5 h-3.5" />,
+      inactive: 'bg-blue-50 text-blue-700 border-blue-200',
+      active: 'bg-blue-500 text-white border-blue-500 ring-2 ring-blue-300/50 shadow-sm',
+    },
+  ], [t, locating, ar]);
 
   // catLabels memoized so it's not rebuilt inside every render of the pill row
   const catLabels = useMemo<Record<string, string>>(() => ({
@@ -599,7 +715,7 @@ export const PlacesScreen = ({ t, initialPlaceId, onPlaceOpened }: {
     Beach: t.catBeach || 'Beach', Desert: t.catDesert || 'Desert', Cultural: t.catCultural || 'Cultural',
   }), [t]);
 
-  const isFiltering = !!(search || quickFilter || category !== 'All' || cityFilter !== 'All' || activeFilterCount > 0);
+  const isFiltering = !!(search || quickFilters.size > 0 || categories.size > 0 || cityFilter !== 'All' || activeFilterCount > 0);
 
   const handleSurpriseMe = () => {
     if (!filtered.length) return;
@@ -617,11 +733,11 @@ export const PlacesScreen = ({ t, initialPlaceId, onPlaceOpened }: {
       isSaved: savedIds.has(placeId),
       isVisited: visitedIds.has(placeId),
       duration: formatDuration(place.duration),
-      dist: quickFilter === 'near_me' && userCoords
+      dist: quickFilters.has('near_me') && userCoords
         ? formatDistance(cityDistanceKm(place.city || '', userCoords[0], userCoords[1]))
         : null,
     };
-  }, [savedIds, visitedIds, quickFilter, userCoords]);
+  }, [savedIds, visitedIds, quickFilters, userCoords]);
 
   const renderGridCard = (place: Place) => {
     const { placeId, img, rating, openStatus, isSaved, isVisited, duration, dist } = getCardData(place);
@@ -642,7 +758,7 @@ export const PlacesScreen = ({ t, initialPlaceId, onPlaceOpened }: {
           )}
           {openStatus !== null && (
             <div className={`absolute top-2 left-2 text-[9px] font-bold px-1.5 py-0.5 rounded-full ${openStatus ? 'bg-emerald-500 text-white' : 'bg-red-400/90 text-white'}`}>
-              {openStatus ? '● Open' : 'Closed'}
+              {openStatus ? (ar ? '● مفتوح' : '● Open') : (ar ? 'مغلق' : 'Closed')}
             </div>
           )}
           {isVisited && (
@@ -684,7 +800,7 @@ export const PlacesScreen = ({ t, initialPlaceId, onPlaceOpened }: {
               onClick={e => toggleVisited(placeId, e as any)}
               onKeyDown={e => e.key === 'Enter' && toggleVisited(placeId, e as any)}
               className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold transition-all cursor-pointer ${isVisited ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500 hover:bg-emerald-50 hover:text-emerald-600'}`}>
-              <CheckCheck className="w-2.5 h-2.5" />{isVisited ? 'Visited' : 'Mark Visited'}
+              <CheckCheck className="w-2.5 h-2.5" />{isVisited ? (ar ? 'تمت الزيارة' : 'Visited') : (ar ? 'تعليم كمزور' : 'Mark Visited')}
             </div>
             <div role="button" tabIndex={0}
               onClick={e => openAddToTrip(placeId, place.name, e as any)}
@@ -734,7 +850,7 @@ export const PlacesScreen = ({ t, initialPlaceId, onPlaceOpened }: {
             )}
             {openStatus !== null && (
               <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${openStatus ? 'bg-emerald-100 text-emerald-700' : 'bg-red-50 text-red-500'}`}>
-                {openStatus ? 'Open' : 'Closed'}
+                {openStatus ? (ar ? 'مفتوح' : 'Open') : (ar ? 'مغلق' : 'Closed')}
               </span>
             )}
           </div>
@@ -765,8 +881,8 @@ export const PlacesScreen = ({ t, initialPlaceId, onPlaceOpened }: {
 
   return (
     <div className="flex flex-col h-full bg-slate-50">
-      {/* Header */}
-      <div className="bg-white border-b border-slate-200 px-5 pt-5 pb-3">
+      {/* Header — sticky so filters stay reachable while scrolling */}
+      <div className="sticky top-0 z-20 bg-white border-b border-slate-200 px-5 pt-5 pb-3">
         <div className="mb-3 flex items-start justify-between">
           <div>
             <h1 className="text-xl font-bold text-slate-900">{t.placesTitle || 'Places'}</h1>
@@ -776,7 +892,7 @@ export const PlacesScreen = ({ t, initialPlaceId, onPlaceOpened }: {
             {!isLoading && filtered.length > 0 && (
               <button onClick={handleSurpriseMe} title="Surprise Me"
                 className="flex items-center gap-1.5 bg-violet-50 text-violet-600 px-2.5 py-1.5 rounded-xl text-xs font-bold border border-violet-100 hover:bg-violet-100 transition-all">
-                <Shuffle className="w-3.5 h-3.5" /> Surprise
+                <Shuffle className="w-3.5 h-3.5" /> {ar ? 'فاجئني' : 'Surprise'}
               </button>
             )}
             <div className="flex items-center bg-slate-100 rounded-xl p-0.5 gap-0.5">
@@ -848,36 +964,58 @@ export const PlacesScreen = ({ t, initialPlaceId, onPlaceOpened }: {
             )}
           </div>
           <button onClick={() => setShowFilterPanel(true)}
-            className={`relative flex-shrink-0 flex items-center gap-1.5 px-3 py-2.5 rounded-xl border text-sm font-bold transition-all ${activeFilterCount > 0 ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white text-slate-600 border-slate-200 hover:border-emerald-400'}`}>
-            <SlidersHorizontal className="w-4 h-4" />
+            className={`relative flex-shrink-0 flex items-center gap-2 px-4 py-3 rounded-xl border text-sm font-bold transition-all ${activeFilterCount > 0 ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white text-slate-600 border-slate-200 hover:border-emerald-400'}`}>
+            <SlidersHorizontal className="w-5 h-5" />
             {activeFilterCount > 0 && (
-              <span className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-rose-500 text-white text-[9px] font-bold flex items-center justify-center">{activeFilterCount}</span>
+              <span className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-rose-500 text-white text-[10px] font-bold flex items-center justify-center">{activeFilterCount}</span>
             )}
           </button>
         </div>
 
-        {/* Quick filter pills */}
+        {/* Quick filter pills — combinable, tinted by meaning */}
         <div className="relative mb-2">
-          <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
-            {QUICK_FILTERS.map(f => (
-              <button key={f.id} onClick={() => handleQuickFilter(f.id)}
-                className={`flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold border transition-all ${quickFilter === f.id ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm' : 'bg-white text-slate-600 border-slate-200 hover:border-emerald-300 hover:text-emerald-700'}`}>
-                {f.icon}{f.label}
-              </button>
-            ))}
+          <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1.5">
+            {/* All — resets every quick filter */}
+            <button
+              onClick={() => { setQuickFilters(new Set()); setCategories(new Set()); setCityFilter('All'); }}
+              className={`flex-shrink-0 flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-black border transition-all active:scale-95 ${
+                quickFilters.size === 0 && categories.size === 0 && cityFilter === 'All'
+                  ? 'bg-slate-900 text-white border-slate-900 ring-2 ring-slate-400/30 shadow-sm'
+                  : 'bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200'
+              }`}>
+              {ar ? 'الكل' : 'All'}
+            </button>
+            {QUICK_FILTERS.map(f => {
+              const on = quickFilters.has(f.id);
+              return (
+                <button key={f.id} onClick={() => handleQuickFilter(f.id)}
+                  className={`flex-shrink-0 flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-black border transition-all active:scale-95 ${on ? f.active : f.inactive}`}>
+                  {f.icon}{f.label}
+                  {on && <span className="ml-0.5 text-[10px] opacity-80">✓</span>}
+                </button>
+              );
+            })}
           </div>
           <div className="pointer-events-none absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-white to-transparent" />
         </div>
 
-        {/* Category pills */}
+        {/* Category pills — multi-select, secondary weight */}
         <div className="relative mb-2">
           <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
-            {CATEGORY_KEYS.map(cat => (
-              <button key={cat} onClick={() => setCategory(cat)}
-                className={`flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold transition-all ${category === cat ? 'bg-emerald-600 text-white shadow-sm' : 'bg-white text-slate-600 border border-slate-200 hover:border-emerald-300'}`}>
-                {catLabels[cat] || cat}
-              </button>
-            ))}
+            {CATEGORY_KEYS.filter(c => c !== 'All').map(cat => {
+              const on = categories.has(cat);
+              return (
+                <button key={cat}
+                  onClick={() => setCategories(prev => {
+                    const s = new Set(prev);
+                    if (s.has(cat)) s.delete(cat); else s.add(cat);
+                    return s;
+                  })}
+                  className={`flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold border transition-all active:scale-95 ${on ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm ring-2 ring-emerald-300/40' : 'bg-white text-slate-500 border-slate-200 hover:border-slate-300 hover:text-slate-700'}`}>
+                  {on && <span className="mr-1 text-[9px]">✓</span>}{catLabels[cat] || cat}
+                </button>
+              );
+            })}
           </div>
           <div className="pointer-events-none absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-white to-transparent" />
         </div>
@@ -887,8 +1025,8 @@ export const PlacesScreen = ({ t, initialPlaceId, onPlaceOpened }: {
           <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
             {CITY_LIST.map(city => (
               <button key={city} onClick={() => setCityFilter(city)}
-                className={`flex-shrink-0 flex items-center gap-1 px-3 py-1 rounded-full text-[11px] font-semibold transition-all border ${cityFilter === city ? 'bg-teal-600 text-white border-teal-600' : 'bg-white text-slate-500 border-slate-200 hover:border-teal-400 hover:text-teal-600'}`}>
-                {city !== 'All' && <MapPin className="w-2.5 h-2.5" />}{city}
+                className={`flex-shrink-0 flex items-center gap-1 px-3 py-1 rounded-full text-[11px] font-semibold transition-all border active:scale-95 ${cityFilter === city ? 'bg-teal-600 text-white border-teal-600 shadow-sm' : 'bg-white text-slate-500 border-slate-200 hover:border-teal-300 hover:text-teal-600'}`}>
+                {city !== 'All' && <MapPin className="w-2.5 h-2.5" />}{ar ? (CITY_LIST_AR[city] ?? city) : city}
               </button>
             ))}
           </div>
@@ -896,10 +1034,10 @@ export const PlacesScreen = ({ t, initialPlaceId, onPlaceOpened }: {
         </div>
       </div>
 
-      {/* Map view */}
+      {/* Map view — `isolate` keeps Leaflet's internal z-indexes (200-700) local to this stacking context */}
       {viewMode === 'map' && (
-        <div className="flex-1 overflow-hidden">
-          <MapView places={filtered} userCoords={userCoords} onSelectPlace={setSelectedPlace} />
+        <div className="flex-1 overflow-hidden isolate">
+          <MapView places={filtered} userCoords={userCoords} onSelectPlace={setSelectedPlace} ar={ar} />
         </div>
       )}
 
@@ -1030,7 +1168,9 @@ export const PlacesScreen = ({ t, initialPlaceId, onPlaceOpened }: {
       )}
 
       <PlaceFilterPanel open={showFilterPanel} onClose={() => setShowFilterPanel(false)}
-        filters={placeFilters} onChange={setPlaceFilters} />
+        filters={placeFilters} onChange={setPlaceFilters}
+        categories={categories} onCategoriesChange={setCategories}
+        lang={lang} />
 
       {addToTripPlaceId && (
         <AddToTripModal placeId={addToTripPlaceId} placeName={addToTripPlaceName}

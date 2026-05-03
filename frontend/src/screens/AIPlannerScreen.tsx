@@ -307,7 +307,7 @@ const MessageBubble: React.FC<BubbleProps> = ({ msg, isLast, plannerMode, onRate
 
 // ─── Saved Plans View ─────────────────────────────────────────────────────────
 
-const SavedPlansView = ({ onClose, onDelete }: { onClose: () => void; onDelete: (id: string) => void }) => {
+const SavedPlansView = ({ onClose, onDelete, lang = 'ar' }: { onClose: () => void; onDelete: (id: string) => void; lang?: 'en' | 'ar' }) => {
   const [plans, setPlans] = useState<ChatMessage[]>(() => {
     try { return JSON.parse(localStorage.getItem(SAVED_PLANS_KEY) || '[]'); } catch { return []; }
   });
@@ -324,7 +324,7 @@ const SavedPlansView = ({ onClose, onDelete }: { onClose: () => void; onDelete: 
       <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100">
         <div className="flex items-center gap-2">
           <Bookmark className="w-4 h-4 text-amber-500 fill-amber-400" />
-          <span className="font-bold text-slate-800 text-sm">Saved Plans ({plans.length})</span>
+          <span className="font-bold text-slate-800 text-sm">{lang === 'ar' ? `الخطط المحفوظة (${plans.length})` : `Saved Plans (${plans.length})`}</span>
         </div>
         <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400">
           <X className="w-4 h-4" />
@@ -335,8 +335,8 @@ const SavedPlansView = ({ onClose, onDelete }: { onClose: () => void; onDelete: 
         {plans.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-center">
             <Bookmark className="w-10 h-10 text-slate-200 mb-3" />
-            <p className="font-semibold text-slate-500 text-sm">No saved plans yet</p>
-            <p className="text-slate-400 text-xs mt-1">Tap the bookmark icon on any AI response to save it here</p>
+            <p className="font-semibold text-slate-500 text-sm">{lang === 'ar' ? 'لا توجد خطط محفوظة بعد' : 'No saved plans yet'}</p>
+            <p className="text-slate-400 text-xs mt-1">{lang === 'ar' ? 'اضغط أيقونة الحفظ على أي رد لحفظه هنا' : 'Tap the bookmark icon on any AI response to save it here'}</p>
           </div>
         ) : (
           <div className="space-y-4">
@@ -361,7 +361,7 @@ const SavedPlansView = ({ onClose, onDelete }: { onClose: () => void; onDelete: 
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 
-export const AIPlannerScreen: React.FC = () => {
+export const AIPlannerScreen: React.FC<{ user?: any; lang?: 'en' | 'ar' }> = ({ lang = 'ar' }) => {
   const [messages, setMessages] = useState<ChatMessage[]>(() => {
     try { const raw = localStorage.getItem(CHAT_HISTORY_KEY); return raw ? JSON.parse(raw) : []; } catch { return []; }
   });
@@ -383,6 +383,33 @@ export const AIPlannerScreen: React.FC = () => {
   const chatRef = useRef<any>(null);
   const voiceRef = useRef<any>(null);
   const lastUserMsgRef = useRef<string>('');
+
+  const ar = lang === 'ar';
+
+  const localizedModes = ar ? [
+    { id: 'micro' as const,   label: '⚡ سريع',     hint: 'خروجة ٢–٤ ساعات',          color: 'bg-violet-600' },
+    { id: 'budget' as const,  label: '🪙 اقتصادي',  hint: 'أقل من ١٠٠ ريال',            color: 'bg-amber-500' },
+    { id: 'family' as const,  label: '👨‍👩‍👧 عائلي',   hint: 'مناسب للأطفال',             color: 'bg-blue-600' },
+    { id: 'date' as const,    label: '🌙 رومانسي',  hint: 'سهرة رومانسية',              color: 'bg-rose-600' },
+    { id: 'solo' as const,    label: '🎒 منفرد',    hint: 'مغامرة فردية',               color: 'bg-orange-500' },
+    { id: 'weekend' as const, label: '🏕 عطلة',     hint: 'إجازة نهاية الأسبوع',        color: 'bg-teal-600' },
+  ] : PLANNER_MODES;
+
+  const localizedBudgets = ar ? [
+    { id: 'free',   label: 'مجاني' },
+    { id: 'low',    label: '< ٥٠ ريال' },
+    { id: 'medium', label: '٥٠–٢٠٠ ريال' },
+    { id: 'high',   label: '٢٠٠+ ريال' },
+  ] : BUDGETS;
+
+  const localizedSuggestedPrompts: Record<PlannerModeId, string[]> = ar ? {
+    micro:   ['سبت مجاني لشخصين', 'أفضل الأماكن الخارجية هذا الأسبوع', 'خروجة صباحية سريعة في المدينة'],
+    budget:  ['أفضل الأماكن المجانية', 'يوم كامل بأقل من ٥٠ ريال', 'أنشطة عائلية مجانية قريبة'],
+    family:  ['يوم عائلي مع أطفال دون العاشرة', 'أنشطة ترفيهية لعطلة نهاية الأسبوع', 'أنشطة خارجية مناسبة للعائلة'],
+    date:    ['سهرة رومانسية لشخصين', 'أفكار لموعد عند غروب الشمس', 'موعد مميز بأقل من ٢٠٠ ريال'],
+    solo:    ['أفضل يوم منفرد في المدينة', 'أماكن خفية للمستكشف الفردي', 'أين أذهب وحيداً يوم الجمعة؟'],
+    weekend: ['خطة عطلة نهاية الأسبوع الكاملة', 'أفضل أماكن لرحلة يومين', 'الهروب من المدينة للعطلة'],
+  } : SUGGESTED_PROMPTS;
 
   // Clear context reference on changes
   useEffect(() => { /* handled statelessly by passing prompt context */ }, [plannerMode, city, budget]);
@@ -508,8 +535,8 @@ export const AIPlannerScreen: React.FC = () => {
   };
 
   const isEmpty = messages.length === 0;
-  const currentMode = PLANNER_MODES.find(m => m.id === plannerMode) || PLANNER_MODES[0];
-  const currentBudget = BUDGETS.find(b => b.id === budget) || BUDGETS[2];
+  const currentMode = localizedModes.find(m => m.id === plannerMode) || localizedModes[0];
+  const currentBudget = localizedBudgets.find(b => b.id === budget) || localizedBudgets[2];
 
   // Find the last AI message index for regenerate / follow-up chips
   const lastAiIdx = (() => {
@@ -522,7 +549,7 @@ export const AIPlannerScreen: React.FC = () => {
   if (showSaved) {
     return (
       <div className="flex flex-col h-full bg-slate-50">
-        <SavedPlansView onClose={() => setShowSaved(false)} onDelete={handleDeleteSaved} />
+        <SavedPlansView onClose={() => setShowSaved(false)} onDelete={handleDeleteSaved} lang={lang as 'en' | 'ar'} />
       </div>
     );
   }
@@ -537,7 +564,7 @@ export const AIPlannerScreen: React.FC = () => {
             <Sparkles className="w-5 h-5 text-white" />
           </div>
           <div className="flex-1 min-w-0">
-            <h1 className="font-bold text-slate-900 text-base leading-tight">AI Trip Planner</h1>
+            <h1 className="font-bold text-slate-900 text-base leading-tight">{ar ? 'منظم الرحلات الذكي' : 'AI Trip Planner'}</h1>
             <p className="text-xs text-slate-500 truncate">Gemini · {city} · {currentBudget.label}</p>
           </div>
           <div className="flex items-center gap-1">
@@ -565,7 +592,7 @@ export const AIPlannerScreen: React.FC = () => {
 
         {/* Planner mode selector */}
         <div className="flex gap-1.5 overflow-x-auto no-scrollbar px-4 pb-3">
-          {PLANNER_MODES.map(mode => (
+          {localizedModes.map(mode => (
             <button key={mode.id}
               onClick={() => setPlannerMode(mode.id)}
               title={mode.hint}
@@ -587,13 +614,13 @@ export const AIPlannerScreen: React.FC = () => {
               <span className="mx-2 text-slate-300">·</span>
               💰 <span className="font-semibold text-slate-700">{currentBudget.label}</span>
             </span>
-            <span className="text-[10px] text-emerald-600 font-bold">{showContext ? '▲ hide' : '▼ change'}</span>
+            <span className="text-[10px] text-emerald-600 font-bold">{showContext ? (ar ? '▲ إخفاء' : '▲ hide') : (ar ? '▼ تغيير' : '▼ change')}</span>
           </button>
 
           {showContext && (
             <div className="mt-2 p-3 bg-white rounded-xl border border-slate-200 space-y-3">
               <div>
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">City</p>
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">{ar ? 'المدينة' : 'City'}</p>
                 <div className="flex flex-wrap gap-1.5">
                   {CITIES.map(c => (
                     <button key={c} onClick={() => setCity(c)}
@@ -604,9 +631,9 @@ export const AIPlannerScreen: React.FC = () => {
                 </div>
               </div>
               <div>
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Budget</p>
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">{ar ? 'الميزانية' : 'Budget'}</p>
                 <div className="flex flex-wrap gap-1.5">
-                  {BUDGETS.map(b => (
+                  {localizedBudgets.map(b => (
                     <button key={b.id} onClick={() => setBudget(b.id)}
                       className={`px-2.5 py-1 rounded-full text-xs font-semibold border transition-all ${b.id === budget ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white text-slate-600 border-slate-200 hover:border-emerald-400'}`}>
                       {b.label}
@@ -629,14 +656,14 @@ export const AIPlannerScreen: React.FC = () => {
               <div className={`w-16 h-16 ${currentMode.color} rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg transition-colors duration-300`}>
                 <Sparkles className="w-8 h-8 text-white" />
               </div>
-              <h2 className="text-xl font-bold text-slate-800 mb-1">Plan your next escape</h2>
+              <h2 className="text-xl font-bold text-slate-800 mb-1">{ar ? 'خطط لرحلتك القادمة' : 'Plan your next escape'}</h2>
               <p className="text-sm text-slate-500 max-w-xs">
                 {currentMode.hint} · {city} · {currentBudget.label}
               </p>
             </div>
 
             <div className="flex flex-wrap gap-2 justify-center max-w-sm">
-              {SUGGESTED_PROMPTS[plannerMode].map(prompt => (
+              {localizedSuggestedPrompts[plannerMode].map(prompt => (
                 <button key={prompt} onClick={() => sendMessage(prompt)}
                   className="px-4 py-2 bg-white border border-slate-200 rounded-full text-sm text-slate-700 font-medium hover:border-emerald-400 hover:text-emerald-700 hover:bg-emerald-50 transition-all shadow-sm active:scale-95">
                   {prompt}
@@ -649,7 +676,7 @@ export const AIPlannerScreen: React.FC = () => {
         {/* Suggested prompts strip (when conversation is active) */}
         {!isEmpty && (
           <div className="flex flex-wrap gap-1.5 mb-4">
-            {SUGGESTED_PROMPTS[plannerMode].map(p => (
+            {localizedSuggestedPrompts[plannerMode].map(p => (
               <button key={p} onClick={() => sendMessage(p)} disabled={isTyping}
                 className="px-3 py-1.5 bg-white border border-slate-200 rounded-full text-xs text-slate-600 font-medium hover:border-emerald-400 hover:text-emerald-700 hover:bg-emerald-50 transition-all shadow-sm active:scale-95 disabled:opacity-40">
                 {p}
@@ -699,7 +726,7 @@ export const AIPlannerScreen: React.FC = () => {
           value={inputValue}
           onChange={e => setInputValue(e.target.value)}
           onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(inputValue); } }}
-          placeholder="What kind of escape are you planning?"
+          placeholder={ar ? 'ما نوع الخروجة التي تخطط لها؟' : 'What kind of escape are you planning?'}
           disabled={isTyping}
           className="flex-1 bg-slate-100 rounded-full px-4 py-2.5 text-sm text-slate-800 placeholder-slate-400 outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white transition disabled:opacity-50"
         />

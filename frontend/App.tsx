@@ -6,17 +6,18 @@ import {
   Globe, Users, Menu, X, Heart, Shield, Users2, Sparkles, Download,
   Trash2, WifiOff, ChevronDown, ChevronUp, MapPin, Calendar, Star,
   Store, Tent, Compass, Lock, LayoutGrid, Camera, Sun, Moon, Bell,
-  BookOpen,
+  BookOpen, Map as MapIcon, Layers,
 } from 'lucide-react';
 import { User, Itinerary, GroupTrip, PrivateTrip } from './src/types/index';
 import { TRANSLATIONS } from './translations';
-import { authAPI, itineraryAPI, groupTripAPI } from './src/services/api';
+import { authAPI, itineraryAPI, groupTripAPI, walletAPI, paymentAPI } from './src/services/api';
 import { getOfflineItineraries, removeOfflineItinerary } from './src/screens/ItineraryDetailScreen';
 
 // ── Eagerly-loaded screens ──────────────────────────────────────────────────
 import { AuthScreen } from './src/screens/AuthScreen';
 import { HomeScreen } from './src/screens/HomeScreen';
 import { CreateScreen } from './src/screens/CreateScreen';
+import { CreateTourScreen } from './src/screens/CreateTourScreen';
 import { ItineraryDetailScreen } from './src/screens/ItineraryDetailScreen';
 import { GroupTripScreen } from './src/screens/GroupTripScreen';
 import { ExploreScreen } from './src/screens/ExploreScreen';
@@ -26,7 +27,7 @@ import { PrivateTripScreen } from './src/screens/PrivateTripScreen';
 import { WalletScreen } from './src/screens/WalletScreen';
 import { SettingsScreen } from './src/screens/SettingsScreen';
 import { NotificationsScreen } from './src/screens/NotificationsScreen';
-import { BookingHistoryScreen, saveBooking } from './src/screens/BookingHistoryScreen';
+import { BookingHistoryScreen } from './src/screens/BookingHistoryScreen';
 
 // ── Lazily-loaded heavy screens ─────────────────────────────────────────────
 const YourMoodScreen = lazy(() => import('./src/screens/YourMoodScreen').then(m => ({ default: m.YourMoodScreen })));
@@ -38,9 +39,8 @@ const EventsScreen = lazy(() => import('./src/screens/EventsScreen').then(m => (
 const RentalsScreen = lazy(() => import('./src/screens/RentalsScreen').then(m => ({ default: m.RentalsScreen })));
 const ToursScreen = lazy(() => import('./src/screens/ToursScreen').then(m => ({ default: m.ToursScreen })));
 const PlacesScreen = lazy(() => import('./src/screens/PlacesScreen').then(m => ({ default: m.PlacesScreen })));
-const AdminScreen = lazy(() => import('./src/screens/AdminScreen').then(m => ({ default: m.AdminScreen })));
+const DiscoverScreen = lazy(() => import('./src/screens/DiscoverScreen').then(m => ({ default: m.DiscoverScreen })));
 const HostDashboardScreen = lazy(() => import('./src/screens/HostDashboardScreen').then(m => ({ default: m.HostDashboardScreen })));
-const JournalScreen = lazy(() => import('./src/screens/JournalScreen').then(m => ({ default: m.default || m.JournalScreen })));
 const PersonalListsScreen = lazy(() => import('./src/screens/PersonalListsScreen').then(m => ({ default: m.default || m.PersonalListsScreen })));
 
 import { WishListModal } from './src/components/WishListModal';
@@ -50,7 +50,7 @@ import { GlobalSearch } from './src/components/GlobalSearch';
 import { SkeletonCard } from './src/components/ui';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
-// Extend User with fields used across the app — avoids (user as any) casts
+// Extend User with fields used across the app — avoids (user as any) castsfa
 interface AppUser extends User {
   role?: 'admin' | 'user' | 'host';
   avatar?: string;
@@ -156,24 +156,27 @@ class AuthErrorBoundary extends (React.Component as any) {
 }
 
 const AppWrapper = ({ children }: { children: React.ReactNode }) => (
-  <div className="h-[100dvh] w-full bg-slate-50 dark:bg-slate-950 font-sans overflow-hidden transition-colors duration-300">{children}</div>
+  <div className="h-[100dvh] w-full bg-slate-50 dark:bg-navy-950 font-sans overflow-hidden transition-colors duration-300">{children}</div>
 );
 const ModalWrapper = ({ children }: { children: React.ReactNode }) => (
-  <div className="h-[100dvh] w-full max-w-2xl mx-auto bg-white dark:bg-slate-900 shadow-2xl relative overflow-hidden flex flex-col transition-colors duration-300">{children}</div>
+  <div className="h-[100dvh] w-full max-w-2xl mx-auto bg-white dark:bg-navy-900 shadow-2xl relative overflow-hidden flex flex-col transition-colors duration-300">{children}</div>
 );
 
 // ─── Bottom nav — static constant, defined outside component ──────────────────
-const BOTTOM_NAV = [
-  { id: 'home', icon: Home, labelEn: 'Home', labelAr: 'الرئيسية' },
-  { id: 'explore', icon: Search, labelEn: 'Explore', labelAr: 'استكشف' },
-  { id: 'communities', icon: Users, labelEn: 'Community', labelAr: 'المجتمع' },
+const BOTTOM_NAV_LEFT = [
+  { id: 'home', icon: Home, labelEn: 'Explore', labelAr: 'استكشف منطقتك' },
+  { id: 'explore', icon: MapPin, labelEn: 'Destinations', labelAr: 'الوجهات' },
+] as const;
+
+const BOTTOM_NAV_RIGHT = [
+  { id: 'communities', icon: Users, labelEn: 'Find a Community', labelAr: 'ابحث عن مجتمع' },
   { id: 'profile', icon: UserIcon, labelEn: 'Profile', labelAr: 'حسابي' },
 ] as const;
 
 const MORE_TABS = new Set([
-  'places', 'tours', 'my_trips', 'ar', 'your_mood', 'ai_planner',
+  'places', 'tours', 'ar', 'your_mood', 'ai_planner',
   'events', 'rentals', 'wallet', 'notifications', 'booking_history',
-  'settings', 'admin', 'host', 'journal', 'personal_lists',
+  'settings', 'host', 'personal_lists', 'my_trips', 'discover',
 ]);
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -194,7 +197,7 @@ export const App = () => {
   const [user, setUser] = useState<AppUser | null>(null);
 
   // ── UI Toggles ────────────────────────────────────────────────────────────
-  const [lang, setLang] = useState<'en' | 'ar'>('en');
+  const [lang, setLang] = useState<'en' | 'ar'>(() => (localStorage.getItem('tripo_lang') as 'en' | 'ar') || 'ar');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [showMobileSearch, setShowMobileSearch] = useState(false);
   const [showWishLists, setShowWishLists] = useState(false);
@@ -215,6 +218,8 @@ export const App = () => {
   // Reset error when URL changes
   useEffect(() => { setAvatarImgError(false); }, [editProfileAvatar]);
 
+  const [tourPublished, setTourPublished] = useState(() => localStorage.getItem('tripo_has_published_tour') === '1');
+
   // ── Trip State ────────────────────────────────────────────────────────────
   const [selectedItinerary, setSelectedItinerary] = useState<Itinerary | null>(null);
   const [activeTrip, setActiveTrip] = useState<GroupTrip | null>(null);
@@ -225,11 +230,17 @@ export const App = () => {
   const [profileItineraryCount, setProfileItineraryCount] = useState<number | null>(null);
   const [offlineTrips, setOfflineTrips] = useState<Itinerary[]>(() => getOfflineItineraries());
 
-  // ── Karam Points ──────────────────────────────────────────────────────────
-  const [karamPoints, setKaramPoints] = useState<number>(() => parseInt(localStorage.getItem(KARAM_POINTS_KEY) || '0', 10));
+  // ── Karam Points (seeded from backend after login) ────────────────────────
+  const [karamPoints, setKaramPoints] = useState<number>(
+    () => parseInt(localStorage.getItem(KARAM_POINTS_KEY) || '0', 10)
+  );
   const [karamHistory, setKaramHistory] = useState<{ id: string; action: string; points: number; label: string; timestamp: number }[]>(
     () => parseLocalJSON(KARAM_HISTORY_KEY, [])
   );
+
+  // ── Payment result (provider redirect back) ──────────────────────────────
+  const [paymentResult, setPaymentResult] = useState<'success' | 'cancelled' | null>(null);
+  const [paymentBooking, setPaymentBooking] = useState<any>(null);
 
   // ── Deep-link pending navigation ──────────────────────────────────────────
   const [pendingDeepLink, setPendingDeepLink] = useState<{ tab: string; id: string } | null>(null);
@@ -242,15 +253,15 @@ export const App = () => {
   // ── Derived (memoized) ────────────────────────────────────────────────────
   const t = TRANSLATIONS[lang];
   const isRTL = lang === 'ar';
-  const isAdmin = useMemo(() => user?.role === 'admin', [user?.role]);
   const tier = useMemo(() => getContributionTier(userReviewCount, t), [userReviewCount, t]);
 
-  const hasClaimedPlaces = useMemo(() => {
+  const hasHostingActivity = useMemo(() => {
     try {
       const claimed = JSON.parse(localStorage.getItem('tripo_claimed_places') || '[]');
-      return Array.isArray(claimed) && claimed.length > 0;
+      const listed  = localStorage.getItem('tripo_has_listed_rental') === '1';
+      return (Array.isArray(claimed) && claimed.length > 0) || listed || tourPublished;
     } catch { return false; }
-  }, [user?.id]);
+  }, [user?.id, tourPublished]);
 
   // ── Stable helpers ────────────────────────────────────────────────────────
 
@@ -269,13 +280,26 @@ export const App = () => {
     } catch (e) { console.warn('Failed to restore active group trip:', e); }
   }, []);
 
-  const toggleLanguage = useCallback(() => setLang(prev => prev === 'en' ? 'ar' : 'en'), []);
+  const toggleLanguage = useCallback(() => setLang(prev => {
+    const next = prev === 'en' ? 'ar' : 'en';
+    localStorage.setItem('tripo_lang', next);
+    return next;
+  }), []);
   const toggleDark = useCallback(() => setIsDark(d => !d), []);
+
+  const [exploreNearMe, setExploreNearMe] = useState(false);
+  const [discoverMode, setDiscoverMode] = useState<'trending' | 'near' | 'family'>('trending');
 
   // FIX #5 — shared navigate handler uses switchTab (saves scroll) not setActiveTab
   const navigate = useCallback((tab: string, id?: string) => {
     switchTab(tab);
-    if (id) setPendingDeepLink({ tab, id });
+    if (tab === 'explore' && id === 'near_me') {
+      setExploreNearMe(true);
+    } else if (tab === 'discover' && id) {
+      setDiscoverMode(id as 'trending' | 'near' | 'family');
+    } else if (id) {
+      setPendingDeepLink({ tab, id });
+    }
   }, [switchTab]);
 
   // ── Side-effects ──────────────────────────────────────────────────────────
@@ -302,6 +326,31 @@ export const App = () => {
     const handler = () => { setUser(null); setView('auth'); };
     window.addEventListener('auth:unauthorized', handler);
     return () => window.removeEventListener('auth:unauthorized', handler);
+  }, []);
+
+  // Cross-screen CTA navigation events
+  useEffect(() => {
+    const handler = (e: Event) => switchTab((e as CustomEvent).detail);
+    window.addEventListener('tripo:navigate', handler);
+    return () => window.removeEventListener('tripo:navigate', handler);
+  }, [switchTab]);
+
+  // Detect payment provider redirect back to /payment-success or /payment-cancelled
+  useEffect(() => {
+    const path = window.location.pathname;
+    const sessionId = new URLSearchParams(window.location.search).get('session_id');
+    if (path === '/payment-success') {
+      setPaymentResult('success');
+      window.history.replaceState({}, '', '/');
+      if (sessionId) {
+        paymentAPI.verifySession(sessionId)
+          .then(r => { if (r.paid && r.booking) setPaymentBooking(r.booking); })
+          .catch(() => {});
+      }
+    } else if (path === '/payment-cancelled') {
+      setPaymentResult('cancelled');
+      window.history.replaceState({}, '', '/');
+    }
   }, []);
 
   // FIX #1 — auto-login: set flag so fetchProfileData skips the redundant getMe()
@@ -380,6 +429,18 @@ export const App = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
 
+  // Sync wallet from backend on login
+  useEffect(() => {
+    if (!user?.id) return;
+    walletAPI.getMine().then((wallet) => {
+      setKaramPoints(wallet.tripoPoints);
+      setKaramHistory(wallet.history);
+      localStorage.setItem(KARAM_POINTS_KEY, String(wallet.tripoPoints));
+      localStorage.setItem(KARAM_HISTORY_KEY, JSON.stringify(wallet.history));
+    }).catch(() => { /* fall back to localStorage values already loaded */ });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]);
+
   // Daily Karam bonus
   useEffect(() => {
     if (!user?.id) return;
@@ -427,6 +488,7 @@ export const App = () => {
 
   const handleLogout = useCallback(() => {
     localStorage.removeItem('token');
+    localStorage.removeItem('refreshToken');
     localStorage.removeItem('user');
     localStorage.removeItem(ACTIVE_TRIP_KEY);
     setUser(null);
@@ -447,6 +509,9 @@ export const App = () => {
       localStorage.setItem(KARAM_HISTORY_KEY, JSON.stringify(next));
       return next;
     });
+    walletAPI.award({ action, points, label }).then((res) => {
+      setKaramPoints(res.tripoPoints);
+    }).catch(() => { /* localStorage fallback already applied */ });
   }, []);
 
   // ── Trip handlers ─────────────────────────────────────────────────────────
@@ -509,22 +574,6 @@ export const App = () => {
 
   // FIX #9 — booking complete handler extracted to useCallback
   const handleBookingComplete = useCallback((itinerary: Itinerary, groupTrip: any) => {
-    saveBooking({
-      id: (groupTrip._id || groupTrip.id || Date.now().toString()),
-      tourId: itinerary._id || itinerary.id || '',
-      tourTitle: itinerary.title,
-      // استخدمنا (as any) للخصائص غير الموجودة صراحة في نوع Itinerary
-      tourImage: (itinerary as any).heroImage || (itinerary as any).image || '',
-      guideName: (itinerary as any).guideName || 'مرشد تريبو',
-      date: new Date().toISOString().split('T')[0],
-      guests: groupTrip.guests || 1,
-      totalPrice: itinerary.estimatedCost || 0,
-      currency: 'SAR',
-      status: 'confirmed',
-      departureLocation: itinerary.city || (itinerary as any).departureLocation || 'الرياض',
-      duration: Math.round((itinerary.estimatedDuration || 0) / 60) || 4,
-      bookedAt: Date.now(),
-    });
     const trip: GroupTrip = {
       id: groupTrip._id || groupTrip.id || Date.now().toString(),
       backendId: groupTrip._id || groupTrip.id,
@@ -566,46 +615,43 @@ export const App = () => {
 
   // ── Sidebar nav items (memoized) ──────────────────────────────────────────
   const sidebarNavItems = useMemo(() => [
-    { id: 'home', icon: Home, label: t.tabHome },
-    { id: 'explore', icon: Search, label: t.tabExplore },
-    { id: 'places', icon: MapPin, label: (t as any).tabPlaces || 'Places' },
-    { id: 'tours', icon: Compass, label: (t as any).tabTours || 'Tours' },
+    { id: 'home', icon: Home, label: (t as any).sidebarExploreArea || 'Explore Your Area' },
+    { id: 'explore', icon: MapPin, label: (t as any).sidebarDestinations || 'Destinations' },
+    { id: 'places', icon: Layers, label: (t as any).sidebarDiscoverPlaces || 'Discover New Places' },
+    { id: 'tours', icon: Compass, label: (t as any).sidebarBookTour || 'Book Your Tour' },
     { id: 'my_trips', icon: Lock, label: (t as any).tabMyTrips || 'My Private Trips' },
-    { id: 'journal', icon: BookOpen, label: isRTL ? 'مذكراتي' : 'Journal' },
-    { id: 'personal_lists', icon: LayoutGrid, label: isRTL ? 'قوائمي' : 'My Lists' },
-    { id: 'create', icon: Plus, label: (t as any).tabCreate || 'New Trip' },
-    { id: 'communities', icon: Users, label: t.tabCommunities },
+    { id: 'personal_lists', icon: LayoutGrid, label: (t as any).sidebarMyLists || 'My Lists' },
+    { id: 'create', icon: Plus, label: (t as any).sidebarAddTour || 'Add a New Tour' },
+    { id: 'communities', icon: Users, label: (t as any).sidebarFindCommunity || 'Find a Community' },
     { id: 'your_mood', icon: Heart, label: (t as any).tabYourMood || 'Your Mood' },
-    { id: 'ar', icon: Camera, label: (t as any).tabAR || 'AR Guide' },
+    { id: 'ar', icon: Camera, label: (t as any).sidebarARGuide || 'Use AR Guide' },
     { id: 'ai_planner', icon: Sparkles, label: `✨ ${(t as any).tabAIPlanner || 'AI Planner'}` },
-    { id: 'events', icon: Calendar, label: (t as any).tabEvents || 'Events' },
-    { id: 'rentals', icon: Tent, label: (t as any).tabRentals || 'Rentals' },
+    { id: 'events', icon: Calendar, label: (t as any).sidebarCheckEvents || 'Check Events Happening' },
+    { id: 'rentals', icon: Tent, label: (t as any).sidebarReservePlace || 'Reserve a Place' },
     { id: 'profile', icon: UserIcon, label: t.tabProfile },
-    { id: 'wallet', icon: Star, label: (t as any).tabWallet || (isRTL ? 'محفظتي' : 'Wallet') },
-    { id: 'notifications', icon: Bell, label: (t as any).tabNotifs || (isRTL ? 'الإشعارات' : 'Notifications') },
-    { id: 'booking_history', icon: BookOpen, label: (t as any).tabBookings || (isRTL ? 'حجوزاتي' : 'Bookings') },
+    { id: 'wallet', icon: Star, label: (t as any).tabWallet || 'Wallet' },
+    { id: 'notifications', icon: Bell, label: (t as any).tabNotifs || 'Notifications' },
+    { id: 'booking_history', icon: BookOpen, label: (t as any).tabBookings || 'My Bookings' },
     { id: 'settings', icon: Settings, label: t.settings },
-    ...(isAdmin ? [{ id: 'admin', icon: Shield, label: (t as any).tabAdmin || 'Admin' }] : []),
-    ...(hasClaimedPlaces ? [{ id: 'host', icon: Store, label: (t as any).tabHost || 'Host Dashboard' }] : []),
-  ], [t, isRTL, isAdmin, hasClaimedPlaces]);
+    ...(hasHostingActivity ? [{ id: 'host', icon: Store, label: (t as any).tabHost || 'Host Dashboard' }] : []),
+  ], [t, hasHostingActivity]);
 
   // ── More sheet items (memoized) ───────────────────────────────────────────
   const moreSheetItems = useMemo(() => [
-    { id: 'places', icon: MapPin, label: (t as any).tabPlaces || 'Places', lightColor: 'bg-slate-100 text-slate-600', darkColor: 'bg-slate-800 text-slate-300' },
-    { id: 'tours', icon: Compass, label: (t as any).tabTours || 'Tours', lightColor: 'bg-teal-50 text-teal-600', darkColor: 'bg-teal-900/50 text-teal-400' },
-    { id: 'my_trips', icon: Lock, label: (t as any).moreMyTrips || 'My Trips', lightColor: 'bg-emerald-50 text-emerald-600', darkColor: 'bg-emerald-900/50 text-emerald-400' },
-    { id: 'ar', icon: Camera, label: (t as any).moreARGuide || 'AR Guide', lightColor: 'bg-orange-50 text-orange-600', darkColor: 'bg-orange-900/50 text-orange-400' },
+    { id: 'my_trips', icon: Lock, label: (t as any).tabMyTrips || 'My Trips', lightColor: 'bg-emerald-50 text-emerald-600', darkColor: 'bg-emerald-900/50 text-emerald-400' },
+    { id: 'places', icon: MapPin, label: (t as any).sidebarDiscoverPlaces || 'Discover New Places', lightColor: 'bg-slate-100 text-slate-600', darkColor: 'bg-slate-800 text-slate-300' },
+    { id: 'tours', icon: Compass, label: (t as any).sidebarBookTour || 'Book Your Tour', lightColor: 'bg-teal-50 text-teal-600', darkColor: 'bg-teal-900/50 text-teal-400' },
+    { id: 'ar', icon: Camera, label: (t as any).sidebarARGuide || 'Use AR Guide', lightColor: 'bg-orange-50 text-orange-600', darkColor: 'bg-orange-900/50 text-orange-400' },
     { id: 'ai_planner', icon: Sparkles, label: (t as any).moreAIPlanner || 'AI Planner', lightColor: 'bg-purple-50 text-purple-600', darkColor: 'bg-purple-900/50 text-purple-400' },
-    { id: 'events', icon: Calendar, label: (t as any).tabEvents || 'Events', lightColor: 'bg-blue-50 text-blue-600', darkColor: 'bg-blue-900/50 text-blue-400' },
-    { id: 'wallet', icon: Star, label: (t as any).tabWallet || (isRTL ? 'محفظتي' : 'Wallet'), lightColor: 'bg-amber-50 text-amber-600', darkColor: 'bg-amber-900/50 text-amber-400' },
-    { id: 'notifications', icon: Bell, label: (t as any).tabNotifs || (isRTL ? 'الإشعارات' : 'Notifs'), lightColor: 'bg-purple-50 text-purple-600', darkColor: 'bg-purple-900/50 text-purple-400' },
-    { id: 'booking_history', icon: BookOpen, label: (t as any).tabBookings || (isRTL ? 'حجوزاتي' : 'Bookings'), lightColor: 'bg-teal-50 text-teal-600', darkColor: 'bg-teal-900/50 text-teal-400' },
+    { id: 'events', icon: Calendar, label: (t as any).sidebarCheckEvents || 'Check Events Happening', lightColor: 'bg-blue-50 text-blue-600', darkColor: 'bg-blue-900/50 text-blue-400' },
+    { id: 'wallet', icon: Star, label: (t as any).tabWallet || 'Wallet', lightColor: 'bg-amber-50 text-amber-600', darkColor: 'bg-amber-900/50 text-amber-400' },
+    { id: 'notifications', icon: Bell, label: (t as any).tabNotifs || 'Notifications', lightColor: 'bg-purple-50 text-purple-600', darkColor: 'bg-purple-900/50 text-purple-400' },
+    { id: 'booking_history', icon: BookOpen, label: (t as any).tabBookings || 'My Bookings', lightColor: 'bg-teal-50 text-teal-600', darkColor: 'bg-teal-900/50 text-teal-400' },
     { id: 'settings', icon: Settings, label: t.settings, lightColor: 'bg-slate-100 text-slate-600', darkColor: 'bg-slate-800 text-slate-300' },
-    { id: 'journal', icon: BookOpen, label: isRTL ? 'مذكراتي' : 'Journals', lightColor: 'bg-rose-50 text-rose-600', darkColor: 'bg-rose-900/50 text-rose-400' },
-    { id: 'personal_lists', icon: LayoutGrid, label: isRTL ? 'قوائمي' : 'My Lists', lightColor: 'bg-indigo-50 text-indigo-600', darkColor: 'bg-indigo-900/50 text-indigo-400' },
-    ...(isAdmin ? [{ id: 'admin', icon: Shield, label: (t as any).tabAdmin || 'Admin', lightColor: 'bg-red-50 text-red-600', darkColor: 'bg-red-900/50 text-red-400' }] : []),
-    ...(hasClaimedPlaces ? [{ id: 'host', icon: Store, label: (t as any).moreHost || 'Host', lightColor: 'bg-emerald-50 text-emerald-600', darkColor: 'bg-emerald-900/50 text-emerald-400' }] : []),
-  ], [t, isRTL, isAdmin, hasClaimedPlaces]);
+    { id: 'personal_lists', icon: LayoutGrid, label: (t as any).sidebarMyLists || 'My Lists', lightColor: 'bg-indigo-50 text-indigo-600', darkColor: 'bg-indigo-900/50 text-indigo-400' },
+    { id: 'rentals', icon: Tent, label: (t as any).sidebarReservePlace || 'Reserve a Place', lightColor: 'bg-sky-50 text-sky-600', darkColor: 'bg-sky-900/50 text-sky-400' },
+    ...(hasHostingActivity ? [{ id: 'host', icon: Store, label: (t as any).moreHost || 'Host', lightColor: 'bg-emerald-50 text-emerald-600', darkColor: 'bg-emerald-900/50 text-emerald-400' }] : []),
+  ], [t, hasHostingActivity]);
 
   // ── Early-return views ────────────────────────────────────────────────────
   if (view === 'loading') return (
@@ -618,6 +664,9 @@ export const App = () => {
     <WelcomeScreen
       onGetStarted={() => { setAuthMode('register'); setView('auth'); }}
       onSignIn={() => { setAuthMode('login'); setView('auth'); }}
+      t={t}
+      lang={lang}
+      onToggleLang={toggleLanguage}
     />
   );
 
@@ -655,6 +704,7 @@ export const App = () => {
         trip={selectedPrivateTrip} currentUser={user}
         onBack={() => { setView('main'); switchTab('my_trips'); }}
         onUpdateTrip={setSelectedPrivateTrip}
+        lang={lang}
       />
     </ModalWrapper></AppWrapper>
   );
@@ -664,20 +714,11 @@ export const App = () => {
     <AppWrapper>
       <div className="flex h-full relative">
 
-        {/* Sidebar overlay */}
-        {isSidebarOpen && (
-          <div
-            className="fixed inset-0 bg-slate-800/40 z-40 lg:hidden"
-            onClick={() => setIsSidebarOpen(false)}
-            aria-hidden="true"
-          />
-        )}
-
-        {/* FIX #17 — outer container is now <nav> with id for aria-controls */}
+        {/* Sidebar — desktop only */}
         <nav
           id="main-sidebar"
           aria-label="Main navigation"
-          className={`fixed lg:static inset-y-0 left-0 z-50 w-64 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-white/8 transform transition-all duration-300 ease-in-out ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}
+          className="hidden lg:flex flex-col w-64 shrink-0 bg-white dark:bg-navy-900 border-r border-slate-200 dark:border-white/10 h-full"
         >
           <div className="h-full flex flex-col pt-6 pb-4">
 
@@ -687,24 +728,13 @@ export const App = () => {
                 <div className="w-8 h-8 bg-emerald-600 rounded-lg flex items-center justify-center shadow-md" aria-hidden="true">
                   <span className="text-white font-bold">T</span>
                 </div>
-                <span className="font-bold text-xl text-slate-800 dark:text-white tracking-tight">Tripo</span>
+                <span className="font-bold text-xl text-slate-800 dark:text-white tracking-tight">{isRTL ? 'تريبو' : 'Tripo'}</span>
               </div>
-              {/* FIX #16 — aria-label on close button */}
-              <button
-                onClick={() => setIsSidebarOpen(false)}
-                className="lg:hidden p-2 text-slate-500 hover:bg-slate-100 rounded-full transition-colors"
-                aria-label="Close navigation"
-              >
-                <X className="w-5 h-5" />
-              </button>
             </div>
 
             {/* Global search — FIX #5: uses navigate (which calls switchTab) */}
             <div className="px-4 mb-4">
-              <GlobalSearch onNavigate={(tab, id) => {
-                navigate(tab, id);
-                setIsSidebarOpen(false);
-              }} />
+              <GlobalSearch onNavigate={(tab, id) => { navigate(tab, id); }} lang={lang} />
             </div>
 
             {/* Nav links */}
@@ -712,7 +742,7 @@ export const App = () => {
               {sidebarNavItems.map(nav => (
                 <li key={nav.id}>
                   <button
-                    onClick={() => { switchTab(nav.id); setIsSidebarOpen(false); }}
+                    onClick={() => { switchTab(nav.id); }}
                     aria-current={activeTab === nav.id ? 'page' : undefined}
                     className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${activeTab === nav.id ? 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 font-bold' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-white/5 hover:text-slate-900 dark:hover:text-white font-medium'}`}
                   >
@@ -739,21 +769,20 @@ export const App = () => {
         </nav>
 
         {/* Main content column */}
-        <div className="flex-1 flex flex-col h-full bg-slate-50 dark:bg-slate-950 overflow-hidden relative transition-colors duration-300">
+        <div className="flex-1 flex flex-col h-full bg-slate-50 dark:bg-navy-950 overflow-hidden relative transition-colors duration-300">
 
-          {/* Mobile header */}
-          <header className="lg:hidden bg-white dark:bg-slate-900 px-4 py-3 border-b border-slate-200 dark:border-white/8 flex items-center justify-between sticky top-0 z-30 transition-colors duration-300">
-            {/* FIX #16 — aria-expanded + aria-controls on hamburger */}
+          {/* Mobile header — hidden on home tab since HomeScreen renders its own */}
+          <header className={`lg:hidden bg-white dark:bg-navy-900 px-4 py-3 border-b border-slate-200 dark:border-white/8 flex items-center justify-between sticky top-0 z-30 transition-colors duration-300 ${activeTab === 'home' ? 'hidden' : ''}`}>
             <button
-              onClick={() => setIsSidebarOpen(true)}
+              onClick={() => setShowMoreSheet(true)}
               className="p-2 -ml-2 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/10 rounded-full transition-colors"
-              aria-label="Open navigation"
-              aria-expanded={isSidebarOpen}
-              aria-controls="main-sidebar"
+              aria-label="Open menu"
             >
               <Menu className="w-6 h-6" />
             </button>
-            <span className="font-black text-lg text-slate-800 dark:text-white tracking-tight" aria-label="Tripo">Tripo</span>
+            <span className="font-black text-lg text-slate-800 dark:text-white tracking-tight">
+              {activeTab === 'explore' ? ((t as any).exploreTabTitle || 'See Your Map') : (isRTL ? 'تريبو' : 'Tripo')}
+            </span>
             <div className="flex items-center gap-2">
               <button
                 onClick={() => setShowMobileSearch(true)}
@@ -763,12 +792,12 @@ export const App = () => {
                 <Search className="w-5 h-5" />
               </button>
               <ThemeToggle isDark={isDark} onToggle={toggleDark} />
-              <NotificationPanel />
+              <NotificationPanel lang={lang} />
             </div>
           </header>
 
           {/* Desktop top bar */}
-          <div className="hidden lg:flex bg-white dark:bg-slate-900 px-6 py-2.5 border-b border-slate-200 dark:border-white/8 items-center justify-end gap-3 sticky top-0 z-30 transition-colors duration-300">
+          <div className="hidden lg:flex bg-white dark:bg-navy-900 px-6 py-2.5 border-b border-slate-200 dark:border-white/8 items-center justify-end gap-3 sticky top-0 z-30 transition-colors duration-300">
             <ThemeToggle isDark={isDark} onToggle={toggleDark} />
             <NotificationPanel />
           </div>
@@ -804,8 +833,29 @@ export const App = () => {
                   <HomeScreen
                     user={user} lang={lang} onOpenItinerary={openItinerary}
                     t={t} onOpenAR={() => switchTab('ar')} onNavigate={navigate}
+                    onOpenSearch={() => setShowMobileSearch(true)}
+                    karamPoints={karamPoints}
+                    onOpenMenu={() => setShowMoreSheet(true)}
                   />
                 </>
+              )}
+
+              {/* DISCOVER — unified cross-category results */}
+              {activeTab === 'discover' && (
+                <Suspense fallback={<GridFallback cols={1} count={4} />}>
+                  <DiscoverScreen
+                    mode={discoverMode}
+                    t={t}
+                    isRTL={isRTL}
+                    onBack={() => switchTab('home')}
+                    onSelectPlace={(id) => navigate('places', id)}
+                    onSelectTour={(id) => navigate('tours', id)}
+                    onSelectRental={(id) => navigate('rentals', id)}
+                    onSeeAllPlaces={(filter) => { navigate('places', filter); }}
+                    onSeeAllTours={(filter) => { setPendingDeepLink({ tab: 'tours', id: filter }); switchTab('tours'); }}
+                    onSeeAllRentals={(filter) => { setPendingDeepLink({ tab: 'rentals', id: filter }); switchTab('rentals'); }}
+                  />
+                </Suspense>
               )}
 
               {/* PLACES */}
@@ -813,8 +863,10 @@ export const App = () => {
                 <Suspense fallback={<GridFallback cols={2} count={6} />}>
                   <PlacesScreen
                     t={t}
+                    lang={lang}
                     initialPlaceId={pendingDeepLink?.tab === 'places' ? pendingDeepLink.id : undefined}
                     onPlaceOpened={() => setPendingDeepLink(null)}
+                    initialQuickFilter={pendingDeepLink?.tab === 'places' ? pendingDeepLink.id as any : undefined}
                   />
                 </Suspense>
               )}
@@ -824,6 +876,8 @@ export const App = () => {
                 <ExploreScreen
                   t={t}
                   onOpenPlace={(p: any) => navigate('places', p?.id || p?._id)}
+                  initialNearMe={exploreNearMe}
+                  onNearMeHandled={() => setExploreNearMe(false)}
                 />
               )}
 
@@ -832,9 +886,11 @@ export const App = () => {
                 <Suspense fallback={<GridFallback cols={1} count={4} />}>
                   <ToursScreen
                     t={t}
+                    lang={lang}
                     initialTourId={pendingDeepLink?.tab === 'tours' ? pendingDeepLink.id : undefined}
                     onTourOpened={() => setPendingDeepLink(null)}
                     onBookingComplete={handleBookingComplete}
+                    initialQuickFilter={pendingDeepLink?.tab === 'tours' ? pendingDeepLink.id as any : undefined}
                   />
                 </Suspense>
               )}
@@ -843,20 +899,20 @@ export const App = () => {
               {activeTab === 'my_trips' && user && (
                 <MyTripsScreen
                   currentUser={user}
+                  lang={lang}
                   onOpenTrip={(trip) => { setSelectedPrivateTrip(trip); setView('privateTrip'); }}
                 />
               )}
 
-              {/* CREATE */}
+              {/* CREATE TOUR */}
               {activeTab === 'create' && user && (
-                <CreateScreen
-                  onSave={() => {
-                    awardKaramPoints('publish_itinerary', 100, 'Published a trip');
-                    setCreateInitialTitle(undefined);
-                    switchTab('home');
+                <CreateTourScreen
+                  currentUser={user}
+                  lang={lang}
+                  onTourCreated={() => {
+                    setTourPublished(true);
+                    switchTab('tours');
                   }}
-                  t={t} initialTitle={createInitialTitle} currentUser={user}
-                  onPrivateTripCreated={() => { setCreateInitialTitle(undefined); switchTab('my_trips'); }}
                 />
               )}
 
@@ -875,7 +931,7 @@ export const App = () => {
               {activeTab === 'ai_planner' && (
                 <Suspense fallback={<SpinnerFallback />}>
                   <div className="flex flex-col" style={{ height: 'calc(100dvh - 120px)' }}>
-                    <AIPlannerScreen user={user} />
+                    <AIPlannerScreen user={user} lang={lang} />
                   </div>
                 </Suspense>
               )}
@@ -897,8 +953,10 @@ export const App = () => {
                 <Suspense fallback={<GridFallback cols={1} count={4} />}>
                   <RentalsScreen
                     t={t}
+                    lang={lang}
                     initialRentalId={pendingDeepLink?.tab === 'rentals' ? pendingDeepLink.id : undefined}
                     onRentalOpened={() => setPendingDeepLink(null)}
+                    initialQuickFilter={pendingDeepLink?.tab === 'rentals' ? pendingDeepLink.id as any : undefined}
                   />
                 </Suspense>
               )}
@@ -913,7 +971,7 @@ export const App = () => {
               {/* YOUR MOOD */}
               {activeTab === 'your_mood' && user && (
                 <Suspense fallback={<ListFallback count={3} />}>
-                  <YourMoodScreen t={t} user={user} onNavigate={navigate} />
+                  <YourMoodScreen t={t} lang={lang} user={user} onNavigate={navigate} />
                 </Suspense>
               )}
 
@@ -937,23 +995,13 @@ export const App = () => {
                 />
               )}
 
-              {/* ADMIN */}
-              {activeTab === 'admin' && isAdmin && <Suspense fallback={null}><AdminScreen t={t} /></Suspense>}
-
               {/* HOST */}
               {activeTab === 'host' && <Suspense fallback={null}><HostDashboardScreen /></Suspense>}
-
-              {/* JOURNAL */}
-              {activeTab === 'journal' && (
-                <Suspense fallback={<ListFallback count={3} />}>
-                  <JournalScreen user={user} t={t} />
-                </Suspense>
-              )}
 
               {/* PERSONAL LISTS */}
               {activeTab === 'personal_lists' && (
                 <Suspense fallback={<ListFallback count={5} />}>
-                  <PersonalListsScreen t={t} />
+                  <PersonalListsScreen t={t} lang={lang} />
                 </Suspense>
               )}
 
@@ -961,6 +1009,24 @@ export const App = () => {
               {activeTab === 'profile' && user && (
                 <div className="p-6 pt-10 max-w-3xl mx-auto">
                   <div className="bg-white dark:bg-slate-900 rounded-3xl p-8 shadow-sm border border-slate-100 dark:border-white/8">
+
+                    {/* More features trigger */}
+                    <button
+                      onClick={() => setShowMoreSheet(true)}
+                      className="lg:hidden w-full flex items-center justify-between p-4 bg-gradient-to-r from-emerald-50 to-teal-50 dark:from-emerald-900/20 dark:to-teal-900/20 border border-emerald-100 dark:border-emerald-800/40 rounded-2xl mb-6 active:scale-[0.98] transition-transform"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-9 h-9 bg-emerald-600 dark:bg-mint rounded-xl flex items-center justify-center shrink-0">
+                          <LayoutGrid className="w-4 h-4 text-white dark:text-navy-950" />
+                        </div>
+                        <div className="text-left">
+                          <p className="font-black text-sm text-emerald-900 dark:text-emerald-300">All Features</p>
+                          <p className="text-[11px] text-emerald-600 dark:text-emerald-500">Tours, stays, events, AR & more</p>
+                        </div>
+                      </div>
+                      <ChevronLeft className="w-4 h-4 text-emerald-400 rotate-180 shrink-0" />
+                    </button>
+
                     <div className="text-center mb-6">
                       <div
                         className="w-32 h-32 rounded-full mx-auto mb-4 bg-emerald-100 dark:bg-emerald-900/40 border-4 border-slate-50 dark:border-slate-800 shadow-md flex items-center justify-center text-emerald-700 dark:text-emerald-400 font-extrabold text-5xl"
@@ -1070,7 +1136,7 @@ export const App = () => {
                                 </div>
                                 <div className="flex-1 min-w-0">
                                   <p className="font-semibold text-slate-800 dark:text-slate-200 text-sm truncate">{it.title}</p>
-                                  <p className="text-xs text-slate-400">{it.places?.length ?? 0} stops</p>
+                                  <p className="text-xs text-slate-400">{it.places?.length ?? 0} {(t as any).stopsCountLabel || t.stops || 'stops'}</p>
                                 </div>
                                 <button onClick={() => handleOpenOfflineItinerary(it)} className="px-3 py-1.5 bg-emerald-600 text-white text-xs font-bold rounded-xl hover:bg-emerald-700 transition flex-shrink-0">
                                   {(t as any).profileOpen || 'Open'}
@@ -1114,11 +1180,11 @@ export const App = () => {
                         <ChevronLeft className={`w-4 h-4 text-emerald-400 ${isRTL ? '' : 'rotate-180'}`} aria-hidden="true" />
                       </button>
                       <button onClick={() => switchTab('wallet')} className="flex items-center justify-between p-5 bg-amber-50 dark:bg-amber-900/10 hover:bg-amber-100 dark:hover:bg-amber-900/20 transition-colors rounded-2xl font-medium border border-amber-100 dark:border-amber-800/30">
-                        <span className="flex items-center gap-3 text-amber-800 dark:text-amber-400 font-bold"><Star className="w-5 h-5 text-amber-500" aria-hidden="true" /> {(t as any).tabWallet || (isRTL ? 'محفظتي' : 'My Wallet')}</span>
+                        <span className="flex items-center gap-3 text-amber-800 dark:text-amber-400 font-bold"><Star className="w-5 h-5 text-amber-500" aria-hidden="true" /> {(t as any).tabWallet || 'My Wallet'}</span>
                         <span className="text-sm font-bold text-amber-600 dark:text-amber-400">{karamPoints} pts</span>
                       </button>
                       <button onClick={() => switchTab('booking_history')} className="flex items-center justify-between p-5 bg-teal-50 dark:bg-teal-900/10 hover:bg-teal-100 dark:hover:bg-teal-900/20 transition-colors rounded-2xl font-medium border border-teal-100 dark:border-teal-800/30">
-                        <span className="flex items-center gap-3 text-teal-800 dark:text-teal-400 font-bold"><Calendar className="w-5 h-5 text-teal-600" aria-hidden="true" /> {(t as any).tabBookings || (isRTL ? 'حجوزاتي' : 'My Bookings')}</span>
+                        <span className="flex items-center gap-3 text-teal-800 dark:text-teal-400 font-bold"><Calendar className="w-5 h-5 text-teal-600" aria-hidden="true" /> {(t as any).tabBookings || 'My Bookings'}</span>
                         <ChevronLeft className={`w-4 h-4 text-teal-400 ${isRTL ? '' : 'rotate-180'}`} aria-hidden="true" />
                       </button>
                       <button onClick={toggleLanguage} className="flex items-center justify-between p-5 bg-slate-50 dark:bg-slate-800/50 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors rounded-2xl font-medium border border-slate-100 dark:border-white/8">
@@ -1130,7 +1196,7 @@ export const App = () => {
                         <ChevronLeft className={`w-4 h-4 text-slate-400 ${isRTL ? '' : 'rotate-180'}`} aria-hidden="true" />
                       </button>
                       <button onClick={() => setShowWishLists(true)} className="flex items-center justify-between p-5 bg-slate-50 dark:bg-slate-800/50 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors rounded-2xl font-medium border border-slate-100 dark:border-white/8">
-                        <span className="flex items-center gap-3 text-slate-700 dark:text-slate-300 font-bold"><Heart className="w-5 h-5 text-emerald-600" aria-hidden="true" /> {(t as any).profileWishLists || 'My Wish Lists'}</span>
+                        <span className="flex items-center gap-3 text-slate-700 dark:text-slate-300 font-bold"><Heart className="w-5 h-5 text-emerald-600" aria-hidden="true" /> {(t as any).profileWishLists || (isRTL ? 'قوائم أمنياتي' : 'My Wish Lists')}</span>
                         <ChevronLeft className={`w-4 h-4 text-slate-400 ${isRTL ? '' : 'rotate-180'}`} aria-hidden="true" />
                       </button>
                       <button onClick={handleLogout} className="flex items-center justify-center p-5 bg-red-50 dark:bg-red-900/10 hover:bg-red-100 dark:hover:bg-red-900/20 transition-colors text-red-600 dark:text-red-400 rounded-2xl font-bold border border-red-100 dark:border-red-800/30 shadow-sm md:col-span-2">
@@ -1148,7 +1214,7 @@ export const App = () => {
         {/* Floating AI assistant */}
         {user && (
           <Suspense fallback={null}>
-            <AIAssistantLazy user={user as any} t={t} lang={lang} />
+            <AIAssistantLazy user={user as any} t={t} lang={lang} onNavigate={navigate} />
           </Suspense>
         )}
 
@@ -1187,7 +1253,7 @@ export const App = () => {
                 </div>
                 <div className="flex-1">
                   <label htmlFor="avatar-url" className="block text-xs font-black text-slate-500 dark:text-slate-400 mb-1.5">
-                    {isRTL ? 'رابط الصورة' : 'Avatar URL'}
+                    {(t as any).avatarUrlLabel || 'Avatar URL'}
                   </label>
                   <input
                     id="avatar-url"
@@ -1197,7 +1263,7 @@ export const App = () => {
                     onChange={e => setEditProfileAvatar(e.target.value)}
                   />
                   {avatarImgError && (
-                    <p className="text-xs text-red-500 mt-1">{isRTL ? 'تعذّر تحميل الصورة' : 'Could not load image'}</p>
+                    <p className="text-xs text-red-500 mt-1">{(t as any).avatarLoadError || 'Could not load image'}</p>
                   )}
                 </div>
               </div>
@@ -1205,12 +1271,12 @@ export const App = () => {
               {/* Name field */}
               <div>
                 <label htmlFor="profile-name" className="block text-xs font-black text-slate-500 dark:text-slate-400 mb-1.5">
-                  {isRTL ? 'الاسم' : 'Name'}
+                  {(t as any).nameFieldLabel || 'Name'}
                 </label>
                 <input
                   id="profile-name"
                   className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-white/10 rounded-2xl text-sm font-bold outline-none focus:ring-2 focus:ring-emerald-500 dark:text-white"
-                  placeholder={isRTL ? 'اسمك الكامل' : 'Full name'}
+                  placeholder={(t as any).fullNamePlaceholder || 'Full name'}
                   value={editProfileName}
                   onChange={e => setEditProfileName(e.target.value)}
                 />
@@ -1221,14 +1287,14 @@ export const App = () => {
                   onClick={() => setShowEditProfile(false)}
                   className="flex-1 py-3.5 bg-slate-100 dark:bg-white/10 text-slate-600 dark:text-slate-300 font-black text-sm rounded-2xl active:scale-95 transition-transform"
                 >
-                  {isRTL ? 'إلغاء' : 'Cancel'}
+                  {(t as any).cancelBtn || 'Cancel'}
                 </button>
                 <button
                   onClick={handleSaveProfile}
                   disabled={!editProfileName.trim()}
                   className="flex-1 py-3.5 bg-emerald-600 disabled:bg-emerald-300 text-white font-black text-sm rounded-2xl active:scale-95 transition-transform"
                 >
-                  {isRTL ? 'حفظ التغييرات' : 'Save Changes'}
+                  {(t as any).saveChanges || 'Save Changes'}
                 </button>
               </div>
             </div>
@@ -1238,82 +1304,151 @@ export const App = () => {
         {/* Wish lists modal */}
         {showWishLists && <WishListModal onClose={() => setShowWishLists(false)} />}
 
-        {/* Bottom nav (mobile) */}
+        {/* Bottom nav (mobile) — 2 items | center FAB | 2 items */}
         <nav
-          className="lg:hidden fixed bottom-0 left-0 right-0 bg-white/95 dark:bg-slate-950/95 backdrop-blur-xl border-t border-slate-200 dark:border-white/8 px-1 pt-2 flex justify-around items-center z-40 shadow-2xl transition-colors duration-300"
+          className="lg:hidden fixed bottom-0 left-0 right-0 bg-white/95 dark:bg-navy-900/90 backdrop-blur-xl border-t border-slate-200 dark:border-white/10 z-40 shadow-2xl transition-colors duration-300"
           style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 8px)' }}
           aria-label="Bottom navigation"
         >
-          {BOTTOM_NAV.map(nav => (
-            <button
-              key={nav.id}
-              onClick={() => switchTab(nav.id)}
-              aria-label={isRTL ? nav.labelAr : nav.labelEn}
-              aria-current={activeTab === nav.id ? 'page' : undefined}
-              className={`flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-2xl transition-all min-w-0 ${activeTab === nav.id ? 'text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/12' : 'text-slate-400 dark:text-slate-500'}`}
-            >
-              <nav.icon className={`transition-transform ${activeTab === nav.id ? 'scale-110' : ''}`} style={{ width: 22, height: 22 }} aria-hidden="true" />
-              <span className="text-[10px] font-bold tracking-wide">{isRTL ? nav.labelAr : nav.labelEn}</span>
-            </button>
-          ))}
-          <button
-            onClick={() => setShowMoreSheet(true)}
-            aria-label={(t as any).navMore || (isRTL ? 'المزيد' : 'More options')}
-            aria-expanded={showMoreSheet}
-            aria-haspopup="dialog"
-            className={`flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-2xl transition-all min-w-0 ${MORE_TABS.has(activeTab) ? 'text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/12' : 'text-slate-400 dark:text-slate-500'}`}
-          >
-            <Menu className="w-[22px] h-[22px]" aria-hidden="true" />
-            <span className="text-[10px] font-bold tracking-wide">{(t as any).navMore || (isRTL ? 'المزيد' : 'More')}</span>
-          </button>
+          <div className="flex items-end justify-around px-2 pt-2">
+            {/* Left two items */}
+            {BOTTOM_NAV_LEFT.map(nav => (
+              <button
+                key={nav.id}
+                onClick={() => switchTab(nav.id)}
+                aria-label={isRTL ? nav.labelAr : nav.labelEn}
+                aria-current={activeTab === nav.id ? 'page' : undefined}
+                className={`flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-2xl transition-all min-w-0 flex-1 ${activeTab === nav.id ? 'text-emerald-600 dark:text-mint bg-emerald-50 dark:bg-mint/10' : 'text-slate-400 dark:text-ink-muted'}`}
+              >
+                <nav.icon className={`transition-transform ${activeTab === nav.id ? 'scale-110' : ''}`} style={{ width: 22, height: 22 }} aria-hidden="true" />
+                <span className="text-[10px] font-bold tracking-wide">{isRTL ? nav.labelAr : nav.labelEn}</span>
+              </button>
+            ))}
+
+            {/* Center FAB — elevated above nav bar */}
+            <div className="flex flex-col items-center flex-shrink-0 -mt-5">
+              <button
+                onClick={() => switchTab('create')}
+                aria-label={(t as any).addTourFAB || 'Add a Tour'}
+                className="w-14 h-14 rounded-full bg-gradient-to-tr from-emerald-500 to-teal-400 dark:from-mint dark:to-mint-600 text-white dark:text-navy-950 shadow-2xl shadow-emerald-900/40 dark:shadow-mint-glow active:scale-90 transition-transform hover:scale-105 flex items-center justify-center animate-pulse-soft border-4 border-white dark:border-navy-900"
+              >
+                <Plus className="w-6 h-6" aria-hidden="true" />
+              </button>
+              <span className="text-[9px] font-extrabold text-slate-500 dark:text-mint tracking-wide whitespace-nowrap mt-0.5">
+                {(t as any).addTourFAB || 'Add a Tour'}
+              </span>
+            </div>
+
+            {/* Right two items */}
+            {BOTTOM_NAV_RIGHT.map(nav => (
+              <button
+                key={nav.id}
+                onClick={() => switchTab(nav.id)}
+                aria-label={isRTL ? nav.labelAr : nav.labelEn}
+                aria-current={activeTab === nav.id ? 'page' : undefined}
+                className={`flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-2xl transition-all min-w-0 flex-1 ${activeTab === nav.id ? 'text-emerald-600 dark:text-mint bg-emerald-50 dark:bg-mint/10' : 'text-slate-400 dark:text-ink-muted'}`}
+              >
+                <nav.icon className={`transition-transform ${activeTab === nav.id ? 'scale-110' : ''}`} style={{ width: 22, height: 22 }} aria-hidden="true" />
+                <span className="text-[10px] font-bold tracking-wide">{isRTL ? nav.labelAr : nav.labelEn}</span>
+              </button>
+            ))}
+          </div>
         </nav>
 
-        {/* FAB — create */}
-        <button
-          onClick={() => switchTab('create')}
-          aria-label={isRTL ? 'إنشاء رحلة جديدة' : 'Create new trip'}
-          className="lg:hidden fixed z-50 bg-gradient-to-tr from-emerald-500 to-teal-400 text-white rounded-full shadow-2xl shadow-emerald-900/60 active:scale-90 transition-transform hover:scale-105 flex items-center justify-center"
-          style={{
-            width: 52, height: 52,
-            bottom: 'calc(max(env(safe-area-inset-bottom), 12px) + 56px + 12px)',
-            right: isRTL ? 'auto' : 20,
-            left: isRTL ? 20 : 'auto',
-          }}
-        >
-          <Plus className="w-6 h-6" aria-hidden="true" />
-        </button>
-
-        {/* More sheet */}
+        {/* More sheet — travel-app design */}
         {showMoreSheet && (
           <>
-            <div className="fixed inset-0 bg-slate-900/50 dark:bg-black/60 z-[60] lg:hidden" onClick={() => setShowMoreSheet(false)} aria-hidden="true" />
+            <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] lg:hidden" onClick={() => setShowMoreSheet(false)} aria-hidden="true" />
             <div
-              className="fixed bottom-0 left-0 right-0 bg-white dark:bg-slate-900 rounded-t-3xl z-[70] lg:hidden shadow-2xl border-t border-slate-100 dark:border-white/8 transition-colors duration-300"
+              className="fixed bottom-0 left-0 right-0 bg-white dark:bg-navy-900 rounded-t-[2rem] z-[70] lg:hidden shadow-2xl transition-colors duration-300 max-h-[88dvh] overflow-y-auto"
               style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 24px)' }}
-              role="dialog"
-              aria-modal="true"
-              aria-label={isRTL ? 'قائمة التنقل الإضافية' : 'More navigation options'}
+              role="dialog" aria-modal="true"
             >
-              <div className="flex justify-between items-center px-6 pt-5 pb-3">
-                <h3 className="font-bold text-slate-900 dark:text-white">{(t as any).moreTitle || (isRTL ? 'المزيد' : 'More')}</h3>
-                <button onClick={() => setShowMoreSheet(false)} className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-white/10 transition" aria-label="Close">
-                  <X className="w-5 h-5 text-slate-500 dark:text-slate-400" />
+              {/* Handle */}
+              <div className="flex justify-center pt-3 pb-1">
+                <div className="w-10 h-1 bg-slate-200 dark:bg-white/20 rounded-full" />
+              </div>
+
+              {/* Header */}
+              <div className="flex items-center justify-between px-5 pt-2 pb-4">
+                <div>
+                  <h2 className="text-xl font-black text-slate-900 dark:text-white">{(t as any).moreSheetTitle || 'Explore Tripo'}</h2>
+                  <p className="text-xs text-slate-400 mt-0.5">{(t as any).moreSheetSubtitle || 'Everything in one place'}</p>
+                </div>
+                <button onClick={() => setShowMoreSheet(false)} className="w-8 h-8 bg-slate-100 dark:bg-white/10 rounded-full flex items-center justify-center" aria-label="Close">
+                  <X className="w-4 h-4 text-slate-500 dark:text-slate-400" />
                 </button>
               </div>
-              <div className="grid grid-cols-3 gap-3 px-6 pb-2">
-                {moreSheetItems.map(item => (
-                  <button
-                    key={item.id}
-                    onClick={() => { switchTab(item.id); setShowMoreSheet(false); }}
-                    aria-current={activeTab === item.id ? 'page' : undefined}
-                    className={`flex flex-col items-center gap-2 p-4 rounded-2xl border transition-all ${activeTab === item.id ? 'border-emerald-400 dark:border-emerald-600 bg-emerald-50 dark:bg-emerald-900/30' : 'border-slate-100 dark:border-white/8 hover:border-slate-200 dark:hover:border-white/20'}`}
-                  >
-                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${isDark ? item.darkColor : item.lightColor}`} aria-hidden="true">
-                      <item.icon className="w-5 h-5" />
-                    </div>
-                    <span className="text-xs font-bold text-slate-700 dark:text-slate-200">{item.label}</span>
-                  </button>
-                ))}
+
+              {/* ── Discover ────────────────────────────────────────── */}
+              <div className="px-4 mb-5">
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 px-1">{(t as any).moreDiscoverSection || 'Discover'}</p>
+                <div className="grid grid-cols-2 gap-3">
+                  {[
+                    { id: 'explore', emoji: '🗺️', label: (t as any).moreSeeYourMap || 'See Your Map', sub: (t as any).moreSeeYourMapSub || 'Find places near you', from: 'from-emerald-500', to: 'to-teal-500' },
+                    { id: 'places', emoji: '📍', label: (t as any).moreDiscoverNewPlaces || 'Discover New Places', sub: (t as any).moreDiscoverNewPlacesSub || 'Spots, parks & more', from: 'from-blue-500', to: 'to-cyan-500' },
+                    { id: 'events', emoji: '🎉', label: (t as any).moreCheckEventsLabel || 'Check Events', sub: (t as any).moreCheckEventsSub || 'Happening near you', from: 'from-violet-500', to: 'to-purple-600' },
+                    { id: 'your_mood', emoji: '✨', label: (t as any).moodTitle || 'Your Mood', sub: (t as any).moreYourMoodSub || 'Match to experiences', from: 'from-rose-500', to: 'to-pink-500' },
+                  ].map(item => (
+                    <button
+                      key={item.id}
+                      onClick={() => { switchTab(item.id); setShowMoreSheet(false); }}
+                      className={`relative h-28 rounded-2xl overflow-hidden active:scale-95 transition-transform bg-gradient-to-br ${item.from} ${item.to} flex flex-col justify-end p-3 text-left shadow-lg`}
+                    >
+                      <span className="text-2xl mb-1">{item.emoji}</span>
+                      <p className="text-white font-black text-sm leading-tight">{item.label}</p>
+                      <p className="text-white/70 text-[10px] mt-0.5">{item.sub}</p>
+                      {activeTab === item.id && <div className="absolute top-2 right-2 w-2 h-2 rounded-full bg-white shadow-sm" />}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* ── Book & Plan ──────────────────────────────────────── */}
+              <div className="px-4 mb-5">
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 px-1">{(t as any).moreBookPlanSection || 'Book & Plan'}</p>
+                <div className="grid grid-cols-2 gap-3">
+                  {[
+                    { id: 'tours', emoji: '🧭', label: (t as any).moreBookTourLabel || 'Book Your Tour', sub: (t as any).moreBookTourSub || 'Guided adventures', from: 'from-amber-500', to: 'to-orange-500' },
+                    { id: 'rentals', emoji: '🏕️', label: (t as any).moreReservePlaceLabel || 'Reserve a Place', sub: (t as any).moreReservePlaceSub || 'Chalets, camps & villas', from: 'from-sky-500', to: 'to-blue-600' },
+                    { id: 'ai_planner', emoji: '🤖', label: (t as any).moreAIPlanner || 'AI Planner', sub: (t as any).moreAIPlannerSub || 'Plan with AI', from: 'from-indigo-500', to: 'to-violet-600' },
+                    { id: 'ar', emoji: '📸', label: (t as any).sidebarARGuide || 'Use AR Guide', sub: (t as any).moreARGuideSub || 'Point & discover', from: 'from-orange-500', to: 'to-red-500' },
+                  ].map(item => (
+                    <button
+                      key={item.id}
+                      onClick={() => { switchTab(item.id); setShowMoreSheet(false); }}
+                      className={`relative h-28 rounded-2xl overflow-hidden active:scale-95 transition-transform bg-gradient-to-br ${item.from} ${item.to} flex flex-col justify-end p-3 text-left shadow-lg`}
+                    >
+                      <span className="text-2xl mb-1">{item.emoji}</span>
+                      <p className="text-white font-black text-sm leading-tight">{item.label}</p>
+                      <p className="text-white/70 text-[10px] mt-0.5">{item.sub}</p>
+                      {activeTab === item.id && <div className="absolute top-2 right-2 w-2 h-2 rounded-full bg-white shadow-sm" />}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* ── Your Space ───────────────────────────────────────── */}
+              <div className="px-4">
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 px-1">{(t as any).moreYourSpaceSection || 'Your Space'}</p>
+                <div className="grid grid-cols-3 gap-2">
+                  {[
+                    { id: 'my_trips',        emoji: '🔒', label: (t as any).moreMyTrips || 'My Trips',       bg: 'bg-emerald-50 dark:bg-emerald-900/30',   text: 'text-emerald-700 dark:text-emerald-400' },
+                    { id: 'personal_lists',  emoji: '📋', label: (t as any).moreMyListsLabel || 'My Lists',  bg: 'bg-indigo-50 dark:bg-indigo-900/30',      text: 'text-indigo-700 dark:text-indigo-400' },
+                    { id: 'wallet',          emoji: '💰', label: (t as any).moreWalletLabel || 'Wallet',      bg: 'bg-yellow-50 dark:bg-yellow-900/30',      text: 'text-yellow-700 dark:text-yellow-400' },
+                    { id: 'booking_history', emoji: '🎫', label: (t as any).moreBookingsLabel || 'Bookings', bg: 'bg-teal-50 dark:bg-teal-900/30',          text: 'text-teal-700 dark:text-teal-400' },
+                    { id: 'notifications',   emoji: '🔔', label: (t as any).moreNotifsLabel || 'Notifications', bg: 'bg-purple-50 dark:bg-purple-900/30',   text: 'text-purple-700 dark:text-purple-400' },
+                  ].map(item => (
+                    <button
+                      key={item.id}
+                      onClick={() => { switchTab(item.id); setShowMoreSheet(false); }}
+                      className={`flex flex-col items-center gap-2 p-3 rounded-2xl ${item.bg} active:scale-95 transition-transform ${activeTab === item.id ? 'ring-2 ring-emerald-400 dark:ring-emerald-500' : ''}`}
+                    >
+                      <span className="text-2xl">{item.emoji}</span>
+                      <span className={`text-[10px] font-black text-center leading-tight ${item.text}`}>{item.label}</span>
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
           </>
@@ -1322,7 +1457,7 @@ export const App = () => {
         {/* Mobile search overlay — FIX #5: uses navigate */}
         {showMobileSearch && (
           <div
-            className="fixed inset-0 z-50 bg-black/50 flex flex-col lg:hidden"
+            className="fixed inset-0 z-50 bg-black/50 flex flex-col"
             onClick={() => setShowMobileSearch(false)}
             role="dialog"
             aria-modal="true"
@@ -1335,8 +1470,8 @@ export const App = () => {
                   <X className="w-5 h-5" />
                 </button>
               </div>
-              <GlobalSearch onNavigate={(tab, id) => {
-                navigate(tab, id); // ✅ switchTab via navigate
+              <GlobalSearch inline lang={lang} onNavigate={(tab, id) => {
+                navigate(tab, id);
                 setShowMobileSearch(false);
               }} />
             </div>
@@ -1344,6 +1479,48 @@ export const App = () => {
         )}
 
       </div>
+
+      {/* Payment result overlay */}
+      {paymentResult && (
+        <div className="fixed inset-0 z-[500] bg-black/50 flex items-center justify-center p-6" onClick={() => { setPaymentResult(null); setPaymentBooking(null); }}>
+          <div className="bg-white dark:bg-slate-900 rounded-3xl shadow-2xl p-8 max-w-sm w-full text-center" onClick={e => e.stopPropagation()}>
+            {paymentResult === 'success' ? (
+              <>
+                <div className="w-16 h-16 bg-emerald-100 dark:bg-emerald-900/40 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <span className="text-3xl">✅</span>
+                </div>
+                <h2 className="text-xl font-extrabold text-slate-900 dark:text-white mb-2">Payment Successful!</h2>
+                {paymentBooking && (
+                  <p className="text-sm font-semibold text-emerald-600 dark:text-emerald-400 mb-1">
+                    {paymentBooking.bookingDetails?.tourTitle || paymentBooking.bookingDetails?.rentalTitle || ''}
+                  </p>
+                )}
+                <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">Your booking is confirmed. You can view it in your booking history.</p>
+                <button
+                  onClick={() => { setPaymentResult(null); setPaymentBooking(null); switchTab('booking_history'); }}
+                  className="w-full py-3 bg-emerald-600 text-white font-bold rounded-2xl hover:bg-emerald-700 transition"
+                >
+                  View My Bookings
+                </button>
+              </>
+            ) : (
+              <>
+                <div className="w-16 h-16 bg-slate-100 dark:bg-slate-800 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <span className="text-3xl">❌</span>
+                </div>
+                <h2 className="text-xl font-extrabold text-slate-900 dark:text-white mb-2">Payment Cancelled</h2>
+                <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">No charge was made. You can try again whenever you're ready.</p>
+                <button
+                  onClick={() => setPaymentResult(null)}
+                  className="w-full py-3 bg-slate-100 dark:bg-white/10 text-slate-700 dark:text-slate-300 font-bold rounded-2xl hover:bg-slate-200 dark:hover:bg-white/20 transition"
+                >
+                  Back to App
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      )}
 
       <ToastContainer />
     </AppWrapper>

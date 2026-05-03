@@ -12,36 +12,36 @@ import { showToast } from '../components/Toast';
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const INTEREST_OPTIONS = [
-  { id: 'Nature', emoji: '🌿', tKey: 'interestNature' },
-  { id: 'Heritage', emoji: '🏛️', tKey: 'interestHeritage' },
-  { id: 'Adventure', emoji: '🧗', tKey: 'interestAdventure' },
-  { id: 'Food', emoji: '🍽️', tKey: 'interestFood' },
-  { id: 'Beach', emoji: '🏖️', tKey: 'interestBeach' },
-  { id: 'Sports', emoji: '⚽', tKey: 'interestSports' },
-  { id: 'Culture', emoji: '🎭', tKey: 'interestCulture' },
-  { id: 'Urban', emoji: '🏙️', tKey: 'interestUrban' },
-  { id: 'Nightlife', emoji: '🌙', tKey: 'interestNightlife' },
+  { id: 'Nature', labelAr: 'طبيعة', emoji: '🌿', tKey: 'interestNature' },
+  { id: 'Heritage', labelAr: 'تراث', emoji: '🏛️', tKey: 'interestHeritage' },
+  { id: 'Adventure', labelAr: 'مغامرة', emoji: '🧗', tKey: 'interestAdventure' },
+  { id: 'Food', labelAr: 'مأكولات', emoji: '🍽️', tKey: 'interestFood' },
+  { id: 'Beach', labelAr: 'شاطئ', emoji: '🏖️', tKey: 'interestBeach' },
+  { id: 'Sports', labelAr: 'رياضة', emoji: '⚽', tKey: 'interestSports' },
+  { id: 'Culture', labelAr: 'ثقافة', emoji: '🎭', tKey: 'interestCulture' },
+  { id: 'Urban', labelAr: 'مدني', emoji: '🏙️', tKey: 'interestUrban' },
+  { id: 'Nightlife', labelAr: 'ليلية', emoji: '🌙', tKey: 'interestNightlife' },
 ];
 
 const BUDGET_OPTIONS = [
-  { val: 'free', tKey: 'budgetFree', descKey: 'budgetFreeDesc', symbol: 'Free' },
-  { val: 'low', tKey: 'budgetLow', descKey: 'budgetLowDesc', symbol: '＄' },
-  { val: 'medium', tKey: 'budgetMedium', descKey: 'budgetMediumDesc', symbol: '＄＄' },
-  { val: 'high', tKey: 'budgetHigh', descKey: 'budgetHighDesc', symbol: '＄＄＄' },
+  { val: 'free', labelAr: 'مجاني', tKey: 'budgetFree', descKey: 'budgetFreeDesc', symbol: 'Free' },
+  { val: 'low', labelAr: 'منخفض', tKey: 'budgetLow', descKey: 'budgetLowDesc', symbol: '＄' },
+  { val: 'medium', labelAr: 'متوسط', tKey: 'budgetMedium', descKey: 'budgetMediumDesc', symbol: '＄＄' },
+  { val: 'high', labelAr: 'مرتفع', tKey: 'budgetHigh', descKey: 'budgetHighDesc', symbol: '＄＄＄' },
 ];
 
 const VIBE_OPTIONS = [
-  { val: 'chill', tKey: 'vibeChill', emoji: '😌', color: 'from-blue-400 to-cyan-400' },
-  { val: 'active', tKey: 'vibeActive', emoji: '🏃', color: 'from-orange-400 to-amber-400' },
-  { val: 'cultural', tKey: 'vibeCultural', emoji: '🔍', color: 'from-purple-400 to-violet-400' },
-  { val: 'social', tKey: 'vibeSocial', emoji: '🎉', color: 'from-pink-400 to-rose-400' },
+  { val: 'chill', labelAr: 'هادئ', tKey: 'vibeChill', emoji: '😌', color: 'from-blue-400 to-cyan-400' },
+  { val: 'active', labelAr: 'نشيط', tKey: 'vibeActive', emoji: '🏃', color: 'from-orange-400 to-amber-400' },
+  { val: 'cultural', labelAr: 'ثقافي', tKey: 'vibeCultural', emoji: '🔍', color: 'from-purple-400 to-violet-400' },
+  { val: 'social', labelAr: 'اجتماعي', tKey: 'vibeSocial', emoji: '🎉', color: 'from-pink-400 to-rose-400' },
 ];
 
 const GROUP_OPTIONS = [
-  { val: 'solo', emoji: '🧍', label: 'Just Me' },
-  { val: 'partner', emoji: '💑', label: 'Partner' },
-  { val: 'friends', emoji: '👫', label: 'Friends' },
-  { val: 'family', emoji: '👨‍👩‍👧', label: 'Family' },
+  { val: 'solo', emoji: '🧍', label: 'Just Me', labelAr: 'أنا فقط' },
+  { val: 'partner', emoji: '💑', label: 'Partner', labelAr: 'مع شريك' },
+  { val: 'friends', emoji: '👫', label: 'Friends', labelAr: 'أصدقاء' },
+  { val: 'family', emoji: '👨‍👩‍👧', label: 'Family', labelAr: 'عائلة' },
 ];
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -201,9 +201,17 @@ const getGreeting = (t?: any) => {
   return t?.goodEvening || 'Good evening';
 };
 
-function getContextualLine(): string {
+function getContextualLine(ar: boolean): string {
   const day = new Date().getDay();
   const hour = new Date().getHours();
+  if (ar) {
+    if (day === 5) return "الجمعة هنا — وقت مثالي لرحلة! 🚗";
+    if (day === 6) return "طاقة الويكند موجودة ✨";
+    if (day === 0) return "استمتع بيوم الأحد 🌟";
+    if (hour < 10) return "صباح رائع لتخطيط مغامرة! ☀️";
+    if (hour >= 20) return "أمسية مثالية تنتظرك 🌙";
+    return "مستعد لمغامرة اليوم؟ 🗺️";
+  }
   if (day === 5) return "It's Friday — perfect for a day trip! 🚗";
   if (day === 6) return "Weekend energy is here ✨";
   if (day === 0) return "Make the most of your Sunday 🌟";
@@ -220,11 +228,14 @@ const vibeGradient: Record<string, string> = {
   default: 'from-emerald-600 via-teal-500 to-cyan-500',
 };
 
-const STEP_LABELS = ['Interests', 'Vibe', 'Group', 'Budget', 'Time'];
+const STEP_LABELS_EN = ['Interests', 'Vibe', 'Group', 'Budget', 'Time'];
+const STEP_LABELS_AR = ['الاهتمامات', 'المزاج', 'المجموعة', 'الميزانية', 'الوقت'];
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
-export const YourMoodScreen = ({ user, onNavigate, t }: { user: User; onNavigate?: (tab: string, id?: string) => void; t?: any }) => {
+export const YourMoodScreen = ({ user, onNavigate, t, lang }: { user: User; onNavigate?: (tab: string, id?: string) => void; t?: any; lang?: 'en' | 'ar' }) => {
+  const ar = lang === 'ar';
+  const STEP_LABELS = ar ? STEP_LABELS_AR : STEP_LABELS_EN;
   const [prefs, setPrefs] = useState<MoodPrefs | null>(() => loadPrefs());
   const [editing, setEditing] = useState(!loadPrefs());
 
@@ -423,7 +434,7 @@ export const YourMoodScreen = ({ user, onNavigate, t }: { user: User; onNavigate
           <div className="mt-5">
             <div className="flex items-center justify-between mb-1.5">
               <span className="text-emerald-200 text-xs font-bold">{STEP_LABELS[step]}</span>
-              <span className="text-emerald-200 text-xs">Step {step + 1} of {STEP_LABELS.length}</span>
+              <span className="text-emerald-200 text-xs">{ar ? `خطوة ${step + 1} من ${STEP_LABELS.length}` : `Step ${step + 1} of ${STEP_LABELS.length}`}</span>
             </div>
             <div className="w-full h-1.5 bg-white/20 rounded-full overflow-hidden">
               <div
@@ -439,7 +450,7 @@ export const YourMoodScreen = ({ user, onNavigate, t }: { user: User; onNavigate
               className="mt-4 flex items-center gap-2 bg-white/15 hover:bg-white/25 border border-white/30 text-white text-sm font-bold px-4 py-2.5 rounded-xl transition-all active:scale-95"
             >
               <Zap className="w-4 h-4 text-yellow-300" />
-              Surprise Me — skip the form!
+              {ar ? 'فاجئني — تخطَّ النموذج!' : 'Surprise Me — skip the form!'}
             </button>
           )}
         </div>
@@ -499,7 +510,7 @@ export const YourMoodScreen = ({ user, onNavigate, t }: { user: User; onNavigate
           {step === 2 && (
             <div className="animate-in fade-in slide-in-from-bottom-2">
               <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">
-                Who are you going with? <span className="text-red-400">*</span>
+                {ar ? 'مع من ستذهب؟' : 'Who are you going with?'} <span className="text-red-400">*</span>
               </p>
               <div className="grid grid-cols-2 gap-3">
                 {GROUP_OPTIONS.map(opt => {
@@ -514,7 +525,7 @@ export const YourMoodScreen = ({ user, onNavigate, t }: { user: User; onNavigate
                         }`}
                     >
                       <span className="text-3xl mb-2">{opt.emoji}</span>
-                      <span className="text-sm font-bold text-slate-800">{opt.label}</span>
+                      <span className="text-sm font-bold text-slate-800">{ar ? opt.labelAr : opt.label}</span>
                     </button>
                   );
                 })}
@@ -566,10 +577,10 @@ export const YourMoodScreen = ({ user, onNavigate, t }: { user: User; onNavigate
                     onChange={e => setHours(parseFloat(e.target.value))}
                     className="flex-1 accent-emerald-500 cursor-pointer"
                   />
-                  <span className="font-extrabold text-slate-900 w-12 text-right">{hours}h</span>
+                  <span className="font-extrabold text-slate-900 w-12 text-right">{hours}{ar ? 'س' : 'h'}</span>
                 </div>
                 <div className="flex justify-between text-xs text-slate-400 mt-1 px-1">
-                  <span>1 hr</span><span>4 hrs</span><span>8 hrs</span>
+                  <span>{ar ? 'ساعة' : '1 hr'}</span><span>{ar ? '4س' : '4 hrs'}</span><span>{ar ? '8س' : '8 hrs'}</span>
                 </div>
               </div>
             </div>
@@ -581,7 +592,7 @@ export const YourMoodScreen = ({ user, onNavigate, t }: { user: User; onNavigate
                 onClick={() => setStep(s => s - 1)}
                 className="flex items-center gap-1.5 px-5 py-3 border border-slate-300 rounded-2xl font-bold text-slate-600 text-sm hover:bg-slate-50 transition"
               >
-                <ChevronLeft className="w-4 h-4" /> Back
+                <ChevronLeft className="w-4 h-4" /> {ar ? 'رجوع' : 'Back'}
               </button>
             )}
             {step < STEP_LABELS.length - 1 ? (
@@ -593,7 +604,7 @@ export const YourMoodScreen = ({ user, onNavigate, t }: { user: User; onNavigate
                   : 'bg-slate-100 text-slate-400 cursor-not-allowed'
                   }`}
               >
-                Next <ChevronRight className="w-4 h-4" />
+                {ar ? 'التالي' : 'Next'} <ChevronRight className="w-4 h-4" />
               </button>
             ) : (
               <button
@@ -631,7 +642,7 @@ export const YourMoodScreen = ({ user, onNavigate, t }: { user: User; onNavigate
         <div className="absolute bottom-0 left-1/2 w-24 h-24 rounded-full bg-white/5" />
 
         <div className="relative animate-in fade-in">
-          <p className="text-white/80 text-xs font-medium mb-0.5">{getContextualLine()}</p>
+          <p className="text-white/80 text-xs font-medium mb-0.5">{getContextualLine(ar)}</p>
           <p className="text-white/80 text-sm font-medium">{getGreeting(t)},</p>
           <h1 className="text-white text-2xl font-extrabold leading-tight mt-0.5">
             {user?.name?.split(' ')[0] || 'Explorer'} — {t?.moodHereYourDay || "here's your day 🎯"}
@@ -641,7 +652,7 @@ export const YourMoodScreen = ({ user, onNavigate, t }: { user: User; onNavigate
             <div className="flex items-center gap-3 mt-3">
               <div className="flex items-center gap-1.5 bg-white/20 px-3 py-1.5 rounded-full">
                 <Flame className="w-3.5 h-3.5 text-orange-300" />
-                <span className="text-white text-xs font-extrabold">{streakCount}-day streak!</span>
+                <span className="text-white text-xs font-extrabold">{ar ? `${streakCount} يوم متتالي!` : `${streakCount}-day streak!`}</span>
               </div>
               <div className="flex items-center gap-1.5">
                 {last7Days.map((day, i) => (
@@ -661,26 +672,26 @@ export const YourMoodScreen = ({ user, onNavigate, t }: { user: User; onNavigate
               const opt = INTEREST_OPTIONS.find(o => o.id === i);
               return (
                 <span key={i} className="bg-white/20 backdrop-blur-sm text-white text-xs font-semibold px-3 py-1 rounded-full border border-white/25">
-                  {opt?.emoji} {t?.[opt?.tKey || ''] || i}
+                  {opt?.emoji} {ar ? (t?.[opt?.tKey || ''] || opt?.labelAr || i) : (t?.[opt?.tKey || ''] || i)}
                 </span>
               );
             })}
             {vibeOption && (
               <span className="bg-white/20 backdrop-blur-sm text-white text-xs font-semibold px-3 py-1 rounded-full border border-white/25">
-                {vibeOption.emoji} {t?.[vibeOption.tKey] || vibeOption.val}
+                {vibeOption.emoji} {ar ? (t?.[vibeOption.tKey] || vibeOption.labelAr) : (t?.[vibeOption.tKey] || vibeOption.val)}
               </span>
             )}
             {groupOption && (
               <span className="bg-white/20 backdrop-blur-sm text-white text-xs font-semibold px-3 py-1 rounded-full border border-white/25">
-                {groupOption.emoji} {groupOption.label}
+                {groupOption.emoji} {ar ? groupOption.labelAr : groupOption.label}
               </span>
             )}
             <span className="bg-white/20 backdrop-blur-sm text-white text-xs font-semibold px-3 py-1 rounded-full border border-white/25">
-              ⏱ {prefs.hours}h
+              ⏱ {prefs.hours}{ar ? 'س' : 'h'}
             </span>
             {prefs.isSurprise && (
               <span className="bg-yellow-400/30 backdrop-blur-sm text-white text-xs font-semibold px-3 py-1 rounded-full border border-yellow-300/40">
-                🎲 Surprise pick
+                🎲 {ar ? 'اختيار عشوائي' : 'Surprise pick'}
               </span>
             )}
           </div>
@@ -696,7 +707,7 @@ export const YourMoodScreen = ({ user, onNavigate, t }: { user: User; onNavigate
               onClick={handleShuffle}
               className="flex items-center gap-1.5 bg-white/15 hover:bg-white/25 border border-white/30 text-white text-xs font-bold px-3 py-2 rounded-xl transition-all active:scale-95"
             >
-              <RefreshCw className="w-3.5 h-3.5" /> Shuffle picks
+              <RefreshCw className="w-3.5 h-3.5" /> {ar ? 'تغيير النتائج' : 'Shuffle picks'}
             </button>
           </div>
         </div>
@@ -719,7 +730,7 @@ export const YourMoodScreen = ({ user, onNavigate, t }: { user: User; onNavigate
                     : 'border-transparent text-slate-400 hover:text-slate-600 hover:bg-slate-50 rounded-t-lg'
                     }`}
                 >
-                  {tab === 'all' ? '✨ All' : tab === 'places' ? '📍 Places' : tab === 'tours' ? '🧭 Tours' : '🏕️ Rentals'}
+                  {tab === 'all' ? (ar ? '✨ الكل' : '✨ All') : tab === 'places' ? (ar ? '📍 أماكن' : '📍 Places') : tab === 'tours' ? (ar ? '🧭 جولات' : '🧭 Tours') : (ar ? '🏕️ إيجارات' : '🏕️ Rentals')}
                 </button>
               ))}
             </div>
@@ -751,7 +762,7 @@ export const YourMoodScreen = ({ user, onNavigate, t }: { user: User; onNavigate
                               <div className="w-full h-full flex items-center justify-center bg-slate-100"><Compass className="w-8 h-8 text-slate-300" /></div>
                             )}
                             <span className="absolute top-2 left-2 px-2 py-0.5 bg-emerald-600/90 backdrop-blur-sm text-white text-[9px] font-extrabold rounded-full shadow">
-                              {matchPct}% match
+                              {matchPct}%{ar ? ' تطابق' : ' match'}
                             </span>
                             {rating && (
                               <div className="absolute top-2 right-2 flex items-center gap-0.5 bg-white/90 backdrop-blur-sm px-1.5 py-0.5 rounded-full shadow">
@@ -815,12 +826,12 @@ export const YourMoodScreen = ({ user, onNavigate, t }: { user: User; onNavigate
                               <div className="w-full h-full flex items-center justify-center bg-slate-100"><Compass className="w-8 h-8 text-slate-300" /></div>
                             )}
                             <span className={`absolute bottom-1.5 left-1.5 text-[9px] font-bold px-1.5 py-0.5 rounded-full text-white shadow ${tour.difficulty === 'easy' ? 'bg-emerald-500' : tour.difficulty === 'moderate' ? 'bg-amber-500' : 'bg-red-500'
-                              }`}>{tour.difficulty}</span>
+                              }`}>{ar ? (tour.difficulty === 'easy' ? 'سهل' : tour.difficulty === 'moderate' ? 'متوسط' : 'صعب') : tour.difficulty}</span>
                           </div>
                           <div className="flex-1 p-3 min-w-0 pr-10 flex flex-col justify-between">
                             <div>
                               <span className="inline-block mb-1 px-2 py-0.5 bg-emerald-50 text-emerald-700 text-[9px] font-extrabold rounded-full">
-                                {matchPct}% match
+                                {matchPct}%{ar ? ' تطابق' : ' match'}
                               </span>
                               <p className="font-bold text-slate-900 text-sm leading-tight line-clamp-2">{tour.title}</p>
                               <p className="text-xs text-slate-400 mt-0.5 truncate">{tour.departureLocation}</p>
@@ -880,7 +891,7 @@ export const YourMoodScreen = ({ user, onNavigate, t }: { user: User; onNavigate
                               <div className="w-full h-full flex items-center justify-center bg-slate-100"><Compass className="w-8 h-8 text-slate-300" /></div>
                             )}
                             <span className="absolute top-2 left-2 px-2 py-0.5 bg-emerald-600/90 backdrop-blur-sm text-white text-[9px] font-extrabold rounded-full shadow">
-                              {matchPct}% match
+                              {matchPct}%{ar ? ' تطابق' : ' match'}
                             </span>
                             {rental.rating && (
                               <div className="absolute top-2 right-2 flex items-center gap-0.5 bg-white/90 backdrop-blur-sm px-1.5 py-0.5 rounded-full shadow">
@@ -898,7 +909,7 @@ export const YourMoodScreen = ({ user, onNavigate, t }: { user: User; onNavigate
                               <MapPin className="w-3 h-3 flex-shrink-0" />{rental.locationName}
                             </p>
                             <p className="text-sm font-extrabold text-emerald-700 mt-1.5">
-                              {rental.price} <span className="text-xs font-normal text-slate-400">SAR/night</span>
+                              {rental.price} <span className="text-xs font-normal text-slate-400">{ar ? 'ريال/ليلة' : 'SAR/night'}</span>
                             </p>
                           </div>
                         </button>
@@ -929,7 +940,7 @@ export const YourMoodScreen = ({ user, onNavigate, t }: { user: User; onNavigate
                 <p className="text-slate-400 text-sm mt-1">{t?.moodAdjustPrefs || 'Try shuffling or updating your preferences'}</p>
                 <div className="flex gap-3 justify-center mt-4">
                   <button onClick={handleShuffle} className="flex items-center gap-1.5 px-4 py-2.5 bg-slate-100 text-slate-700 rounded-xl font-bold text-sm hover:bg-slate-200 transition-colors">
-                    <RefreshCw className="w-4 h-4" /> Shuffle
+                    <RefreshCw className="w-4 h-4" /> {ar ? 'تغيير' : 'Shuffle'}
                   </button>
                   <button onClick={handleEdit} className="px-4 py-2.5 bg-emerald-600 text-white rounded-xl font-bold text-sm hover:bg-emerald-700 transition-colors shadow-sm">
                     {t?.moodUpdatePrefs || 'Update Preferences'}

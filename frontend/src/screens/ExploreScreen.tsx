@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   Navigation, Search, List, Map as MapIcon, X, Star, Clock,
   SlidersHorizontal, Heart, ArrowUpDown, Users, CheckCircle2,
-  Percent, Tag, Bookmark, Info,
+  Percent, Tag, Bookmark, Info, LayoutGrid, ChevronRight,
 } from 'lucide-react';
 import { Place } from '../types/index';
 import L from 'leaflet';
@@ -12,6 +12,7 @@ import 'leaflet/dist/leaflet.css';
 import { PlaceDetailModal } from '../components/PlaceDetailModal';
 import { placeAPI } from '../services/api';
 import { showToast } from '../components/Toast';
+import { Skeleton } from '../components/ui';
 
 import { addPlaceToList } from './PersonalListsScreen';
 
@@ -81,13 +82,18 @@ const PRICE_LABEL = ['', 'مجاني', 'اقتصادي', 'متوسط', 'فاخر
 const PRICE_COLOR = ['', 'text-emerald-600', 'text-teal-600', 'text-amber-600', 'text-red-500'];
 
 // ── Main Component ────────────────────────────────────────────────────────
-export const ExploreScreen = ({ t, onOpenPlace }: { t: any; onOpenPlace: (p: Place) => void }) => {
+export const ExploreScreen = ({ t, onOpenPlace, initialNearMe = false, onNearMeHandled }: {
+  t: any;
+  onOpenPlace: (p: Place) => void;
+  initialNearMe?: boolean;
+  onNearMeHandled?: () => void;
+}) => {
   const [places, setPlaces] = useState<Place[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedItem, setSelectedItem] = useState<Place | null>(null);
   const [activeCategory, setActiveCategory] = useState('');
   const [isLocating, setIsLocating] = useState(false);
-  const [viewMode, setViewMode] = useState<'map' | 'list'>('map');
+  const [viewMode, setViewMode] = useState<'tiles' | 'map' | 'list'>('tiles');
   const [searchQuery, setSearchQuery] = useState('');
   const [showFilters, setShowFilters] = useState(false);
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
@@ -100,6 +106,7 @@ export const ExploreScreen = ({ t, onOpenPlace }: { t: any; onOpenPlace: (p: Pla
   const [filterPriceMax, setFilterPriceMax] = useState(4);
   const [filterOpenNow, setFilterOpenNow] = useState(false);
   const [filterFamilyOnly, setFilterFamilyOnly] = useState(false);
+  const [filterTrending, setFilterTrending] = useState(false);
   const [filterAccessType, setFilterAccessType] = useState<string>('');
   const [filterFoodTruck, setFilterFoodTruck] = useState(false);
   const [filterGender, setFilterGender] = useState<string>('');
@@ -195,6 +202,7 @@ export const ExploreScreen = ({ t, onOpenPlace }: { t: any; onOpenPlace: (p: Pla
 
       if (filterOpenNow && isOpenNow(p) === false) return false;
       if (filterFamilyOnly && !p.isFamilySuitable) return false;
+      if (filterTrending && !p.isTrending) return false;
       if (filterAccessType && p.accessType !== filterAccessType) return false;
       if (filterFoodTruck && !p.isFoodTruck) return false;
       if (filterGender && p.gender && p.gender !== filterGender) return false;
@@ -222,12 +230,38 @@ export const ExploreScreen = ({ t, onOpenPlace }: { t: any; onOpenPlace: (p: Pla
     }
     return result;
   }, [places, activeCategory, searchQuery, filterMinRating, filterPriceMax, filterOpenNow,
-    filterFamilyOnly, filterAccessType, filterFoodTruck, filterGender, filterGroupOffer,
+    filterFamilyOnly, filterTrending, filterAccessType, filterFoodTruck, filterGender, filterGroupOffer,
     sortBy, userPos]);
 
   const familyDeals = useMemo(() =>
     filtered.filter(p => p.isFamilySuitable && (p.priceRange ?? 3) <= 2).slice(0, 3),
     [filtered]);
+
+  const categoryThumbs = useMemo(() => {
+    const map: Record<string, string[]> = {};
+    for (const cat of CATEGORIES) {
+      if (!cat.id) continue;
+      const imgs = places
+        .filter(p => getCategoryId(p) === cat.id)
+        .map(p => p.photos?.[0] || p.image)
+        .filter(Boolean) as string[];
+      map[cat.id] = imgs.slice(0, 4);
+    }
+    return map;
+  }, [places]);
+
+  const smartCounts = useMemo(() => ({
+    open: places.filter(p => isOpenNow(p) === true).length,
+    trending: places.filter(p => p.isTrending).length,
+    family: places.filter(p => p.isFamilySuitable).length,
+    near: userPos
+      ? places.filter(p => {
+          const lat = p.coordinates?.lat ?? p.lat ?? 24.7136;
+          const lng = p.coordinates?.lng ?? p.lng ?? 46.6753;
+          return distKm(userPos.lat, userPos.lng, lat, lng) < 20;
+        }).length
+      : null,
+  }), [places, userPos]);
 
   // ── Init Map ─────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -288,7 +322,7 @@ export const ExploreScreen = ({ t, onOpenPlace }: { t: any; onOpenPlace: (p: Pla
     markersLayerRef.current = null;
   }, []);
 
-  const handleNearMe = () => {
+  const handleNearMe = (targetView: 'map' | 'list' = 'map') => {
     if (!navigator.geolocation) { showToast('الجهاز لا يدعم تحديد الموقع', 'error'); return; }
     setIsLocating(true);
     navigator.geolocation.getCurrentPosition(
@@ -296,19 +330,27 @@ export const ExploreScreen = ({ t, onOpenPlace }: { t: any; onOpenPlace: (p: Pla
         setIsLocating(false);
         const { latitude: lat, longitude: lng } = pos.coords;
         setUserPos({ lat, lng });
-        if (mapInstanceRef.current) {
+        if (targetView === 'map' && mapInstanceRef.current) {
           mapInstanceRef.current.setView([lat, lng], 15);
           L.circleMarker([lat, lng], {
             radius: 10, fillColor: '#3b82f6', color: '#fff', weight: 3, fillOpacity: 1,
           }).addTo(mapInstanceRef.current).bindTooltip('أنت هنا', { permanent: true });
         }
         setSortBy('proximity');
-        setViewMode('map');
+        setViewMode(targetView);
       },
       () => { setIsLocating(false); showToast('تعذّر الحصول على موقعك', 'error'); },
       { timeout: 8000 }
     );
   };
+
+  // Trigger near-me on mount when coming from the homepage map
+  useEffect(() => {
+    if (!initialNearMe) return;
+    onNearMeHandled?.();
+    handleNearMe('map');
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // 2. Optimistic Favorite Sync
   const handleSaveToggle = async (e: React.MouseEvent, id: string) => {
@@ -357,13 +399,13 @@ export const ExploreScreen = ({ t, onOpenPlace }: { t: any; onOpenPlace: (p: Pla
   };
 
   const activeFiltersCount = [
-    filterMinRating > 0, filterPriceMax < 4, filterOpenNow, filterFamilyOnly,
+    filterMinRating > 0, filterPriceMax < 4, filterOpenNow, filterFamilyOnly, filterTrending,
     !!filterAccessType, filterFoodTruck, !!filterGender, filterGroupOffer,
   ].filter(Boolean).length;
 
   const resetFilters = () => {
     setFilterMinRating(0); setFilterPriceMax(4); setFilterOpenNow(false);
-    setFilterFamilyOnly(false); setFilterAccessType(''); setFilterFoodTruck(false);
+    setFilterFamilyOnly(false); setFilterTrending(false); setFilterAccessType(''); setFilterFoodTruck(false);
     setFilterGender(''); setFilterGroupOffer(false); setSortBy('rating');
   };
 
@@ -552,7 +594,7 @@ export const ExploreScreen = ({ t, onOpenPlace }: { t: any; onOpenPlace: (p: Pla
             className="flex-1 bg-transparent text-sm text-slate-800 placeholder-slate-400 outline-none font-medium"
             placeholder="ابحث: مطعم، شاطئ، بادل..."
             value={searchQuery}
-            onChange={e => setSearchQuery(e.target.value)}
+            onChange={e => { setSearchQuery(e.target.value); if (e.target.value && viewMode === 'tiles') setViewMode('list'); }}
           />
           {searchQuery && (
             <button onClick={() => setSearchQuery('')} className="text-slate-400 active:scale-90 transition-transform">
@@ -563,33 +605,71 @@ export const ExploreScreen = ({ t, onOpenPlace }: { t: any; onOpenPlace: (p: Pla
 
         {/* View toggle */}
         <div className="flex bg-white/95 backdrop-blur-md border border-slate-200 rounded-2xl shadow-md overflow-hidden pointer-events-auto shrink-0">
-          <button onClick={() => setViewMode('map')} className={`p-2.5 transition-colors ${viewMode === 'map' ? 'bg-emerald-600 text-white' : 'text-slate-400 hover:bg-slate-50'}`}>
-            <MapIcon className="w-4 h-4" />
+          <button onClick={() => { setViewMode('tiles'); setActiveCategory(''); }} className={`flex items-center gap-1 px-2.5 py-2 transition-colors ${viewMode === 'tiles' ? 'bg-emerald-600 text-white' : 'text-slate-400 hover:bg-slate-50'}`}>
+            <LayoutGrid className="w-4 h-4" />
+            {viewMode === 'tiles' && <span className="text-[11px] font-black">الفئات</span>}
           </button>
-          <button onClick={() => setViewMode('list')} className={`p-2.5 transition-colors ${viewMode === 'list' ? 'bg-emerald-600 text-white' : 'text-slate-400 hover:bg-slate-50'}`}>
+          <button onClick={() => setViewMode('map')} className={`flex items-center gap-1 px-2.5 py-2 transition-colors ${viewMode === 'map' ? 'bg-emerald-600 text-white' : 'text-slate-400 hover:bg-slate-50'}`}>
+            <MapIcon className="w-4 h-4" />
+            {viewMode === 'map' && <span className="text-[11px] font-black">خريطة</span>}
+          </button>
+          <button onClick={() => setViewMode('list')} className={`flex items-center gap-1 px-2.5 py-2 transition-colors ${viewMode === 'list' ? 'bg-emerald-600 text-white' : 'text-slate-400 hover:bg-slate-50'}`}>
             <List className="w-4 h-4" />
+            {viewMode === 'list' && <span className="text-[11px] font-black">قائمة</span>}
           </button>
         </div>
       </div>
 
       {/* ── Category pills ────────────────────────────────────────────── */}
-      <div className="absolute top-16 left-0 right-0 z-20 pointer-events-none">
-        <div className="flex gap-2 overflow-x-auto no-scrollbar px-3 pb-1 pointer-events-auto">
-          {CATEGORIES.map(cat => (
+      {viewMode !== 'tiles' && (
+        <div className="absolute top-16 left-0 right-0 z-20 pointer-events-none">
+          <div className="flex gap-2 overflow-x-auto no-scrollbar px-3 pb-2 pt-1 pointer-events-auto">
+            {/* Back to categories chip */}
             <button
-              key={cat.id}
-              onClick={() => setActiveCategory(cat.id)}
-              className={`shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-black border shadow-sm transition-all active:scale-95 ${activeCategory === cat.id ? 'text-white border-transparent' : 'bg-white/95 text-slate-700 border-slate-200 backdrop-blur-sm hover:bg-slate-50'}`}
-              style={activeCategory === cat.id ? { background: cat.color, borderColor: cat.color } : {}}
+              onClick={() => { setViewMode('tiles'); setActiveCategory(''); }}
+              className="shrink-0 flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-black border shadow-sm bg-slate-800 text-white border-slate-700 active:scale-95 transition-all"
             >
-              <span>{cat.emoji}</span>{cat.label}
+              <ChevronRight className="w-3.5 h-3.5" />
+              الفئات
             </button>
-          ))}
+
+            {/* Quick-filter pills */}
+            <button
+              onClick={() => { setFilterTrending(v => !v); setViewMode('list'); }}
+              className={`shrink-0 flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-black border shadow-sm transition-all active:scale-95 ${filterTrending ? 'text-white border-transparent bg-red-500' : 'bg-white/95 text-slate-700 border-slate-200 backdrop-blur-sm hover:bg-slate-50'}`}
+            >
+              🔥 رائج
+            </button>
+            <button
+              onClick={() => { setFilterOpenNow(v => !v); setViewMode('list'); }}
+              className={`shrink-0 flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-black border shadow-sm transition-all active:scale-95 ${filterOpenNow ? 'text-white border-transparent bg-emerald-500' : 'bg-white/95 text-slate-700 border-slate-200 backdrop-blur-sm hover:bg-slate-50'}`}
+            >
+              🕒 مفتوح الآن
+            </button>
+            <button
+              onClick={() => { setFilterFamilyOnly(v => !v); setViewMode('list'); }}
+              className={`shrink-0 flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-black border shadow-sm transition-all active:scale-95 ${filterFamilyOnly ? 'text-white border-transparent bg-violet-500' : 'bg-white/95 text-slate-700 border-slate-200 backdrop-blur-sm hover:bg-slate-50'}`}
+            >
+              👨‍👩‍👧 عائلي
+            </button>
+
+            {/* Category pills */}
+            {CATEGORIES.map(cat => (
+              <button
+                key={cat.id}
+                onClick={() => { setActiveCategory(cat.id); if (cat.id !== '') setViewMode('map'); }}
+                className={`shrink-0 flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-black border shadow-sm transition-all active:scale-95 ${activeCategory === cat.id ? 'text-white border-transparent' : 'bg-white/95 text-slate-700 border-slate-200 backdrop-blur-sm hover:bg-slate-50'}`}
+                style={activeCategory === cat.id ? { background: cat.color, borderColor: cat.color } : {}}
+              >
+                <span>{cat.emoji}</span>{cat.label}
+              </button>
+            ))}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* ── Right controls ────────────────────────────────────────────── */}
-      <div className="absolute top-28 right-3 z-20 flex flex-col gap-2 pointer-events-auto">
+      {viewMode !== 'tiles' && <div className="absolute top-28 right-3 z-20 flex flex-col gap-2 pointer-events-auto">
         {/* Near me */}
         <button
           onClick={handleNearMe}
@@ -627,10 +707,10 @@ export const ExploreScreen = ({ t, onOpenPlace }: { t: any; onOpenPlace: (p: Pla
             </span>
           )}
         </button>
-      </div>
+      </div>}
 
       {/* ── Sort badge ────────────────────────────────────────────────── */}
-      {sortBy !== 'rating' && (
+      {viewMode !== 'tiles' && sortBy !== 'rating' && (
         <div className="absolute top-28 left-3 z-20 pointer-events-none">
           <div className="bg-emerald-600 text-white text-[10px] font-black px-3 py-1.5 rounded-2xl shadow-md">
             {sortBy === 'price_asc' && '↑ الأرخص أولاً'}
@@ -641,7 +721,7 @@ export const ExploreScreen = ({ t, onOpenPlace }: { t: any; onOpenPlace: (p: Pla
       )}
 
       {/* ── Place count (when rating sort) ────────────────────────────── */}
-      {sortBy === 'rating' && (
+      {viewMode !== 'tiles' && sortBy === 'rating' && (
         <div className="absolute top-28 left-3 z-20 pointer-events-none">
           <div className="bg-white/95 backdrop-blur-sm border border-slate-200 rounded-2xl shadow-md px-3 py-2">
             <p className="text-xs font-black text-slate-700">{filtered.length} مكان</p>
@@ -718,8 +798,145 @@ export const ExploreScreen = ({ t, onOpenPlace }: { t: any; onOpenPlace: (p: Pla
         </div>
       )}
 
+      {/* ── TILES VIEW ───────────────────────────────────────────────── */}
+      {viewMode === 'tiles' && (
+        <div className="absolute inset-0 overflow-y-auto pt-16 pb-24 px-3 bg-slate-50">
+
+          {/* Smart context tiles — promoted to top */}
+          {(() => {
+            const hour = new Date().getHours();
+            const emphasisId = userPos ? 'near' : (hour >= 17 && hour < 23) ? 'open' : 'trending';
+            const tiles = [
+              {
+                id: 'near', label: 'بالقرب مني', emoji: '📍',
+                subtitle: userPos ? 'أماكن حولك الآن' : 'اكتشف ما يقترب منك',
+                bg: 'linear-gradient(135deg, #3b82f6, #1d4ed8)',
+                count: smartCounts.near !== null ? `${smartCounts.near} مكان قريب` : 'تفعيل الموقع ←',
+                onTap: () => handleNearMe('map'),
+              },
+              {
+                id: 'open', label: 'مفتوح الآن', emoji: '🕒',
+                subtitle: 'لا وقت للبحث، ادخل مباشرة',
+                bg: 'linear-gradient(135deg, #10b981, #047857)',
+                count: `${smartCounts.open} مكان متاح`,
+                onTap: () => { setFilterOpenNow(true); setViewMode('list'); },
+              },
+              {
+                id: 'trending', label: 'رائج اليوم', emoji: '🔥',
+                subtitle: 'الأكثر زيارةً هذا الأسبوع',
+                bg: 'linear-gradient(135deg, #ef4444, #b91c1c)',
+                count: `${smartCounts.trending} مكان رائج`,
+                onTap: () => { setFilterTrending(true); setViewMode('list'); },
+              },
+              {
+                id: 'family', label: 'عائلي', emoji: '👨‍👩‍👧',
+                subtitle: 'مناسب للعائلة والأطفال',
+                bg: 'linear-gradient(135deg, #8b5cf6, #6d28d9)',
+                count: `${smartCounts.family} خيار عائلي`,
+                onTap: () => { setFilterFamilyOnly(true); setViewMode('list'); },
+              },
+            ];
+            return (
+              <div className="mb-3">
+                <p className="text-xs font-black text-slate-400 uppercase tracking-widest text-right mb-2.5">اقتراحات سريعة</p>
+                {isLoading ? (
+                  <div className="grid grid-cols-2 gap-3">
+                    {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-28 rounded-2xl" />)}
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 gap-3">
+                    {tiles.map(tile => {
+                      const isEmphasized = tile.id === emphasisId;
+                      return (
+                        <button
+                          key={tile.id}
+                          onClick={tile.onTap}
+                          className={`h-28 rounded-2xl shadow-lg active:scale-[0.97] transition-all overflow-hidden relative flex flex-col justify-between p-3.5 ${isEmphasized ? 'ring-2 ring-white/50 shadow-xl scale-[1.02]' : ''}`}
+                          style={{ background: tile.bg }}
+                        >
+                          <div className="flex items-start justify-between">
+                            <span className="text-white/30 text-[10px] font-black">›</span>
+                            <span className="text-3xl">{tile.emoji}</span>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-white font-black text-sm leading-tight">{tile.label}</p>
+                            <p className="text-white/70 text-[10px] font-semibold mt-0.5 leading-snug">{tile.subtitle}</p>
+                            <p className="text-white/50 text-[9px] font-black mt-1">{tile.count}</p>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+
+          {/* All places hero — demoted, quieter */}
+          <button
+            onClick={() => { setActiveCategory(''); setViewMode('map'); }}
+            className="w-full h-16 mb-3 rounded-2xl shadow-sm active:scale-[0.97] transition-transform overflow-hidden relative flex items-center px-4 gap-3"
+            style={{ background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)' }}
+          >
+            <span className="text-2xl">🗺️</span>
+            <div className="text-right flex-1">
+              <p className="text-white font-black text-base leading-tight">كل الأماكن</p>
+              <p className="text-white/50 text-[10px] font-semibold mt-0.5">
+                {isLoading ? '...' : `${places.length} مكان`}
+              </p>
+            </div>
+            <span className="text-white/30 text-sm font-black">›</span>
+          </button>
+
+          {/* Category grid */}
+          {isLoading ? (
+            <div className="grid grid-cols-2 gap-3">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <div key={i}><Skeleton className="h-40 rounded-2xl" /></div>
+              ))}
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-3">
+              {CATEGORIES.filter(c => c.id).map(cat => {
+                const count = places.filter(p => getCategoryId(p) === cat.id).length;
+                const thumbs = categoryThumbs[cat.id] || [];
+                return (
+                  <button
+                    key={cat.id}
+                    onClick={() => { setActiveCategory(cat.id); setViewMode('map'); }}
+                    className="h-40 rounded-2xl shadow-md active:scale-[0.97] transition-transform overflow-hidden relative"
+                    style={{ backgroundColor: cat.color }}
+                  >
+                    {thumbs.length >= 2 ? (
+                      <>
+                        <div className="absolute inset-0 grid grid-cols-2 grid-rows-2">
+                          {Array.from({ length: 4 }).map((_, i) => (
+                            thumbs[i]
+                              ? <img key={i} src={thumbs[i]} loading="lazy" className="w-full h-full object-cover" alt="" />
+                              : <div key={i} style={{ background: `${cat.color}aa` }} />
+                          ))}
+                        </div>
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
+                      </>
+                    ) : (
+                      <div className="absolute inset-0 flex items-start justify-end p-4" style={{ background: `linear-gradient(135deg, ${cat.color} 0%, ${cat.color}cc 100%)` }}>
+                        <span className="text-5xl opacity-90">{cat.emoji}</span>
+                      </div>
+                    )}
+                    <div className="absolute bottom-0 left-0 right-0 p-3 text-right">
+                      <p className="text-white font-black text-base leading-tight drop-shadow-sm">{cat.label}</p>
+                      <p className="text-white/75 text-xs font-semibold mt-0.5 drop-shadow-sm">{count} مكان</p>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* ── MAP VIEW ─────────────────────────────────────────────────── */}
-      <div className={`absolute inset-0 ${viewMode === 'list' ? 'hidden' : ''}`}>
+      <div className={`absolute inset-0 ${viewMode === 'list' || viewMode === 'tiles' ? 'hidden' : ''}`}>
         {isLoading && (
           <div className="absolute inset-0 z-20 flex items-center justify-center bg-white/60 backdrop-blur-sm">
             <div className="w-8 h-8 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin" />
@@ -727,11 +944,16 @@ export const ExploreScreen = ({ t, onOpenPlace }: { t: any; onOpenPlace: (p: Pla
         )}
         <div ref={mapContainerRef} className="w-full h-full outline-none" />
 
-        {!selectedItem && !isLoading && (
-          <div className="absolute bottom-24 left-1/2 -translate-x-1/2 z-10 pointer-events-none animate-in fade-in slide-in-from-bottom-2">
-            <span className="bg-white/95 backdrop-blur px-4 py-2 rounded-full text-xs font-black text-slate-600 shadow-lg border border-slate-200">
-              📍 اضغط على الأيقونة للاستكشاف
-            </span>
+        {!selectedItem && !showBottomSheet && !isLoading && (
+          <div className="absolute bottom-24 left-1/2 -translate-x-1/2 z-10 animate-in fade-in slide-in-from-bottom-2">
+            <button
+              onClick={() => setViewMode('list')}
+              className="flex items-center gap-2 px-5 py-3 rounded-full bg-slate-900 text-white font-black text-sm shadow-2xl active:scale-95 transition-transform"
+            >
+              <List className="w-4 h-4" />
+              إظهار القائمة
+              <span className="bg-white/20 text-white text-xs font-black px-2 py-0.5 rounded-full">{filtered.length}</span>
+            </button>
           </div>
         )}
 
@@ -807,6 +1029,19 @@ export const ExploreScreen = ({ t, onOpenPlace }: { t: any; onOpenPlace: (p: Pla
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {/* ── Show-map floating pill (list view) ──────────────────────── */}
+      {viewMode === 'list' && !isLoading && filtered.length > 0 && (
+        <div className="absolute bottom-24 left-1/2 -translate-x-1/2 z-10 pointer-events-auto animate-in fade-in slide-in-from-bottom-2">
+          <button
+            onClick={() => setViewMode('map')}
+            className="flex items-center gap-2 px-5 py-3 rounded-full bg-slate-900 text-white font-black text-sm shadow-2xl active:scale-95 transition-transform"
+          >
+            <MapIcon className="w-4 h-4" />
+            إظهار الخريطة
+          </button>
         </div>
       )}
 

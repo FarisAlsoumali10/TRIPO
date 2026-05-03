@@ -63,6 +63,20 @@ export const WalletScreen = ({ karamPoints, karamHistory, walletBalance = 0, t, 
           <p className="text-emerald-100 text-xs font-bold uppercase tracking-widest mb-1">رصيد المحفظة</p>
           <p className="text-4xl font-black mb-0.5" style={{ direction: 'ltr' }}>{walletBalance.toFixed(2)} <span className="text-xl font-bold text-emerald-200">ر.س</span></p>
           <p className="text-emerald-200 text-xs mt-3">من الفزعات والمكافآت</p>
+          <div className="flex gap-2 mt-4">
+            <button
+              onClick={() => window.dispatchEvent(new CustomEvent('tripo:navigate', { detail: 'tours' }))}
+              className="flex-1 py-2.5 bg-white text-emerald-700 font-black text-xs rounded-2xl active:scale-95 transition-transform shadow-md"
+            >
+              Book a Tour →
+            </button>
+            <button
+              onClick={() => window.dispatchEvent(new CustomEvent('tripo:navigate', { detail: 'rentals' }))}
+              className="flex-1 py-2.5 bg-white/20 text-white font-black text-xs rounded-2xl active:scale-95 transition-transform border border-white/30"
+            >
+              Find a Stay →
+            </button>
+          </div>
         </div>
       </div>
 

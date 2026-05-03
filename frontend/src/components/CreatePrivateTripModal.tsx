@@ -1,67 +1,70 @@
-import React, { useState, useEffect } from 'react';
-import { X, Search, UserPlus, Loader2, Calendar } from 'lucide-react';
+import React, { useState, useRef } from 'react';
+import { X, Calendar, Lock, MapPin, Camera, Image as ImageIcon } from 'lucide-react';
 import { Button, Input } from './ui';
-import { User } from '../types/index';
 import { privateTripAPI } from '../services/api';
 import { showToast } from './Toast';
 
 interface Props {
   onClose: () => void;
   onCreated: (trip: any) => void;
+  lang?: 'en' | 'ar';
 }
 
-export const CreatePrivateTripModal = ({ onClose, onCreated }: Props) => {
-  const [title, setTitle] = useState('');
-  const [startDate, setStartDate] = useState('');
-  const [endDate, setEndDate] = useState('');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState<User[]>([]);
-  const [isSearching, setIsSearching] = useState(false);
-  const [invitedUsers, setInvitedUsers] = useState<User[]>([]);
-  const [isCreating, setIsCreating] = useState(false);
+function compressImage(file: File): Promise<string> {
+  return new Promise(resolve => {
+    const reader = new FileReader();
+    reader.onload = e => {
+      const img = new window.Image();
+      img.onload = () => {
+        const MAX = 1200;
+        let { width, height } = img;
+        if (width > MAX || height > MAX) {
+          if (width > height) { height = (height * MAX) / width; width = MAX; }
+          else { width = (width * MAX) / height; height = MAX; }
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = width; canvas.height = height;
+        canvas.getContext('2d')!.drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL('image/jpeg', 0.8));
+      };
+      img.src = e.target!.result as string;
+    };
+    reader.readAsDataURL(file);
+  });
+}
 
-  // Debounced user search
-  useEffect(() => {
-    if (searchQuery.trim().length < 2) { setSearchResults([]); return; }
-    const timeout = setTimeout(async () => {
-      setIsSearching(true);
-      try {
-        const results = await privateTripAPI.searchUsers(searchQuery.trim());
-        const alreadyInvited = new Set(invitedUsers.map(u => u.id));
-        setSearchResults(results.filter((u: User) => !alreadyInvited.has(u.id)));
-      } catch {
-        setSearchResults([]);
-      }
-      setIsSearching(false);
-    }, 300);
-    return () => clearTimeout(timeout);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchQuery]);
+export const CreatePrivateTripModal = ({ onClose, onCreated, lang }: Props) => {
+  const ar = lang === 'ar';
+  const [title,       setTitle]       = useState('');
+  const [destination, setDestination] = useState('');
+  const [startDate,   setStartDate]   = useState('');
+  const [endDate,     setEndDate]     = useState('');
+  const [coverImage,  setCoverImage]  = useState<string | null>(null);
+  const [isCreating,  setIsCreating]  = useState(false);
+  const photoInputRef = useRef<HTMLInputElement>(null);
 
-  const addUser = (user: User) => {
-    setInvitedUsers(prev => [...prev, user]);
-    setSearchResults(prev => prev.filter(u => u.id !== user.id));
-    setSearchQuery('');
-  };
-
-  const removeUser = (id: string) => {
-    setInvitedUsers(prev => prev.filter(u => u.id !== id));
+  const handlePhotoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const compressed = await compressImage(file);
+      setCoverImage(compressed);
+    } catch { showToast('Could not load photo', 'error'); }
+    e.target.value = '';
   };
 
   const handleCreate = async () => {
-    if (!title.trim()) {
-      showToast('Please enter a trip name', 'error');
-      return;
-    }
+    if (!title.trim()) { showToast('Please enter a trip name', 'error'); return; }
     setIsCreating(true);
     try {
       const trip = await privateTripAPI.create({
-        title: title.trim(),
-        startDate: startDate || undefined,
-        endDate: endDate || undefined,
-        inviteIds: invitedUsers.map(u => u.id),
+        title:       title.trim(),
+        destination: destination.trim() || undefined,
+        coverImage:  coverImage ?? undefined,
+        startDate:   startDate  || undefined,
+        endDate:     endDate    || undefined,
       });
-      showToast('Private trip created!', 'success');
+      showToast('Trip created! Share the link to invite people.', 'success');
       onCreated(trip);
     } catch {
       showToast('Failed to create trip', 'error');
@@ -70,36 +73,77 @@ export const CreatePrivateTripModal = ({ onClose, onCreated }: Props) => {
   };
 
   return (
-    <div className="fixed inset-0 z-[300] bg-slate-900/50 flex items-end sm:items-center justify-center p-4">
+    <div className="fixed inset-0 z-[300] bg-slate-900/50 flex items-end sm:items-center justify-center p-4" onClick={onClose}>
       <div
         className="bg-white w-full max-w-md rounded-3xl shadow-2xl overflow-hidden animate-in slide-in-from-bottom duration-200"
         onClick={e => e.stopPropagation()}
       >
+        {/* Cover photo area */}
+        <div className="relative h-40 bg-slate-100 cursor-pointer" onClick={() => photoInputRef.current?.click()}>
+          {coverImage ? (
+            <>
+              <img src={coverImage} alt="" className="w-full h-full object-cover" />
+              <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
+                <div className="bg-white/20 backdrop-blur-sm border border-white/30 rounded-full px-4 py-2 flex items-center gap-2">
+                  <Camera className="w-4 h-4 text-white" />
+                  <span className="text-white text-sm font-semibold">{ar ? 'تغيير الصورة' : 'Change photo'}</span>
+                </div>
+              </div>
+            </>
+          ) : (
+            <div className="h-full flex flex-col items-center justify-center gap-2 text-slate-400">
+              <div className="w-14 h-14 bg-slate-200 rounded-2xl flex items-center justify-center">
+                <ImageIcon className="w-7 h-7 text-slate-400" />
+              </div>
+              <span className="text-sm font-medium">{ar ? 'أضف صورة غلاف' : 'Add cover photo'}</span>
+              <span className="text-xs text-slate-300">{ar ? 'اضغط للاختيار' : 'Tap to choose'}</span>
+            </div>
+          )}
+          <input ref={photoInputRef} type="file" accept="image/*" className="hidden" onChange={handlePhotoChange} />
+        </div>
+
         {/* Header */}
-        <div className="flex items-center justify-between px-6 pt-6 pb-4 border-b border-slate-100">
-          <div>
-            <h2 className="font-bold text-lg text-slate-900">New Private Trip</h2>
-            <p className="text-xs text-slate-500 mt-0.5">Invite-only trip for friends</p>
+        <div className="flex items-center justify-between px-5 pt-4 pb-3 border-b border-slate-100">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 bg-emerald-100 rounded-xl flex items-center justify-center">
+              <Lock className="w-4 h-4 text-emerald-600" />
+            </div>
+            <div>
+              <h2 className="font-bold text-base text-slate-900">{ar ? 'رحلة خاصة جديدة' : 'New Private Trip'}</h2>
+              <p className="text-[11px] text-slate-400">{ar ? 'شارك الرابط لدعوة أصدقائك' : 'Share the link to invite your crew'}</p>
+            </div>
           </div>
           <button onClick={onClose} className="p-2 rounded-full hover:bg-slate-100 transition">
             <X className="w-5 h-5 text-slate-500" />
           </button>
         </div>
 
-        <div className="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
-          {/* Trip Name */}
+        <div className="p-5 space-y-3">
           <Input
-            label="Trip Name"
-            placeholder="e.g. Riyadh Weekend with the Crew"
+            label={ar ? 'اسم الرحلة' : 'Trip Name'}
+            placeholder={ar ? 'مثال: ويكند الرياض مع الشلة' : 'e.g. Riyadh Weekend with the Crew'}
             value={title}
             onChange={(e: any) => setTitle(e.target.value)}
           />
 
-          {/* Dates */}
+          {/* Destination */}
+          <div>
+            <label className="block text-xs font-medium text-slate-500 uppercase tracking-wider mb-1.5">
+              <MapPin className="w-3 h-3 inline mr-1" />{ar ? 'الوجهة' : 'Destination'}
+            </label>
+            <input
+              type="text"
+              placeholder={ar ? 'مثال: العُلا، أبها، جدة…' : 'e.g. AlUla, Abha, Jeddah…'}
+              value={destination}
+              onChange={e => setDestination(e.target.value)}
+              className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 text-slate-800 placeholder:text-slate-300"
+            />
+          </div>
+
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-medium text-slate-500 uppercase tracking-wider mb-1.5">
-                <Calendar className="w-3 h-3 inline mr-1" />Start Date
+                <Calendar className="w-3 h-3 inline mr-1" />{ar ? 'البداية' : 'Start'}
               </label>
               <input
                 type="date"
@@ -110,7 +154,7 @@ export const CreatePrivateTripModal = ({ onClose, onCreated }: Props) => {
             </div>
             <div>
               <label className="block text-xs font-medium text-slate-500 uppercase tracking-wider mb-1.5">
-                <Calendar className="w-3 h-3 inline mr-1" />End Date
+                <Calendar className="w-3 h-3 inline mr-1" />{ar ? 'النهاية' : 'End'}
               </label>
               <input
                 type="date"
@@ -122,86 +166,16 @@ export const CreatePrivateTripModal = ({ onClose, onCreated }: Props) => {
             </div>
           </div>
 
-          {/* Invite Friends */}
-          <div>
-            <label className="block text-xs font-medium text-slate-500 uppercase tracking-wider mb-1.5">
-              <UserPlus className="w-3 h-3 inline mr-1" />Invite Friends
-            </label>
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-              <input
-                type="text"
-                placeholder="Search by name or email..."
-                value={searchQuery}
-                onChange={e => setSearchQuery(e.target.value)}
-                className="w-full pl-9 pr-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
-              />
-              {isSearching && (
-                <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 animate-spin" />
-              )}
-            </div>
-
-            {/* Search Results */}
-            {searchResults.length > 0 && (
-              <div className="mt-2 bg-white border border-slate-100 rounded-xl shadow-lg overflow-hidden">
-                {searchResults.map(u => (
-                  <button
-                    key={u.id}
-                    onClick={() => addUser(u)}
-                    className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-slate-50 transition text-left border-b border-slate-50 last:border-0"
-                  >
-                    <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-700 text-sm font-bold flex-shrink-0">
-                      {u.name?.charAt(0).toUpperCase()}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-semibold text-slate-900 text-sm truncate">{u.name}</p>
-                      <p className="text-xs text-slate-400 truncate">{u.email}</p>
-                    </div>
-                    <span className="text-xs font-bold text-emerald-600 flex-shrink-0">+ Add</span>
-                  </button>
-                ))}
-              </div>
-            )}
-
-            {/* Invited Users */}
-            {invitedUsers.length > 0 && (
-              <div className="mt-3 flex flex-wrap gap-2">
-                {invitedUsers.map(u => (
-                  <div
-                    key={u.id}
-                    className="flex items-center gap-1.5 bg-emerald-50 border border-emerald-100 rounded-full px-3 py-1"
-                  >
-                    <div className="w-5 h-5 rounded-full bg-emerald-200 flex items-center justify-center text-emerald-800 text-[9px] font-bold">
-                      {u.name?.charAt(0).toUpperCase()}
-                    </div>
-                    <span className="text-sm font-medium text-emerald-800">{u.name.split(' ')[0]}</span>
-                    <button onClick={() => removeUser(u.id)} className="text-emerald-400 hover:text-emerald-600">
-                      <X className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
+          <div className="bg-emerald-50 border border-emerald-100 rounded-2xl px-4 py-2.5 flex items-center gap-2.5">
+            <Lock className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+            <p className="text-xs text-emerald-700">{ar ? 'أي شخص لديه رابط الدعوة يمكنه الانضمام.' : 'Anyone with the invite link can join.'}</p>
           </div>
         </div>
 
-        {/* Footer */}
-        <div className="px-6 pb-6 flex gap-3">
-          <Button variant="secondary" className="flex-1" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button
-            className="flex-1"
-            onClick={handleCreate}
-            disabled={isCreating || !title.trim()}
-          >
-            {isCreating ? (
-              <span className="flex items-center gap-2">
-                <Loader2 className="w-4 h-4 animate-spin" />Creating...
-              </span>
-            ) : (
-              'Create Trip'
-            )}
+        <div className="px-5 pb-5 flex gap-3">
+          <Button variant="secondary" className="flex-1" onClick={onClose}>{ar ? 'إلغاء' : 'Cancel'}</Button>
+          <Button className="flex-1" onClick={handleCreate} disabled={isCreating || !title.trim()}>
+            {isCreating ? (ar ? 'جارٍ الإنشاء…' : 'Creating…') : (ar ? 'إنشاء الرحلة' : 'Create Trip')}
           </Button>
         </div>
       </div>

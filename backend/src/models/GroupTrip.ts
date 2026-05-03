@@ -6,13 +6,14 @@ export interface IGroupTrip extends Document {
   baseItineraryId?: Types.ObjectId;
   isPrivate?: boolean;
   title: string;
-  description?: string; // ✅ وصف اختياري للرحلة
-  coverImage?: string; // ✅ صورة الغلاف
-  startDate?: Date; // ✅ تاريخ بداية الرحلة
-  endDate?: Date; // ✅ تاريخ نهاية الرحلة
-  estimatedBudget?: number; // ✅ الميزانية المتوقعة
+  description?: string;
+  coverImage?: string;
+  startDate?: Date;
+  endDate?: Date;
+  estimatedBudget?: number;
   memberIds: Types.ObjectId[];
   invitations: Invitation[];
+  inviteToken?: string;
   status: GroupTripStatus | 'planning' | 'active' | 'completed' | 'cancelled';
   createdAt: Date;
   updatedAt: Date;
@@ -85,6 +86,12 @@ const groupTripSchema = new Schema({
   invitations: {
     type: [invitationSchema],
     default: []
+  },
+  inviteToken: {
+    type: String,
+    unique: true,
+    sparse: true,
+    index: true,
   },
   status: {
     type: String,

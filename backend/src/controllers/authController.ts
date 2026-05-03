@@ -1,8 +1,9 @@
 import { Request, Response } from 'express';
 import { OAuth2Client } from 'google-auth-library';
+import crypto from 'crypto';
 import { User } from '../models';
 import { hashPassword, comparePassword } from '../utils/password';
-import { generateToken } from '../utils/jwt';
+import { generateToken, generateRefreshToken, verifyRefreshToken } from '../utils/jwt';
 import { AuthRequest } from '../types';
 
 const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
@@ -26,14 +27,14 @@ export const register = async (req: Request, res: Response) => {
       smartProfile
     });
 
-    const token = generateToken({
-      userId: user._id.toString(),
-      email: user.email,
-      role: user.role
-    });
+    const tokenPayload = { userId: user._id.toString(), email: user.email, role: user.role };
+    const token = generateToken(tokenPayload);
+    const refreshToken = generateRefreshToken(tokenPayload);
+    await User.findByIdAndUpdate(user._id, { refreshToken });
 
     res.status(201).json({
       token,
+      refreshToken,
       user: {
         id: user._id,
         email: user.email,
@@ -70,10 +71,14 @@ export const login = async (req: Request, res: Response) => {
       role: user.role
     });
 
-    // ✅ الرد بالشكل الذي تتوقعه الواجهة الأمامية الجديدة
+    const tokenPayload = { userId: user._id.toString(), email: user.email, role: user.role };
+    const refreshToken = generateRefreshToken(tokenPayload);
+    await User.findByIdAndUpdate(user._id, { refreshToken });
+
     res.json({
       success: true,
       token,
+      refreshToken,
       user: {
         id: user._id,
         name: user.name,
@@ -93,32 +98,94 @@ export const login = async (req: Request, res: Response) => {
 export const requestPasswordReset = async (req: Request, res: Response) => {
   try {
     const { email } = req.body;
+    // Always return same message to avoid revealing whether an email exists
+    const genericResponse = { message: 'If the email exists, a reset link has been sent' };
 
-    const user = await User.findOne({ email });
-    if (!user) {
-      // Don't reveal if email exists
-      return res.json({ message: 'If the email exists, a reset link has been sent' });
-    }
+    const user = await User.findOne({ email }).select('+resetPasswordToken +resetPasswordExpires');
+    if (!user) return res.json(genericResponse);
 
-    // TODO: Implement email sending logic
-    // For now, just return success
-    res.json({ message: 'If the email exists, a reset link has been sent' });
+    const rawToken = crypto.randomBytes(32).toString('hex');
+    const hashed = crypto.createHash('sha256').update(rawToken).digest('hex');
+    const expires = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+
+    await User.findByIdAndUpdate(user._id, {
+      resetPasswordToken: hashed,
+      resetPasswordExpires: expires,
+    });
+
+    const resetUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/reset-password?token=${rawToken}&email=${email}`;
+
+    // In production wire up a mail provider here (Resend, SendGrid, etc.)
+    // For now log to console so the flow is testable without an email server
+    console.log(`🔑 Password reset token for ${email}: ${rawToken}`);
+    console.log(`   Reset URL: ${resetUrl}`);
+
+    return res.json(genericResponse);
   } catch (error: any) {
     console.error('❌ Error in requestPasswordReset:', error);
-    res.status(500).json({ error: 'فشل في إرسال طلب استعادة كلمة المرور' });
+    res.status(500).json({ error: 'Failed to process password reset request' });
   }
 };
 
 export const resetPassword = async (req: Request, res: Response) => {
   try {
     const { token, newPassword } = req.body;
+    if (!token || !newPassword) {
+      return res.status(400).json({ error: 'Token and new password are required' });
+    }
 
-    // TODO: Implement token validation and password reset logic
-    // For now, just return success
-    res.json({ message: 'Password reset successful' });
+    const hashed = crypto.createHash('sha256').update(token).digest('hex');
+    const user = await User.findOne({
+      resetPasswordToken: hashed,
+      resetPasswordExpires: { $gt: new Date() },
+    }).select('+resetPasswordToken +resetPasswordExpires');
+
+    if (!user) {
+      return res.status(400).json({ error: 'Invalid or expired reset token' });
+    }
+
+    user.passwordHash = await hashPassword(newPassword);
+    (user as any).resetPasswordToken = undefined;
+    (user as any).resetPasswordExpires = undefined;
+    await user.save();
+
+    res.json({ message: 'Password reset successful. You can now log in.' });
   } catch (error: any) {
     console.error('❌ Error in resetPassword:', error);
-    res.status(500).json({ error: 'فشل في إعادة تعيين كلمة المرور' });
+    res.status(500).json({ error: 'Failed to reset password' });
+  }
+};
+
+export const refreshAccessToken = async (req: Request, res: Response) => {
+  try {
+    const { refreshToken } = req.body;
+    if (!refreshToken) {
+      return res.status(400).json({ error: 'Refresh token is required' });
+    }
+
+    let payload: any;
+    try {
+      payload = verifyRefreshToken(refreshToken);
+    } catch {
+      return res.status(401).json({ error: 'Invalid or expired refresh token' });
+    }
+
+    // Verify token still matches what's stored (allows invalidation on logout)
+    const user = await User.findById(payload.userId).select('+refreshToken');
+    if (!user || (user as any).refreshToken !== refreshToken) {
+      return res.status(401).json({ error: 'Refresh token has been revoked' });
+    }
+
+    const tokenPayload = { userId: user._id.toString(), email: user.email, role: user.role };
+    const newToken = generateToken(tokenPayload);
+    const newRefreshToken = generateRefreshToken(tokenPayload);
+
+    await User.findByIdAndUpdate(user._id, { refreshToken: newRefreshToken });
+
+    return res.json({ token: newToken, refreshToken: newRefreshToken });
+  } catch (error: any) {
+    console.error('❌ Error in refreshAccessToken:', error);
+    res.status(500).json({ error: 'Failed to refresh token' });
   }
 };
 
@@ -188,14 +255,14 @@ export const socialAuth = async (req: Request, res: Response) => {
       });
     }
 
-    const jwtToken = generateToken({
-      userId: user._id.toString(),
-      email: user.email,
-      role: user.role,
-    });
+    const socialPayload = { userId: user._id.toString(), email: user.email, role: user.role };
+    const jwtToken = generateToken(socialPayload);
+    const socialRefreshToken = generateRefreshToken(socialPayload);
+    await User.findByIdAndUpdate(user._id, { refreshToken: socialRefreshToken });
 
     res.json({
       token: jwtToken,
+      refreshToken: socialRefreshToken,
       user: {
         id: user._id,
         email: user.email,

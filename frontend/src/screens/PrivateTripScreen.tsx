@@ -1,9 +1,10 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import {
   ChevronLeft, Send, Wallet, MessageCircle, ArrowRight, Plus, X, Users,
   Receipt, CheckCircle2, Copy, Smartphone, Camera, Image as ImageIcon,
   Smile, Share2, Download, Heart, Pin, MapPin, Trash2, BarChart2,
   FileText, CheckSquare, Square, Pencil, ChevronDown, ChevronUp,
+  Mic, MicOff, Navigation, Play, Pause, Images, Video,
 } from 'lucide-react';
 import { Button, Input } from '../components/ui';
 import { PrivateTrip, User, ChatMessage, Expense } from '../types/index';
@@ -34,7 +35,7 @@ interface ChecklistItem {
 interface Poll { question: string; options: string[]; }
 interface Settlement { from: User; to: User; amount: number; }
 
-type Tab = 'chat' | 'expenses' | 'photos' | 'plan' | 'checklist';
+type Tab = 'chat' | 'split' | 'memories' | 'plan' | 'checklist';
 type CheckCat = 'all' | 'pack' | 'buy' | 'book';
 
 // ─── Constants ─────────────────────────────────────────────────────────────────
@@ -138,12 +139,34 @@ function daysUntilDate(dateStr?: string): number | null {
 
 // ─── Component ─────────────────────────────────────────────────────────────────
 export const PrivateTripScreen = ({
-  trip, currentUser, onBack, onUpdateTrip,
+  trip, currentUser, onBack, onUpdateTrip, lang,
 }: {
-  trip: PrivateTrip; currentUser: User; onBack: () => void; onUpdateTrip: (t: PrivateTrip) => void;
+  trip: PrivateTrip; currentUser: User; onBack: () => void; onUpdateTrip: (t: PrivateTrip) => void; lang?: 'en' | 'ar';
 }) => {
+  const ar = lang === 'ar';
   // ── Tab ────────────────────────────────────────────────────────────────────
   const [activeTab, setActiveTab] = useState<Tab>('chat');
+
+  // ── Share ─────────────────────────────────────────────────────────────────
+  const [isSharing, setIsSharing] = useState(false);
+
+  const handleShare = async () => {
+    if (!trip.backendId) { showToast('Trip not synced yet', 'warning'); return; }
+    setIsSharing(true);
+    try {
+      const token = await privateTripAPI.getInviteToken(trip.backendId);
+      const link = `${window.location.origin}?joinTrip=${token}`;
+      if (navigator.share) {
+        await navigator.share({ title: trip.title, text: `Join my trip "${trip.title}" on Tripo!`, url: link });
+      } else {
+        await navigator.clipboard.writeText(link);
+        showToast('Invite link copied!', 'success');
+      }
+    } catch {
+      showToast('Failed to get invite link', 'error');
+    }
+    setIsSharing(false);
+  };
 
   // ── Chat ──────────────────────────────────────────────────────────────────
   const [newMessage,    setNewMessage]    = useState('');
@@ -198,10 +221,28 @@ export const PrivateTripScreen = ({
   const [newCheckCat,     setNewCheckCat]     = useState<'pack' | 'buy' | 'book'>('pack');
   const [newCheckAssignee,setNewCheckAssignee]= useState('');
 
+  // ── Voice recording ───────────────────────────────────────────────────────
+  const [isRecording,    setIsRecording]    = useState(false);
+  const [recordingTime,  setRecordingTime]  = useState(0);
+  const mediaRecorderRef  = useRef<MediaRecorder | null>(null);
+  const audioChunksRef    = useRef<Blob[]>([]);
+  const recordingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // ── Chat media ────────────────────────────────────────────────────────────
+  const chatFileInputRef  = useRef<HTMLInputElement>(null);
+  const [fullscreenMedia, setFullscreenMedia] = useState<{src: string; type: 'image'|'video'} | null>(null);
+
+  // ── Memories slideshow ────────────────────────────────────────────────────
+  const [slideIdx,     setSlideIdx]     = useState(0);
+  const [slidePlaying, setSlidePlaying] = useState(true);
+  const slideTimerRef  = useRef<ReturnType<typeof setInterval> | null>(null);
+
   // ── Misc ──────────────────────────────────────────────────────────────────
   const [showMembers, setShowMembers] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef   = useRef<HTMLInputElement>(null);
+  const tripRef        = useRef(trip);
+  useEffect(() => { tripRef.current = trip; }, [trip]);
 
   // ── Effects ───────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -226,6 +267,117 @@ export const PrivateTripScreen = ({
   useEffect(() => {
     if (activeTab === 'plan') setSavedTrips(lsGet('tripo_trips', []));
   }, [activeTab]);
+
+  // Real-time polling — fetch new messages every 5s while on chat tab
+  useEffect(() => {
+    if (!trip.backendId) return;
+    const poll = async () => {
+      try {
+        const msgs = await privateTripAPI.getMessages(tripRef.current.backendId!);
+        onUpdateTrip({ ...tripRef.current, chatMessages: msgs });
+      } catch {}
+    };
+    const id = setInterval(poll, 5000);
+    return () => clearInterval(id);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [trip.backendId]);
+
+  // Slideshow auto-advance
+  const allSlideMedia = useMemo(() => {
+    const fromChat = trip.chatMessages
+      .filter(m => m.msgType === 'image' || m.msgType === 'video')
+      .map(m => ({ src: m.text, type: (m.msgType as 'image' | 'video'), uploaderName: m.userName, timestamp: m.timestamp }));
+    const fromPhotos = tripPhotos.map(p => ({ src: p.dataUrl, type: 'image' as const, uploaderName: p.uploaderName, timestamp: p.timestamp }));
+    return [...fromPhotos, ...fromChat].sort((a, b) => a.timestamp - b.timestamp);
+  }, [trip.chatMessages, tripPhotos]);
+
+  useEffect(() => {
+    if (!slidePlaying || allSlideMedia.length < 2 || activeTab !== 'memories') return;
+    slideTimerRef.current = setInterval(() => {
+      setSlideIdx(i => (i + 1) % allSlideMedia.length);
+    }, 4000);
+    return () => { if (slideTimerRef.current) clearInterval(slideTimerRef.current); };
+  }, [slidePlaying, allSlideMedia.length, activeTab]);
+
+  // Voice recording handlers
+  const startRecording = useCallback(async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mr = new MediaRecorder(stream);
+      mediaRecorderRef.current = mr;
+      audioChunksRef.current = [];
+      mr.ondataavailable = e => { if (e.data.size > 0) audioChunksRef.current.push(e.data); };
+      mr.onstop = async () => {
+        stream.getTracks().forEach(t => t.stop());
+        const blob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+        const reader = new FileReader();
+        reader.onload = async ev => {
+          const dataUrl = ev.target!.result as string;
+          await sendMediaMessage(dataUrl, 'audio');
+        };
+        reader.readAsDataURL(blob);
+      };
+      mr.start();
+      setIsRecording(true);
+      setRecordingTime(0);
+      recordingTimerRef.current = setInterval(() => setRecordingTime(t => t + 1), 1000);
+    } catch { showToast('Microphone access denied', 'error'); }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const stopRecording = useCallback(() => {
+    if (mediaRecorderRef.current && isRecording) {
+      mediaRecorderRef.current.stop();
+      setIsRecording(false);
+      if (recordingTimerRef.current) clearInterval(recordingTimerRef.current);
+    }
+  }, [isRecording]);
+
+  const sendMediaMessage = useCallback(async (dataUrl: string, type: 'image' | 'audio' | 'video') => {
+    const optimistic = {
+      id: Date.now().toString(), userId: currentUser.id, userName: currentUser.name,
+      text: dataUrl, msgType: type as any, timestamp: Date.now(),
+    };
+    onUpdateTrip({ ...tripRef.current, chatMessages: [...tripRef.current.chatMessages, optimistic] });
+    if (tripRef.current.backendId) {
+      try { await privateTripAPI.sendMessage(tripRef.current.backendId, dataUrl, type); } catch {}
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUser.id, currentUser.name]);
+
+  const handleChatMediaUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const isVideo = file.type.startsWith('video/');
+    const reader = new FileReader();
+    reader.onload = async ev => {
+      const dataUrl = ev.target!.result as string;
+      if (isVideo) {
+        await sendMediaMessage(dataUrl, 'video');
+      } else {
+        const dataUrlCompressed = await compressImage(file);
+        await sendMediaMessage(dataUrlCompressed, 'image');
+      }
+    };
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  };
+
+  const handleSendLocation = () => {
+    if (!navigator.geolocation) { showToast('Location not supported', 'error'); return; }
+    navigator.geolocation.getCurrentPosition(async pos => {
+      const { latitude: lat, longitude: lng } = pos.coords;
+      const content = JSON.stringify({ lat, lng });
+      const optimistic = {
+        id: Date.now().toString(), userId: currentUser.id, userName: currentUser.name,
+        text: content, msgType: 'location' as any, timestamp: Date.now(),
+      };
+      onUpdateTrip({ ...tripRef.current, chatMessages: [...tripRef.current.chatMessages, optimistic] });
+      if (tripRef.current.backendId) {
+        try { await privateTripAPI.sendMessage(tripRef.current.backendId, content, 'location'); } catch {}
+      }
+    }, () => showToast('Location access denied', 'error'));
+  };
 
   // ── Computed ──────────────────────────────────────────────────────────────
   const totalExpenses = trip.expenses.reduce((sum, e) => sum + e.amount, 0);
@@ -474,15 +626,37 @@ export const PrivateTripScreen = ({
     <div className="flex-1 min-h-0 flex flex-col bg-slate-50 relative">
 
       {/* ── Hero Header ───────────────────────────────────────────────────── */}
-      <div className="bg-gradient-to-br from-emerald-700 via-teal-600 to-cyan-600 px-5 pt-10 pb-4 relative overflow-hidden flex-shrink-0">
-        <div className="absolute -top-10 -right-10 w-48 h-48 rounded-full bg-white/10 pointer-events-none" />
-        <div className="absolute bottom-0 left-1/3 w-32 h-32 rounded-full bg-white/5 pointer-events-none" />
+      <div className="px-5 pt-10 pb-4 relative overflow-hidden flex-shrink-0" style={{ background: trip.coverImage ? 'transparent' : undefined }}>
+        {/* Cover image or gradient */}
+        {trip.coverImage ? (
+          <>
+            <img src={trip.coverImage} alt="" className="absolute inset-0 w-full h-full object-cover" />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-black/20" />
+          </>
+        ) : (
+          <>
+            <div className="absolute inset-0 bg-gradient-to-br from-emerald-700 via-teal-600 to-cyan-600" />
+            <div className="absolute -top-10 -right-10 w-48 h-48 rounded-full bg-white/10 pointer-events-none" />
+            <div className="absolute bottom-0 left-1/3 w-32 h-32 rounded-full bg-white/5 pointer-events-none" />
+          </>
+        )}
 
-        {/* Back + member avatars */}
+        {/* Back + share + member avatars */}
         <div className="relative flex items-center justify-between mb-3">
-          <button type="button" onClick={onBack} className="w-9 h-9 rounded-full bg-white/20 flex items-center justify-center active:bg-white/30">
-            <ChevronLeft className="w-5 h-5 text-white" />
-          </button>
+          <div className="flex items-center gap-2">
+            <button type="button" onClick={onBack} className="w-9 h-9 rounded-full bg-white/20 flex items-center justify-center active:bg-white/30">
+              <ChevronLeft className="w-5 h-5 text-white" />
+            </button>
+            <button
+              type="button"
+              onClick={handleShare}
+              disabled={isSharing}
+              className="flex items-center gap-1.5 bg-white/20 hover:bg-white/30 active:bg-white/10 border border-white/30 rounded-full px-3 py-2 transition-colors"
+            >
+              <Share2 className="w-3.5 h-3.5 text-white" />
+              <span className="text-white text-xs font-bold">{isSharing ? 'Getting link…' : 'Invite'}</span>
+            </button>
+          </div>
           <button type="button" onClick={() => setShowMembers(v => !v)} className="flex items-center gap-2">
             <div className="flex -space-x-2">
               {trip.members.slice(0, 4).map(m => (
@@ -511,6 +685,12 @@ export const PrivateTripScreen = ({
                   <span className="bg-white/20 text-white/70 text-[9px] font-bold px-2 py-0.5 rounded-full uppercase">Completed</span>
                 )}
               </div>
+              {trip.destination && (
+                <div className="flex items-center gap-1 mb-1">
+                  <MapPin className="w-3 h-3 text-emerald-300 flex-shrink-0" />
+                  <span className="text-emerald-200 text-xs font-semibold">{trip.destination}</span>
+                </div>
+              )}
               {(trip.startDate || trip.endDate) && (
                 <p className="text-emerald-100 text-xs">
                   {trip.startDate && new Date(trip.startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
@@ -581,7 +761,7 @@ export const PrivateTripScreen = ({
                     <p className="font-semibold text-slate-900 text-sm truncate">{m.name}</p>
                     {m.id === trip.organizerId && <p className="text-[10px] text-emerald-600 font-bold uppercase">Organizer</p>}
                   </div>
-                  {m.id === currentUser.id && <span className="text-[10px] bg-slate-100 text-slate-500 font-bold px-2 py-0.5 rounded-full">You</span>}
+                  {m.id === currentUser.id && <span className="text-[10px] bg-slate-100 text-slate-500 font-bold px-2 py-0.5 rounded-full">{ar ? 'أنت' : 'You'}</span>}
                 </div>
               ))}
             </div>
@@ -593,11 +773,11 @@ export const PrivateTripScreen = ({
       <div className="flex-shrink-0 px-4 pt-3 pb-1">
         <div className="bg-white rounded-2xl shadow-md border border-slate-100 p-1 flex gap-0.5">
           {([
-            { id: 'chat',      label: 'Chat',   Icon: MessageCircle },
-            { id: 'expenses',  label: 'Costs',  Icon: Receipt },
-            { id: 'photos',    label: 'Photos', Icon: Camera },
-            { id: 'plan',      label: 'Plan',   Icon: MapPin },
-            { id: 'checklist', label: 'Pack',   Icon: CheckSquare },
+            { id: 'chat',      label: ar ? 'دردشة'    : 'Chat',     Icon: MessageCircle },
+            { id: 'split',     label: ar ? 'التكاليف' : 'Split',    Icon: Receipt },
+            { id: 'memories',  label: ar ? 'الذكريات' : 'Memories', Icon: Images },
+            { id: 'plan',      label: ar ? 'الخطة'    : 'Plan',     Icon: MapPin },
+            { id: 'checklist', label: ar ? 'حقيبتي'   : 'Pack',     Icon: CheckSquare },
           ] as const).map(({ id, label, Icon }) => (
             <button key={id} type="button" onClick={() => setActiveTab(id)}
               className={`flex-1 flex flex-col items-center justify-center gap-0.5 py-2 rounded-xl transition-all ${
@@ -636,8 +816,8 @@ export const PrivateTripScreen = ({
                   <div className="w-16 h-16 bg-emerald-50 rounded-3xl flex items-center justify-center mb-3">
                     <MessageCircle className="w-8 h-8 text-emerald-400" />
                   </div>
-                  <p className="text-slate-600 font-semibold text-sm">No messages yet</p>
-                  <p className="text-slate-400 text-xs mt-1">Say hi to your travel crew! 👋</p>
+                  <p className="text-slate-600 font-semibold text-sm">{ar ? 'لا رسائل حتى الآن' : 'No messages yet'}</p>
+                  <p className="text-slate-400 text-xs mt-1">{ar ? 'رحّب بفريقك! 👋' : 'Say hi to your travel crew! 👋'}</p>
                 </div>
               )}
 
@@ -680,7 +860,7 @@ export const PrivateTripScreen = ({
                                 </div>
                               )}
 
-                              {/* Poll bubble */}
+                              {/* Message content — poll / image / video / audio / location / text */}
                               {poll ? (
                                 <div className={`w-full max-w-xs ${isMe ? 'bg-emerald-600' : 'bg-white border border-slate-100'} rounded-2xl p-3 shadow-sm`}>
                                   <p className={`text-xs font-bold mb-2.5 ${isMe ? 'text-white' : 'text-slate-900'}`}>📊 {poll.question}</p>
@@ -703,7 +883,43 @@ export const PrivateTripScreen = ({
                                   </div>
                                   {myVote !== undefined && <p className={`text-[10px] mt-2 ${isMe ? 'text-white/50' : 'text-slate-400'}`}>You voted</p>}
                                 </div>
-                              ) : (
+                              ) : msg.msgType === 'image' ? (
+                                <button type="button" onClick={e => { e.stopPropagation(); setFullscreenMedia({ src: msg.text, type: 'image' }); }} className="rounded-2xl overflow-hidden shadow-sm max-w-[220px]">
+                                  <img src={msg.text} alt="" className="w-full object-cover" />
+                                </button>
+                              ) : msg.msgType === 'video' ? (
+                                <button type="button" onClick={e => { e.stopPropagation(); setFullscreenMedia({ src: msg.text, type: 'video' }); }} className="rounded-2xl overflow-hidden shadow-sm max-w-[220px] relative">
+                                  <video src={msg.text} className="w-full object-cover" />
+                                  <div className="absolute inset-0 flex items-center justify-center bg-black/30 rounded-2xl">
+                                    <Play className="w-10 h-10 text-white drop-shadow" />
+                                  </div>
+                                </button>
+                              ) : msg.msgType === 'audio' ? (
+                                <div className={`px-3 py-2.5 rounded-2xl shadow-sm ${isMe ? 'bg-emerald-600' : 'bg-white border border-slate-100'}`}>
+                                  <div className="flex items-center gap-2 mb-1">
+                                    <Mic className={`w-4 h-4 flex-shrink-0 ${isMe ? 'text-emerald-200' : 'text-emerald-600'}`} />
+                                    <span className={`text-xs font-semibold ${isMe ? 'text-white' : 'text-slate-700'}`}>Voice message</span>
+                                  </div>
+                                  <audio controls src={msg.text} className="max-w-[200px] h-8" style={{ filter: isMe ? 'invert(1)' : 'none' }} />
+                                </div>
+                              ) : msg.msgType === 'location' ? (() => {
+                                try {
+                                  const { lat, lng } = JSON.parse(msg.text);
+                                  return (
+                                    <a href={`https://www.google.com/maps?q=${lat},${lng}`} target="_blank" rel="noopener noreferrer"
+                                      onClick={e => e.stopPropagation()}
+                                      className={`flex items-center gap-2.5 px-4 py-3 rounded-2xl shadow-sm ${isMe ? 'bg-emerald-600 text-white' : 'bg-white border border-slate-100 text-slate-800'}`}>
+                                      <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${isMe ? 'bg-white/20' : 'bg-emerald-100'}`}>
+                                        <MapPin className={`w-4 h-4 ${isMe ? 'text-white' : 'text-emerald-600'}`} />
+                                      </div>
+                                      <div>
+                                        <p className="text-sm font-semibold">Shared location</p>
+                                        <p className={`text-[10px] ${isMe ? 'text-emerald-200' : 'text-slate-400'}`}>Tap to open in Maps</p>
+                                      </div>
+                                    </a>
+                                  );
+                                } catch { return <span className="text-xs text-slate-400">Location</span>; }
+                              })() : (
                                 <div className={`px-4 py-2.5 text-sm leading-relaxed ${
                                   isMe ? 'bg-emerald-600 text-white rounded-2xl rounded-br-md shadow-sm shadow-emerald-200'
                                        : 'bg-white text-slate-800 rounded-2xl rounded-bl-md shadow-sm border border-slate-100'
@@ -767,32 +983,68 @@ export const PrivateTripScreen = ({
               </div>
             )}
 
+            {/* Chat media input (hidden) */}
+            <input ref={chatFileInputRef} type="file" accept="image/*,video/*" className="hidden" onChange={handleChatMediaUpload} />
+
+            {/* Voice recording indicator */}
+            {isRecording && (
+              <div className="mx-3 mb-1 bg-red-50 border border-red-200 rounded-xl px-4 py-2 flex items-center gap-3">
+                <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
+                <span className="text-red-600 text-sm font-semibold flex-1">Recording… {recordingTime}s</span>
+                <button type="button" onClick={stopRecording} className="bg-red-500 text-white text-xs font-bold px-3 py-1 rounded-full">Stop</button>
+              </div>
+            )}
+
             {/* Chat input */}
-            <form onSubmit={handleSendMessage} className="px-3 py-2.5 bg-white border-t border-slate-100 flex items-center gap-2">
-              <button type="button" onClick={() => { setShowEmojiBar(v => !v); setShowPollForm(false); }}
-                className={`w-9 h-9 rounded-full flex items-center justify-center transition-colors flex-shrink-0 ${showEmojiBar ? 'bg-emerald-100 text-emerald-600' : 'text-slate-400 hover:bg-slate-100'}`}>
-                <Smile className="w-5 h-5" />
-              </button>
-              <button type="button" onClick={() => { setShowPollForm(v => !v); setShowEmojiBar(false); }}
-                className={`w-9 h-9 rounded-full flex items-center justify-center transition-colors flex-shrink-0 ${showPollForm ? 'bg-emerald-100 text-emerald-600' : 'text-slate-400 hover:bg-slate-100'}`}>
-                <BarChart2 className="w-5 h-5" />
-              </button>
-              <input
-                className="flex-1 bg-slate-100 rounded-full px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400"
-                placeholder="Message your crew..."
-                value={newMessage}
-                onChange={e => setNewMessage(e.target.value)}
-              />
-              <button type="submit" disabled={!newMessage.trim()}
-                className="w-9 h-9 bg-emerald-600 rounded-full flex items-center justify-center text-white shadow-md shadow-emerald-200 active:scale-95 transition-all disabled:opacity-50 flex-shrink-0">
-                <Send className="w-4 h-4 ml-0.5" />
-              </button>
+            <form onSubmit={handleSendMessage} className="px-3 py-2 bg-white border-t border-slate-100">
+              {/* Media action row */}
+              <div className="flex items-center gap-1 mb-1.5">
+                <button type="button" onClick={() => { setShowEmojiBar(v => !v); setShowPollForm(false); }}
+                  className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${showEmojiBar ? 'bg-emerald-100 text-emerald-600' : 'text-slate-400 hover:bg-slate-100'}`}>
+                  <Smile className="w-4 h-4" />
+                </button>
+                <button type="button" onClick={() => chatFileInputRef.current?.click()}
+                  className="w-8 h-8 rounded-full flex items-center justify-center text-slate-400 hover:bg-slate-100 transition-colors">
+                  <Camera className="w-4 h-4" />
+                </button>
+                <button type="button" onClick={() => { if (chatFileInputRef.current) { chatFileInputRef.current.accept = 'video/*'; chatFileInputRef.current.click(); setTimeout(() => { if (chatFileInputRef.current) chatFileInputRef.current.accept = 'image/*,video/*'; }, 500); } }}
+                  className="w-8 h-8 rounded-full flex items-center justify-center text-slate-400 hover:bg-slate-100 transition-colors">
+                  <Video className="w-4 h-4" />
+                </button>
+                <button type="button" onClick={handleSendLocation}
+                  className="w-8 h-8 rounded-full flex items-center justify-center text-slate-400 hover:bg-slate-100 transition-colors">
+                  <Navigation className="w-4 h-4" />
+                </button>
+                <button type="button"
+                  onMouseDown={startRecording} onTouchStart={startRecording}
+                  onMouseUp={stopRecording} onTouchEnd={stopRecording}
+                  className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${isRecording ? 'bg-red-100 text-red-600' : 'text-slate-400 hover:bg-slate-100'}`}>
+                  <Mic className="w-4 h-4" />
+                </button>
+                <button type="button" onClick={() => { setShowPollForm(v => !v); setShowEmojiBar(false); }}
+                  className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${showPollForm ? 'bg-emerald-100 text-emerald-600' : 'text-slate-400 hover:bg-slate-100'}`}>
+                  <BarChart2 className="w-4 h-4" />
+                </button>
+              </div>
+              {/* Text row */}
+              <div className="flex items-center gap-2">
+                <input
+                  className="flex-1 bg-slate-100 rounded-full px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400"
+                  placeholder="Message your crew..."
+                  value={newMessage}
+                  onChange={e => setNewMessage(e.target.value)}
+                />
+                <button type="submit" disabled={!newMessage.trim()}
+                  className="w-9 h-9 bg-emerald-600 rounded-full flex items-center justify-center text-white shadow-md shadow-emerald-200 active:scale-95 transition-all disabled:opacity-50 flex-shrink-0">
+                  <Send className="w-4 h-4 ml-0.5" />
+                </button>
+              </div>
             </form>
           </div>
         )}
 
-        {/* ── Expenses Tab ─────────────────────────────────────────────────── */}
-        {activeTab === 'expenses' && (
+        {/* ── Split Tab ────────────────────────────────────────────────────── */}
+        {activeTab === 'split' && (
           <div className="h-full overflow-y-auto px-4 pt-3 pb-28 space-y-4">
 
             {/* Summary card */}
@@ -973,91 +1225,112 @@ export const PrivateTripScreen = ({
           </div>
         )}
 
-        {/* ── Photos Tab ───────────────────────────────────────────────────── */}
-        {activeTab === 'photos' && (
-          <div className="h-full overflow-y-auto">
+        {/* ── Memories Tab ─────────────────────────────────────────────────── */}
+        {activeTab === 'memories' && (
+          <div className="h-full flex flex-col bg-black">
             <input ref={fileInputRef} type="file" accept="image/*" multiple className="hidden" onChange={handlePhotoUpload} />
 
-            <div className="px-4 pt-3 pb-2 flex items-center justify-between">
-              <div>
-                <h3 className="font-bold text-slate-900">Trip Photos</h3>
-                <p className="text-xs text-slate-400 mt-0.5">{tripPhotos.length === 0 ? 'No photos yet' : `${tripPhotos.length} photo${tripPhotos.length > 1 ? 's' : ''}`}</p>
-              </div>
-              <button type="button" onClick={() => fileInputRef.current?.click()} className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-2 rounded-xl text-sm font-bold transition-colors shadow-sm shadow-emerald-200">
-                <Camera className="w-4 h-4" /> Add
-              </button>
-            </div>
-
-            {tripPhotos.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-16 text-center px-6">
-                <div className="w-20 h-20 bg-slate-100 rounded-3xl flex items-center justify-center mb-4"><ImageIcon className="w-9 h-9 text-slate-300" /></div>
-                <h3 className="font-bold text-slate-700 text-base mb-1">Share your trip moments</h3>
-                <p className="text-slate-400 text-sm max-w-xs">Upload photos so your whole crew can relive the memories together.</p>
-                <button type="button" onClick={() => fileInputRef.current?.click()} className="mt-6 flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-3 rounded-xl text-sm font-bold transition-colors">
-                  <Camera className="w-4 h-4" /> Upload First Photo
+            {allSlideMedia.length === 0 ? (
+              <div className="flex-1 flex flex-col items-center justify-center text-center px-6">
+                <div className="w-20 h-20 bg-white/10 rounded-3xl flex items-center justify-center mb-4">
+                  <Images className="w-9 h-9 text-white/40" />
+                </div>
+                <h3 className="font-bold text-white text-base mb-1">No memories yet</h3>
+                <p className="text-white/50 text-sm max-w-xs mb-6">Send photos in the chat or upload directly to start your memory reel.</p>
+                <button type="button" onClick={() => fileInputRef.current?.click()}
+                  className="flex items-center gap-2 bg-emerald-600 text-white px-5 py-2.5 rounded-xl text-sm font-bold">
+                  <Camera className="w-4 h-4" /> Add Photos
                 </button>
               </div>
             ) : (
-              <div className="px-4 pb-24">
-                {/* Hero photo */}
-                <button type="button" onClick={() => setSelectedPhoto(tripPhotos[0])} className="relative w-full h-56 rounded-2xl overflow-hidden mb-2 active:scale-[0.99] transition-transform">
-                  <img src={tripPhotos[0].dataUrl} alt="" className="w-full h-full object-cover" />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
-                  {tripPhotos[0].caption && (
-                    <div className="absolute bottom-10 left-3 right-12">
-                      <p className="text-white text-sm font-semibold drop-shadow truncate">{tripPhotos[0].caption}</p>
-                    </div>
+              <>
+                {/* Fullscreen slideshow */}
+                <div className="flex-1 relative overflow-hidden">
+                  {allSlideMedia[slideIdx]?.type === 'video' ? (
+                    <video
+                      key={slideIdx}
+                      src={allSlideMedia[slideIdx].src}
+                      autoPlay muted loop
+                      className="absolute inset-0 w-full h-full object-cover"
+                    />
+                  ) : (
+                    <img
+                      key={slideIdx}
+                      src={allSlideMedia[slideIdx]?.src}
+                      alt=""
+                      className="absolute inset-0 w-full h-full object-cover transition-opacity duration-700"
+                    />
                   )}
-                  <div className="absolute bottom-3 left-3 right-3 flex items-center justify-between">
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-black/20" />
+
+                  {/* Top controls */}
+                  <div className="absolute top-3 left-0 right-0 px-4 flex items-center justify-between">
+                    <span className="text-white/70 text-xs font-bold">{slideIdx + 1} / {allSlideMedia.length}</span>
                     <div className="flex items-center gap-2">
-                      <div className="w-6 h-6 rounded-full bg-emerald-400 flex items-center justify-center text-white text-[9px] font-bold">{tripPhotos[0].uploaderName?.charAt(0).toUpperCase()}</div>
-                      <span className="text-white text-xs font-semibold">{tripPhotos[0].uploaderName.split(' ')[0]}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <button type="button" onClick={e => { e.stopPropagation(); togglePhotoLike(tripPhotos[0].id); }} className="flex items-center gap-1 w-8 h-8 bg-black/40 backdrop-blur-sm rounded-full justify-center">
-                        <Heart className={`w-4 h-4 ${tripPhotos[0].likes?.includes(currentUser.id) ? 'fill-red-400 text-red-400' : 'text-white'}`} />
+                      <button type="button" onClick={() => fileInputRef.current?.click()}
+                        className="w-8 h-8 bg-black/40 backdrop-blur-sm rounded-full flex items-center justify-center">
+                        <Camera className="w-4 h-4 text-white" />
                       </button>
-                      {(tripPhotos[0].likes?.length || 0) > 0 && <span className="text-white text-xs font-bold">{tripPhotos[0].likes!.length}</span>}
-                      <button type="button" onClick={e => { e.stopPropagation(); handleSharePhoto(tripPhotos[0]); }} className="w-8 h-8 bg-black/40 backdrop-blur-sm rounded-full flex items-center justify-center">
-                        <Share2 className="w-4 h-4 text-white" />
+                      <button type="button" onClick={() => setSlidePlaying(v => !v)}
+                        className="w-8 h-8 bg-black/40 backdrop-blur-sm rounded-full flex items-center justify-center">
+                        {slidePlaying ? <Pause className="w-4 h-4 text-white" /> : <Play className="w-4 h-4 text-white" />}
                       </button>
                     </div>
                   </div>
-                  {tripPhotos.length > 1 && (
-                    <div className="absolute top-3 right-3 bg-black/40 backdrop-blur-sm text-white text-xs font-bold px-2 py-1 rounded-full">1 of {tripPhotos.length}</div>
-                  )}
-                </button>
 
-                {tripPhotos.length > 1 && (
-                  <div className="grid grid-cols-2 gap-2">
-                    {tripPhotos.slice(1).map(photo => (
-                      <button key={photo.id} type="button" onClick={() => setSelectedPhoto(photo)} className="relative aspect-square rounded-2xl overflow-hidden bg-slate-100 active:scale-95 transition-transform">
-                        <img src={photo.dataUrl} alt="" className="w-full h-full object-cover" />
-                        <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/60 to-transparent p-2 pt-8">
-                          {photo.caption && <p className="text-white text-[10px] font-semibold truncate mb-1">{photo.caption}</p>}
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-1">
-                              <div className="w-5 h-5 rounded-full bg-emerald-400 flex items-center justify-center text-white text-[8px] font-bold">{photo.uploaderName?.charAt(0).toUpperCase()}</div>
-                              <span className="text-white text-[10px] font-semibold truncate">{photo.uploaderName.split(' ')[0]}</span>
-                            </div>
-                            <button type="button" onClick={e => { e.stopPropagation(); togglePhotoLike(photo.id); }} className="flex items-center gap-0.5">
-                              <Heart className={`w-3.5 h-3.5 ${photo.likes?.includes(currentUser.id) ? 'fill-red-400 text-red-400' : 'text-white'}`} />
-                              {(photo.likes?.length || 0) > 0 && <span className="text-white text-[9px] font-bold">{photo.likes!.length}</span>}
-                            </button>
-                          </div>
-                        </div>
-                        <button type="button" onClick={e => { e.stopPropagation(); handleSharePhoto(photo); }} className="absolute top-2 right-2 w-7 h-7 bg-black/40 backdrop-blur-sm rounded-full flex items-center justify-center">
-                          <Share2 className="w-3.5 h-3.5 text-white" />
-                        </button>
+                  {/* Slide progress dots */}
+                  <div className="absolute top-14 left-0 right-0 px-4 flex gap-1">
+                    {allSlideMedia.map((_, i) => (
+                      <button key={i} type="button" onClick={() => setSlideIdx(i)}
+                        className={`h-0.5 flex-1 rounded-full transition-all ${i === slideIdx ? 'bg-white' : 'bg-white/30'}`} />
+                    ))}
+                  </div>
+
+                  {/* Prev / Next */}
+                  <button type="button"
+                    onClick={() => setSlideIdx(i => (i - 1 + allSlideMedia.length) % allSlideMedia.length)}
+                    className="absolute left-3 top-1/2 -translate-y-1/2 w-10 h-10 bg-black/30 backdrop-blur-sm rounded-full flex items-center justify-center">
+                    <ChevronLeft className="w-5 h-5 text-white" />
+                  </button>
+                  <button type="button"
+                    onClick={() => setSlideIdx(i => (i + 1) % allSlideMedia.length)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 w-10 h-10 bg-black/30 backdrop-blur-sm rounded-full flex items-center justify-center">
+                    <ChevronLeft className="w-5 h-5 text-white rotate-180" />
+                  </button>
+
+                  {/* Bottom overlay — uploader + date */}
+                  <div className="absolute bottom-4 left-4 right-4">
+                    <div className="flex items-center gap-2 mb-1">
+                      <div className="w-7 h-7 rounded-full bg-emerald-500 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
+                        {allSlideMedia[slideIdx]?.uploaderName?.charAt(0).toUpperCase()}
+                      </div>
+                      <span className="text-white text-sm font-semibold">{allSlideMedia[slideIdx]?.uploaderName?.split(' ')[0]}</span>
+                      <span className="text-white/50 text-xs ml-auto">
+                        {new Date(allSlideMedia[slideIdx]?.timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Thumbnail strip */}
+                <div className="flex-shrink-0 bg-black py-2 px-3">
+                  <div className="flex gap-2 overflow-x-auto no-scrollbar">
+                    {allSlideMedia.map((item, i) => (
+                      <button key={i} type="button" onClick={() => setSlideIdx(i)}
+                        className={`flex-shrink-0 w-14 h-14 rounded-xl overflow-hidden border-2 transition-all ${i === slideIdx ? 'border-emerald-400 scale-105' : 'border-transparent opacity-60'}`}>
+                        {item.type === 'video'
+                          ? <video src={item.src} className="w-full h-full object-cover" />
+                          : <img src={item.src} alt="" className="w-full h-full object-cover" />
+                        }
                       </button>
                     ))}
-                    <button type="button" onClick={() => fileInputRef.current?.click()} className="aspect-square rounded-2xl border-2 border-dashed border-slate-200 flex flex-col items-center justify-center gap-2 hover:border-emerald-300 hover:bg-emerald-50 transition-colors">
-                      <Camera className="w-7 h-7 text-slate-300" />
-                      <span className="text-xs text-slate-400 font-medium">Add Photo</span>
+                    <button type="button" onClick={() => fileInputRef.current?.click()}
+                      className="flex-shrink-0 w-14 h-14 rounded-xl border-2 border-dashed border-white/20 flex items-center justify-center">
+                      <Plus className="w-5 h-5 text-white/40" />
                     </button>
                   </div>
-                )}
-              </div>
+                </div>
+              </>
             )}
           </div>
         )}
@@ -1150,15 +1423,20 @@ export const PrivateTripScreen = ({
             {/* Category filter */}
             <div className="px-4 pt-3 pb-1 flex-shrink-0">
               <div className="flex gap-2 overflow-x-auto no-scrollbar">
-                {CHECKLIST_CATS.map(cat => (
-                  <button key={cat.id} type="button" onClick={() => setCheckCat(cat.id)}
-                    className={`flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold border transition-all ${
-                      checkCat === cat.id ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm' : 'bg-white text-slate-600 border-slate-200'
-                    }`}
-                  >
-                    {cat.emoji} {cat.label}
-                  </button>
-                ))}
+                {CHECKLIST_CATS.map(cat => {
+                  const catLabel = ar
+                    ? ({ all: 'الكل', pack: 'للحقيبة', buy: 'للشراء', book: 'للحجز' } as Record<string, string>)[cat.id]
+                    : cat.label;
+                  return (
+                    <button key={cat.id} type="button" onClick={() => setCheckCat(cat.id)}
+                      className={`flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold border transition-all ${
+                        checkCat === cat.id ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm' : 'bg-white text-slate-600 border-slate-200'
+                      }`}
+                    >
+                      {cat.emoji} {catLabel}
+                    </button>
+                  );
+                })}
               </div>
             </div>
 
@@ -1507,6 +1785,19 @@ export const PrivateTripScreen = ({
               </div>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* ── Fullscreen media viewer ───────────────────────────────────────────── */}
+      {fullscreenMedia && (
+        <div className="fixed inset-0 z-[200] bg-black flex items-center justify-center" onClick={() => setFullscreenMedia(null)}>
+          <button type="button" className="absolute top-4 right-4 w-10 h-10 bg-white/20 rounded-full flex items-center justify-center z-10">
+            <X className="w-5 h-5 text-white" />
+          </button>
+          {fullscreenMedia.type === 'video'
+            ? <video src={fullscreenMedia.src} controls autoPlay className="max-w-full max-h-full object-contain" onClick={e => e.stopPropagation()} />
+            : <img src={fullscreenMedia.src} alt="" className="max-w-full max-h-full object-contain" onClick={e => e.stopPropagation()} />
+          }
         </div>
       )}
     </div>

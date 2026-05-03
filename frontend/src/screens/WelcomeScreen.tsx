@@ -1,32 +1,32 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { Compass, ChevronRight, MapPin } from 'lucide-react';
+import { Compass, ChevronRight, MapPin, Globe } from 'lucide-react';
 
 // Saudi Arabia iconic landmarks slideshow
 // Replace any URL with a higher-res photo of your choice
 const LANDMARKS = [
   {
-    name: 'Burj Al Mamlaka',
-    city: 'Riyadh',
+    name: 'Burj Al Mamlaka',     nameAr: 'برج المملكة',
+    city: 'Riyadh',              cityAr: 'الرياض',
     url: 'https://images.unsplash.com/photo-1586500036706-41963de24d8b?w=900&q=85&fit=crop',
   },
   {
-    name: 'Hegra (Mada\'in Saleh)',
-    city: 'AlUla',
+    name: 'Hegra (Mada\'in Saleh)', nameAr: 'الحِجر (مدائن صالح)',
+    city: 'AlUla',                  cityAr: 'العُلا',
     url: 'https://images.unsplash.com/photo-1614699816050-f87e2b2b9b84?w=900&q=85&fit=crop',
   },
   {
-    name: 'Rub\' al Khali',
-    city: 'Empty Quarter',
+    name: 'Rub\' al Khali',     nameAr: 'الربع الخالي',
+    city: 'Empty Quarter',       cityAr: 'الربع الخالي',
     url: 'https://images.unsplash.com/photo-1509316785289-025f5b846b35?w=900&q=85&fit=crop',
   },
   {
-    name: 'Al-Balad',
-    city: 'Jeddah',
+    name: 'Al-Balad',     nameAr: 'البلد',
+    city: 'Jeddah',       cityAr: 'جدة',
     url: 'https://images.unsplash.com/photo-1578662996442-48f60103fc96?w=900&q=85&fit=crop',
   },
   {
-    name: 'At-Turaif District',
-    city: 'Diriyah',
+    name: 'At-Turaif District',  nameAr: 'حي الطريف',
+    city: 'Diriyah',             cityAr: 'الدرعية',
     url: 'https://images.unsplash.com/photo-1583373834259-46cc92173cb7?w=900&q=85&fit=crop',
   },
 ];
@@ -36,9 +36,15 @@ const SLIDE_DURATION = 4500; // ms per slide
 export const WelcomeScreen = ({
   onGetStarted,
   onSignIn,
+  t,
+  lang,
+  onToggleLang,
 }: {
   onGetStarted: () => void;
   onSignIn: () => void;
+  t?: any;
+  lang?: 'en' | 'ar';
+  onToggleLang?: () => void;
 }) => {
   const [current, setCurrent] = useState(0);
   const [next, setNext] = useState<number | null>(null);
@@ -149,8 +155,19 @@ export const WelcomeScreen = ({
                 <Compass className="w-6 h-6 text-white" strokeWidth={1.8} />
               </div>
             </div>
-            <span className="text-2xl font-black text-white tracking-tight drop-shadow-lg">TRIPO</span>
+            <span className="text-2xl font-black text-white tracking-tight drop-shadow-lg">{lang === 'ar' ? 'تريبو' : 'TRIPO'}</span>
           </div>
+
+          {/* Language toggle */}
+          {onToggleLang && (
+            <button
+              onClick={onToggleLang}
+              className="flex items-center gap-1.5 bg-black/40 backdrop-blur-sm border border-white/15 rounded-full px-3 py-1.5 text-white/90 text-xs font-semibold"
+            >
+              <Globe className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" />
+              {lang === 'ar' ? 'English' : 'العربية'}
+            </button>
+          )}
 
           {/* Landmark badge */}
           <div
@@ -159,7 +176,7 @@ export const WelcomeScreen = ({
             style={{ animation: 'fadeIn 0.5s ease' }}
           >
             <MapPin className="w-3 h-3 text-emerald-400 flex-shrink-0" />
-            <span className="text-white/90 text-xs font-semibold">{LANDMARKS[next ?? current].city}</span>
+            <span className="text-white/90 text-xs font-semibold">{lang === 'ar' ? LANDMARKS[next ?? current].cityAr : LANDMARKS[next ?? current].city}</span>
           </div>
         </div>
 
@@ -171,10 +188,10 @@ export const WelcomeScreen = ({
             style={{ animation: 'fadeSlideUp 0.7s ease' }}
           >
             <p className="text-white/50 text-xs font-semibold uppercase tracking-[0.2em] mb-2">
-              Now Showing
+              {t?.nowShowing || 'Now Showing'}
             </p>
             <h2 className="text-3xl font-black text-white leading-tight drop-shadow-2xl text-center px-4">
-              {LANDMARKS[next ?? current].name}
+              {lang === 'ar' ? LANDMARKS[next ?? current].nameAr : LANDMARKS[next ?? current].name}
             </h2>
           </div>
         </div>
@@ -191,10 +208,10 @@ export const WelcomeScreen = ({
           {/* Tagline */}
           <div className="text-center mb-6">
             <p className="text-white/70 text-base font-medium">
-              Discover Saudi Arabia's wonders
+              {t?.discoverWonders || "Discover Saudi Arabia's wonders"}
             </p>
             <p className="text-white/45 text-sm mt-0.5">
-              Plan trips, explore together, earn rewards
+              {t?.planTripsTagline || 'Plan trips, explore together, earn rewards'}
             </p>
           </div>
 
@@ -225,7 +242,7 @@ export const WelcomeScreen = ({
                 boxShadow: '0 8px 24px rgba(16,185,129,0.4)',
               }}
             >
-              Get Started
+              {t?.getStartedBtn || 'Get Started'}
               <ChevronRight className="w-5 h-5" strokeWidth={2.5} />
             </button>
 
@@ -233,11 +250,11 @@ export const WelcomeScreen = ({
               onClick={onSignIn}
               className="w-full py-4 rounded-2xl font-semibold text-base text-white/85 border border-white/25 bg-white/10 backdrop-blur-sm active:scale-95 transition-all"
             >
-              Sign In
+              {t?.signInBtn || 'Sign In'}
             </button>
 
             <p className="text-center text-white/30 text-xs pt-1">
-              By continuing you agree to our Terms &amp; Privacy Policy
+              {t?.termsAgreement || 'By continuing you agree to our Terms & Privacy Policy'}
             </p>
           </div>
         </div>

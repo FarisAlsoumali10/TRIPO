@@ -6,7 +6,7 @@ export interface IMessage extends Document {
   senderId: Types.ObjectId;
   content: string;
   // ✅ توسيع أنواع الرسائل لتناسب تطبيق رحلات
-  type: MessageType | 'text' | 'system' | 'image' | 'location';
+  type: MessageType | 'text' | 'system' | 'image' | 'location' | 'audio' | 'video';
   createdAt: Date;
   updatedAt: Date;
 }
@@ -30,7 +30,7 @@ const messageSchema = new Schema({
   },
   type: {
     type: String,
-    enum: ['text', 'system', 'image', 'location'],
+    enum: ['text', 'system', 'image', 'location', 'audio', 'video'],
     default: 'text'
   }
 }, {

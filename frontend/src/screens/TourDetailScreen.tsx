@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { reviewAPI, tourAPI } from '../services/api';
 import {
   ChevronLeft,
   ChevronRight,
@@ -105,7 +106,7 @@ export const TourDetailScreen: React.FC<TourDetailScreenProps> = ({ tour, onBack
     return () => clearInterval(id);
   }, [tourImages.length]);
 
-  // Feature 1 – saved state (synced with localStorage)
+  // Feature 1 – saved state (API + localStorage cache)
   const tourId = (tour as any)._id || tour.id || '';
   const [isSaved, setIsSaved] = useState(() => {
     try {
@@ -114,16 +115,32 @@ export const TourDetailScreen: React.FC<TourDetailScreenProps> = ({ tour, onBack
     } catch { return false; }
   });
 
-  const toggleSaved = () => {
-    setIsSaved(prev => {
-      const next = !prev;
+  // Sync saved state from API on mount
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (!token || !tourId) return;
+    tourAPI.getSavedTours().then(ids => {
+      const saved = ids.includes(tourId);
+      setIsSaved(saved);
       try {
-        const saved: string[] = JSON.parse(localStorage.getItem('tripo_saved_tours') || '[]');
-        const updated = next ? [...saved, tourId] : saved.filter(id => id !== tourId);
-        localStorage.setItem('tripo_saved_tours', JSON.stringify(updated));
-      } catch { /* noop */ }
-      return next;
-    });
+        localStorage.setItem('tripo_saved_tours', JSON.stringify(ids));
+      } catch {}
+    }).catch(() => {});
+  }, [tourId]);
+
+  const toggleSaved = async () => {
+    const next = !isSaved;
+    setIsSaved(next); // optimistic
+    try {
+      const saved: string[] = JSON.parse(localStorage.getItem('tripo_saved_tours') || '[]');
+      const updated = next ? [...saved, tourId] : saved.filter(id => id !== tourId);
+      localStorage.setItem('tripo_saved_tours', JSON.stringify(updated));
+    } catch {}
+    try {
+      await tourAPI.toggleSavedTour(tourId);
+    } catch {
+      setIsSaved(!next); // revert on failure
+    }
   };
 
   // Feature 11 – share
@@ -148,31 +165,98 @@ export const TourDetailScreen: React.FC<TourDetailScreenProps> = ({ tour, onBack
   const [reviewRating, setReviewRating] = useState(5);
   const [reviewText, setReviewText] = useState('');
   const [hoverRating, setHoverRating] = useState(0);
-  // Feature 14 – category ratings in form
   const [catRatings, setCatRatings] = useState<Partial<Record<ReviewCat, number>>>({});
   const [hoverCat, setHoverCat] = useState<Partial<Record<ReviewCat, number>>>({});
+  const [isSubmittingReview, setIsSubmittingReview] = useState(false);
 
-  useEffect(() => { setReviews(loadTourReviews(tourId)); }, [tourId]);
+  // Load reviews from API on mount (cache in localStorage)
+  useEffect(() => {
+    if (!tourId) return;
+    reviewAPI.getReviews({ targetType: 'tour', targetId: tourId })
+      .then((data: any) => {
+        const list = Array.isArray(data) ? data : (data.reviews ?? data.data ?? []);
+        const mapped: TourReview[] = list.map((r: any) => ({
+          id: r._id ?? r.id ?? String(Math.random()),
+          tourId,
+          author: r.userId?.name ?? r.author ?? 'Guest',
+          rating: r.rating,
+          comment: r.comment ?? r.text ?? '',
+          date: r.createdAt ?? new Date().toISOString(),
+          categoryRatings: r.categoryRatings,
+        }));
+        setReviews(mapped);
+        // write-through to localStorage cache
+        try {
+          const all: TourReview[] = JSON.parse(localStorage.getItem(REVIEWS_KEY) || '[]');
+          const others = all.filter(r => r.tourId !== tourId);
+          localStorage.setItem(REVIEWS_KEY, JSON.stringify([...others, ...mapped]));
+        } catch {}
+      })
+      .catch(() => { setReviews(loadTourReviews(tourId)); });
+  }, [tourId]);
 
-  const submitReview = () => {
-    if (!reviewAuthor.trim() || !reviewText.trim()) return;
-    const review: TourReview = {
-      id: Date.now().toString(),
-      tourId,
-      author: reviewAuthor.trim(),
-      rating: reviewRating,
-      comment: reviewText.trim(),
-      date: new Date().toISOString(),
-      categoryRatings: Object.keys(catRatings).length > 0 ? catRatings : undefined,
-    };
-    saveTourReview(review);
-    setReviews(prev => [...prev, review]);
-    setReviewAuthor('');
-    setReviewRating(5);
-    setReviewText('');
-    setCatRatings({});
-    setHoverCat({});
-    setShowReviewForm(false);
+  const submitReview = async () => {
+    if (!reviewText.trim()) return;
+    setIsSubmittingReview(true);
+    try {
+      const token = localStorage.getItem('token');
+      const payload: any = {
+        targetType: 'tour',
+        targetId: tourId,
+        rating: reviewRating,
+        comment: reviewText.trim(),
+      };
+      if (Object.keys(catRatings).length > 0) payload.categoryRatings = catRatings;
+
+      if (token) {
+        const saved = await reviewAPI.createReview(payload);
+        const review: TourReview = {
+          id: saved._id ?? saved.id ?? Date.now().toString(),
+          tourId,
+          author: saved.userId?.name ?? (reviewAuthor.trim() || 'Guest'),
+          rating: reviewRating,
+          comment: reviewText.trim(),
+          date: saved.createdAt ?? new Date().toISOString(),
+          categoryRatings: Object.keys(catRatings).length > 0 ? catRatings : undefined,
+        };
+        setReviews(prev => [...prev, review]);
+        saveTourReview(review);
+      } else {
+        // unauthenticated: cache locally only
+        const review: TourReview = {
+          id: Date.now().toString(),
+          tourId,
+          author: reviewAuthor.trim() || 'Guest',
+          rating: reviewRating,
+          comment: reviewText.trim(),
+          date: new Date().toISOString(),
+          categoryRatings: Object.keys(catRatings).length > 0 ? catRatings : undefined,
+        };
+        saveTourReview(review);
+        setReviews(prev => [...prev, review]);
+      }
+    } catch {
+      // fallback: save locally
+      const review: TourReview = {
+        id: Date.now().toString(),
+        tourId,
+        author: reviewAuthor.trim() || 'Guest',
+        rating: reviewRating,
+        comment: reviewText.trim(),
+        date: new Date().toISOString(),
+        categoryRatings: Object.keys(catRatings).length > 0 ? catRatings : undefined,
+      };
+      saveTourReview(review);
+      setReviews(prev => [...prev, review]);
+    } finally {
+      setIsSubmittingReview(false);
+      setReviewAuthor('');
+      setReviewRating(5);
+      setReviewText('');
+      setCatRatings({});
+      setHoverCat({});
+      setShowReviewForm(false);
+    }
   };
 
   const allReviews = reviews;

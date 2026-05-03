@@ -4,7 +4,7 @@ import { ReviewTargetType } from '../types';
 export interface IReview extends Document {
   userId: Types.ObjectId;
   // ✅ توسيع أنواع الأهداف لتشمل المخيمات والجلسات التي أضفناها
-  targetType: ReviewTargetType | 'place' | 'itinerary' | 'campsite' | 'session';
+  targetType: ReviewTargetType;
   targetId: Types.ObjectId;
   rating: number;
   title?: string;
@@ -23,7 +23,7 @@ const reviewSchema = new Schema({
   },
   targetType: {
     type: String,
-    enum: ['place', 'itinerary', 'campsite', 'session'],
+    enum: ['place', 'itinerary', 'campsite', 'session', 'rental', 'tour'],
     required: true
   },
   targetId: {

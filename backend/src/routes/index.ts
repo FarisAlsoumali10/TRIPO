@@ -10,7 +10,6 @@ import messageRoutes from './messageRoutes';
 import notificationRoutes from './notificationRoutes';
 import expenseRoutes from './expenseRoutes';
 import reportRoutes from './reportRoutes';
-import adminRoutes from './adminRoutes';
 import tourRoutes from './tourRoutes';
 import googlePlacesRoutes from './googlePlacesRoutes';
 import journalRoutes from './journals';
@@ -23,7 +22,9 @@ import eventRoutes from './eventRoutes';
 import fazaRoutes from './fazaRoutes';
 import travelPostRoutes from './travelPostRoutes';
 import paymentRoutes from './paymentRoutes';
-
+import bookingRoutes from './bookingRoutes';
+import walletRoutes from './walletRoutes';
+import searchRoutes from './searchRoutes';
 
 const router = Router();
 
@@ -39,7 +40,6 @@ router.use('/', messageRoutes);
 router.use('/', notificationRoutes);
 router.use('/', expenseRoutes);
 router.use('/', reportRoutes);
-router.use('/', adminRoutes);
 router.use('/tours', tourRoutes);
 router.use('/', googlePlacesRoutes);
 router.use('/journals', journalRoutes);
@@ -52,5 +52,8 @@ router.use('/events', eventRoutes);
 router.use('/faza-requests', fazaRoutes);
 router.use('/travel-posts', travelPostRoutes);
 router.use('/payments', paymentRoutes);
+router.use('/bookings', bookingRoutes);
+router.use('/wallet', walletRoutes);
+router.use('/search', searchRoutes);
 
 export default router;

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { X, ChevronLeft, ChevronRight, Calendar, Users, CreditCard, Check, Minus, Plus, AlertCircle } from 'lucide-react';
+import { X, ChevronLeft, ChevronRight, Calendar, Users, CreditCard, Check, Minus, Plus, AlertCircle, ExternalLink } from 'lucide-react';
 import { Tour } from '../types';
+import { paymentAPI, tourAPI } from '../services/api';
 
 interface BookingModalProps {
   tour: Tour;
@@ -31,11 +32,8 @@ export const BookingModal: React.FC<BookingModalProps> = ({ tour, onClose, onCon
   const [step, setStep] = useState(1);
   const [selectedDate, setSelectedDate] = useState<string>('');
   const [guests, setGuests] = useState(1);
-  // Fake payment fields (not sent to real processor)
-  const [cardName, setCardName] = useState('');
-  const [cardNumber, setCardNumber] = useState('');
-  const [cardExpiry, setCardExpiry] = useState('');
   const [formError, setFormError] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Build available dates: use tour's availableDates or fall back to next 4 Fridays
   const availableDates: Date[] = React.useMemo(() => {
@@ -70,25 +68,22 @@ export const BookingModal: React.FC<BookingModalProps> = ({ tour, onClose, onCon
   };
 
   const handleConfirm = async () => {
+    if (isSubmitting) return;
     setFormError('');
-    if (!cardName.trim() || !cardNumber.trim() || !cardExpiry.trim()) {
-      setFormError('Please fill in all payment fields.');
-      return;
+    const tourId = (tour as any)._id || tour.id;
+    if (!tourId) { setFormError('Tour ID is missing.'); return; }
+    setIsSubmitting(true);
+    try {
+      // Step 1: create a pending booking to get a bookingId
+      const bookingResult = await tourAPI.bookTour(tourId, { date: selectedDate, guests });
+      const bookingId = bookingResult?.booking?._id;
+      // Step 2: start checkout linked to that booking (stays true — page will redirect)
+      const { url } = await paymentAPI.createCheckoutSession('tour', tourId, guests, bookingId);
+      window.location.href = url;
+    } catch (err: any) {
+      setFormError(err?.response?.data?.error || 'Could not start checkout. Please try again.');
+      setIsSubmitting(false);
     }
-    await onConfirm(selectedDate, guests);
-  };
-
-  const formatCardNumber = (val: string) =>
-    val
-      .replace(/\D/g, '')
-      .slice(0, 16)
-      .replace(/(.{4})/g, '$1 ')
-      .trim();
-
-  const formatExpiry = (val: string) => {
-    const digits = val.replace(/\D/g, '').slice(0, 4);
-    if (digits.length >= 3) return `${digits.slice(0, 2)}/${digits.slice(2)}`;
-    return digits;
   };
 
   const stepLabels = ['Choose Date', 'Group Size', 'Confirm & Pay'];
@@ -285,55 +280,17 @@ export const BookingModal: React.FC<BookingModalProps> = ({ tour, onClose, onCon
                 </div>
               </div>
 
-              {/* Payment form (UI only — no real processing) */}
-              <div className="space-y-3">
+              {/* Secure checkout notice */}
+              <div className="bg-slate-50 rounded-2xl p-4 border border-slate-200 flex items-center gap-3">
+                <CreditCard className="w-6 h-6 text-emerald-600 flex-shrink-0" />
                 <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Cardholder Name</label>
-                  <input
-                    type="text"
-                    value={cardName}
-                    onChange={(e) => setCardName(e.target.value)}
-                    placeholder="Name as it appears on card"
-                    className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500 text-sm"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Card Number</label>
-                  <input
-                    type="text"
-                    value={cardNumber}
-                    onChange={(e) => setCardNumber(formatCardNumber(e.target.value))}
-                    placeholder="1234 5678 9012 3456"
-                    maxLength={19}
-                    className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500 text-sm font-mono"
-                  />
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Expiry</label>
-                    <input
-                      type="text"
-                      value={cardExpiry}
-                      onChange={(e) => setCardExpiry(formatExpiry(e.target.value))}
-                      placeholder="MM/YY"
-                      maxLength={5}
-                      className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500 text-sm font-mono"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">CVV</label>
-                    <input
-                      type="password"
-                      maxLength={4}
-                      placeholder="•••"
-                      className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500 text-sm font-mono"
-                    />
-                  </div>
+                  <p className="text-sm font-bold text-slate-800">Secure Payment</p>
+                  <p className="text-xs text-slate-500 mt-0.5">You'll be redirected to a secure checkout page to complete your payment.</p>
                 </div>
               </div>
 
               <p className="text-center text-xs text-slate-400 mt-4">
-                Payments secured by 256-bit SSL encryption. This is a demo — no real charge will occur.
+                Payments are processed securely. You will not be charged until checkout is complete.
               </p>
             </div>
           )}
@@ -368,17 +325,17 @@ export const BookingModal: React.FC<BookingModalProps> = ({ tour, onClose, onCon
           ) : (
             <button
               onClick={handleConfirm}
-              disabled={isBooking}
+              disabled={isSubmitting}
               className="flex-1 flex items-center justify-center gap-2 py-3 bg-gradient-to-r from-emerald-600 to-teal-500 text-white font-bold rounded-xl hover:from-emerald-700 hover:to-teal-600 transition active:scale-95 disabled:opacity-60"
             >
-              {isBooking ? (
+              {isSubmitting ? (
                 <>
                   <div className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
                   Processing...
                 </>
               ) : (
                 <>
-                  <Check className="w-4 h-4" /> Confirm Booking
+                  <ExternalLink className="w-4 h-4" /> Proceed to Payment
                 </>
               )}
             </button>

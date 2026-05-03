@@ -24,9 +24,14 @@ export interface User {
   // --- خصائص الواجهة القديمة (لمنع تعطل الشاشات) ---
   karamPoints?: number;
   walletBalance?: number;
+  tripoPoints?: number;
   fazaCount?: number;
   rank?: string;
-  preferences?: any;
+  preferences?: {
+    notifications: boolean;
+    locationSharing: boolean;
+    analytics: boolean;
+  };
 }
 
 export interface AuthResponse {
@@ -113,39 +118,6 @@ export interface Place {
   duration?: number;
   rating?: number;
   reviews?: number;
-}
-
-// ==========================================
-// 📓 Trip Journals
-// ==========================================
-
-export interface JournalDay {
-  dayNumber: number;
-  date?: string;
-  title?: string;
-  notes: string;
-  photos: string[];
-  places: string[];
-  mood?: string;
-}
-
-export interface TripJournal {
-  _id?: string;
-  id?: string;
-  userId?: string | { name: string; avatar?: string };
-  title: string;
-  description?: string;
-  tripId?: string;
-  coverPhoto?: string;
-  visibility: 'public' | 'private' | 'friends' | 'link';
-  shareToken?: string;
-  days: JournalDay[];
-  tags: string[];
-  startDate?: string;
-  endDate?: string;
-  city?: string;
-  createdAt?: string;
-  updatedAt?: string;
 }
 
 // ==========================================
@@ -288,6 +260,8 @@ export interface Rental {
   city?: string;
   availableFrom?: string;
   availableTo?: string;
+  createdAt?: string;
+  ratingSummary?: RatingSummary;
 }
 
 // ==========================================
@@ -299,6 +273,7 @@ export interface ChatMessage {
   userId: string;
   userName: string;
   text: string;
+  msgType?: 'text' | 'image' | 'audio' | 'video' | 'location';
   timestamp: number;
 }
 
@@ -326,6 +301,8 @@ export interface PrivateTrip {
   title: string;
   startDate?: string;
   endDate?: string;
+  destination?: string;
+  coverImage?: string;
   members: User[];
   organizerId?: string;
   chatMessages: ChatMessage[];
@@ -467,4 +444,6 @@ export interface Tour {
   appPrice?: number;
   originalPrice?: number;
   hasAppDiscount?: boolean;
+  ownerId?: string;
+  createdAt?: string;
 }

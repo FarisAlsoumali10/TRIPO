@@ -27,17 +27,54 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
+let _isRefreshing = false;
+let _refreshQueue: Array<(token: string) => void> = [];
+
 api.interceptors.response.use(
   (r) => r,
-  (error) => {
-    if (error.response?.status === 401) {
-      const hadToken = !!error.config?.headers?.Authorization;
-      // FIX: only clear token + fire event when we actually sent one and it was rejected.
-      // Previously this ran unconditionally, wiping storage on guest 401s too.
-      if (hadToken) {
+  async (error) => {
+    const original = error.config;
+    if (error.response?.status === 401 && !original._retried) {
+      const hadToken = !!original?.headers?.Authorization;
+      if (!hadToken) return Promise.reject(error);
+
+      const refreshToken = localStorage.getItem('refreshToken');
+      if (!refreshToken) {
         localStorage.removeItem('token');
         localStorage.removeItem('user');
         window.dispatchEvent(new CustomEvent('auth:unauthorized'));
+        return Promise.reject(error);
+      }
+
+      if (_isRefreshing) {
+        return new Promise((resolve) => {
+          _refreshQueue.push((newToken) => {
+            original.headers.Authorization = `Bearer ${newToken}`;
+            resolve(api(original));
+          });
+        });
+      }
+
+      original._retried = true;
+      _isRefreshing = true;
+
+      try {
+        const { data } = await publicApi.post('/auth/refresh', { refreshToken });
+        localStorage.setItem('token', data.token);
+        localStorage.setItem('refreshToken', data.refreshToken);
+        _refreshQueue.forEach((cb) => cb(data.token));
+        _refreshQueue = [];
+        original.headers.Authorization = `Bearer ${data.token}`;
+        return api(original);
+      } catch {
+        _refreshQueue = [];
+        localStorage.removeItem('token');
+        localStorage.removeItem('refreshToken');
+        localStorage.removeItem('user');
+        window.dispatchEvent(new CustomEvent('auth:unauthorized'));
+        return Promise.reject(error);
+      } finally {
+        _isRefreshing = false;
       }
     }
     return Promise.reject(error);
@@ -65,6 +102,7 @@ const mapMessage = (m: AnyRecord) => ({
   userId: m.senderId?._id ?? m.senderId ?? '',
   userName: m.senderId?.name ?? 'Unknown',
   text: m.content ?? m.text ?? '',
+  msgType: m.type ?? 'text',
   timestamp: m.createdAt ? +new Date(m.createdAt) : Date.now(),
 });
 
@@ -88,6 +126,15 @@ export const authAPI = {
   register: (registerData: RegisterData): Promise<AuthResponse> =>
     api.post('/auth/register', registerData).then((r) => r.data),
 
+  refresh: (refreshToken: string) =>
+    publicApi.post('/auth/refresh', { refreshToken }).then((r) => r.data),
+
+  requestPasswordReset: (email: string) =>
+    publicApi.post('/auth/request-password-reset', { email }).then((r) => r.data),
+
+  resetPassword: (token: string, newPassword: string) =>
+    publicApi.post('/auth/reset-password', { token, newPassword }).then((r) => r.data),
+
   getProfile: (): Promise<User> => api.get('/profile').then((r) => r.data),
 
   updateProfile: (updates: Partial<User>): Promise<User> =>
@@ -96,9 +143,6 @@ export const authAPI = {
   updateSmartProfile: (smartProfile: Partial<User['smartProfile']>) =>
     api.patch('/profile/smart-profile', smartProfile).then((r) => r.data),
 
-  // FIX: call this only when a token exists — guard in your app root:
-  // const token = localStorage.getItem('token');
-  // if (token) authAPI.getMe().then(...)
   getMe: (): Promise<User> => api.get('/auth/me').then((r) => r.data),
 };
 
@@ -184,6 +228,25 @@ export const tourAPI = {
   /** Toggles saved state for a tour */
   toggleSavedTour: (tourId: string) =>
     api.post(`/favorites/toggle`, { itemId: tourId, itemType: 'tour' }).then((r) => r.data),
+
+  createTour: (payload: AnyRecord) =>
+    api.post('/tours', payload).then((r) => r.data),
+
+  getMyTours: async (): Promise<AnyRecord[]> => {
+    const { data } = await api.get('/tours/mine');
+    return toList(data, 'tours').map(withId);
+  },
+
+  getMyTourBookings: async (): Promise<AnyRecord[]> => {
+    const { data } = await api.get('/tours/mine/bookings');
+    return toList(data, 'bookings').map(withId);
+  },
+
+  updateTour: (tourId: string, payload: AnyRecord) =>
+    api.patch(`/tours/${tourId}`, payload).then((r) => r.data),
+
+  deleteTour: (tourId: string) =>
+    api.delete(`/tours/${tourId}`).then((r) => r.data),
 };
 
 // ── Rental API — GET is public, writes are auth-protected ────────────────────
@@ -201,6 +264,22 @@ export const rentalAPI = {
 
   createRental: (rentalData: AnyRecord) =>
     api.post('/rentals', rentalData).then((r) => r.data),
+
+  getMyRentals: async (): Promise<AnyRecord[]> => {
+    const { data } = await api.get('/rentals/mine');
+    return toList(data, 'rentals', 'data').map(withId);
+  },
+
+  updateRental: (rentalId: string, payload: AnyRecord) =>
+    api.patch(`/rentals/${rentalId}`, payload).then((r) => r.data),
+
+  deleteRental: (rentalId: string) =>
+    api.delete(`/rentals/${rentalId}`).then((r) => r.data),
+
+  getMyRentalBookings: async (): Promise<AnyRecord[]> => {
+    const { data } = await api.get('/rentals/mine/bookings');
+    return toList(data, 'bookings', 'data').map(withId);
+  },
 
   /** Book a rental time slot */
   bookTimeSlot: (
@@ -434,8 +513,18 @@ export const favoriteAPI = {
 // ── Private Trip API ──────────────────────────────────────────────────────────
 
 export const privateTripAPI = {
-  create: (payload: { title: string; startDate?: string; endDate?: string; inviteIds?: string[] }) =>
+  create: (payload: { title: string; startDate?: string; endDate?: string; destination?: string; coverImage?: string }) =>
     api.post('/group-trips/private', payload).then((r) => r.data),
+
+  getInviteToken: async (tripId: string): Promise<string> => {
+    const { data } = await api.get(`/group-trips/${tripId}/invite-link`);
+    return data.inviteToken;
+  },
+
+  joinByToken: async (token: string) => {
+    const { data } = await api.post(`/group-trips/join/${token}`);
+    return data;
+  },
 
   getMyTrips: async () => {
     const { data } = await api.get('/group-trips/mine/private');
@@ -447,9 +536,9 @@ export const privateTripAPI = {
     return toList(data, 'messages').map(mapMessage);
   },
 
-  sendMessage: async (tripId: string, content: string) => {
-    const { data } = await api.post('/messages', { groupTripId: tripId, content, type: 'text' });
-    return { ...mapMessage(data), userName: data.senderId?.name ?? 'Me', text: data.content ?? content };
+  sendMessage: async (tripId: string, content: string, type: string = 'text') => {
+    const { data } = await api.post('/messages', { groupTripId: tripId, content, type });
+    return { ...mapMessage(data), userName: data.senderId?.name ?? 'Me', text: data.content ?? content, msgType: type };
   },
 
   getExpenses: async (tripId: string) => {
@@ -520,11 +609,98 @@ export const googlePlacesAPI = {
   photoSrc: (proxyPath: string): string => `${API_URL}${proxyPath}`,
 };
 
+// ── Payment API — auth required ───────────────────────────────────────────────
+
+export const paymentAPI = {
+  createCheckoutSession: (
+    itemType: 'event' | 'tour' | 'rental',
+    itemId: string,
+    quantity = 1,
+    bookingId?: string,
+  ): Promise<{ success: boolean; url: string }> =>
+    api.post('/payments/create-checkout-session', { itemType, itemId, quantity, bookingId }).then((r) => r.data),
+
+  verifySession: (sessionId: string): Promise<{ success: boolean; paid: boolean; booking: any; payment: any }> =>
+    api.get('/payments/verify', { params: { session_id: sessionId } }).then((r) => r.data),
+
+  getPaymentHistory: () =>
+    api.get('/payments/history').then((r) => r.data),
+};
+
+// ── Notification API ──────────────────────────────────────────────────────────
+
+export const notificationAPI = {
+  list: () => api.get('/notifications').then((r) => r.data),
+
+  markAsRead: (notificationId: string) =>
+    api.patch(`/notifications/${notificationId}/read`).then((r) => r.data),
+
+  markAllRead: () =>
+    api.patch('/notifications/read-all').then((r) => r.data),
+};
+
+// ── Booking API — auth required ───────────────────────────────────────────────
+
+export const bookingAPI = {
+  getMyBookings: async (): Promise<AnyRecord[]> => {
+    const { data } = await api.get('/bookings/mine');
+    return toList(data, 'bookings').map(withId);
+  },
+
+  cancel: (id: string) =>
+    api.patch(`/bookings/${id}/cancel`).then((r) => r.data),
+};
+
+// ── Wallet API — auth required ────────────────────────────────────────────────
+
+export interface WalletData {
+  tripoPoints: number;
+  walletBalance: number;
+  explorerLevel: string;
+  history: { id: string; action: string; points: number; label: string; timestamp: number }[];
+}
+
+export const walletAPI = {
+  getMine: (): Promise<WalletData> => api.get('/wallet/me').then((r) => r.data),
+
+  award: (payload: { action: string; points: number; label: string }) =>
+    api.post('/wallet/award', payload).then((r) => r.data),
+
+  getEarnings: (): Promise<{ walletBalance: number; pendingPayoutTotal: number; payoutHistory: any[] }> =>
+    api.get('/wallet/earnings').then((r) => r.data),
+
+  requestPayout: (payload: { amount: number; bankName?: string; iban?: string }) =>
+    api.post('/wallet/request-payout', payload).then((r) => r.data),
+};
+
 // ── AI API ────────────────────────────────────────────────────────────────────
 
 export const aiAPI = {
   generateContent: (prompt: string, systemInstruction?: string, base64Image?: string) =>
     api.post('/ai/generate', { prompt, systemInstruction, base64Image }).then((r) => r.data),
+};
+
+// ── Search API — public ───────────────────────────────────────────────────────
+
+export interface SearchResult {
+  _id: string;
+  resultType: 'place' | 'tour' | 'rental' | 'itinerary';
+  title: string;
+  subtitle?: string;
+  image?: string;
+}
+
+export const searchAPI = {
+  search: async (
+    q: string,
+    types?: ('place' | 'tour' | 'rental' | 'itinerary')[],
+    limit = 10,
+  ): Promise<SearchResult[]> => {
+    const params: AnyRecord = { q, limit };
+    if (types?.length) params.types = types.join(',');
+    const { data } = await publicApi.get('/search', { params });
+    return toList(data, 'data').map(withId) as SearchResult[];
+  },
 };
 
 export default api;

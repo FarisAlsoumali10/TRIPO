@@ -132,7 +132,7 @@ export const FeaturedSlideshow = ({
       ))}
 
       {/* 🌫️ Gradient Overlay */}
-      <div className="absolute inset-0 z-10 pointer-events-none bg-gradient-to-t from-black/90 via-black/30 to-transparent" />
+      <div className="absolute inset-0 z-10 pointer-events-none bg-gradient-to-t from-navy-950/95 dark:from-navy-950 via-black/40 to-black/20" />
 
       {/* 🖱️ Clickable Area */}
       <button className="absolute inset-0 w-full h-full z-20" onClick={() => onPress(active)} />
@@ -182,7 +182,7 @@ export const FeaturedSlideshow = ({
             {active.name}
           </h2>
           <div className="flex items-center gap-1.5 mt-1">
-            <MapPin className="w-4 h-4 text-emerald-400 drop-shadow-md" />
+            <MapPin className="w-4 h-4 text-emerald-400 dark:text-mint drop-shadow-md" />
             <p className="text-gray-200 text-sm font-medium drop-shadow-md">
               {active.subtitle}
             </p>
@@ -195,7 +195,7 @@ export const FeaturedSlideshow = ({
             <button
               key={i}
               onClick={e => { e.stopPropagation(); goTo(i); }}
-              className={`h-1.5 rounded-full transition-all duration-500 ease-out ${i === cur ? 'w-8 bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.6)]' : 'w-2 bg-white/40 hover:bg-white/60'
+              className={`h-1.5 rounded-full transition-all duration-500 ease-out ${i === cur ? 'w-8 bg-emerald-500 dark:bg-mint shadow-[0_0_8px_rgba(16,185,129,0.6)] dark:shadow-[0_0_8px_rgba(124,247,200,0.7)]' : 'w-2 bg-white/40 hover:bg-white/60'
                 }`}
             />
           ))}

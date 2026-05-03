@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { authMiddleware } from '../middleware/authMiddleware';
-import { createCheckoutSession, getPaymentHistory } from '../controllers/paymentController';
+import { createCheckoutSession, getPaymentHistory, verifySession } from '../controllers/paymentController';
 
 const router = Router();
 
@@ -9,6 +9,9 @@ router.use(authMiddleware as any);
 
 // POST /api/v1/payments/create-checkout-session
 router.post('/create-checkout-session', createCheckoutSession as any);
+
+// GET /api/v1/payments/verify?session_id=xxx
+router.get('/verify', verifySession as any);
 
 // GET /api/v1/payments/history
 router.get('/history', getPaymentHistory as any);

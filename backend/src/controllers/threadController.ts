@@ -1,6 +1,7 @@
 import { Response } from 'express';
 import { Thread } from '../models/Thread';
 import { User } from '../models/User';
+import { Notification } from '../models/Notification';
 import { AuthRequest } from '../types';
 
 // Get all threads for a specific community
@@ -58,6 +59,15 @@ export const addReply = async (req: AuthRequest, res: Response) => {
       { $push: { replies: { text, imageUrl, authorId: userId, authorName: user.name } } },
       { new: true }
     ).lean();
+
+    // Notify thread author (skip if replying to own thread)
+    const thread = await Thread.findById(threadId).select('authorId title').lean();
+    if (thread && thread.authorId && thread.authorId.toString() !== userId) {
+      const payload = { threadId, threadTitle: thread.title, replyAuthorId: userId, replyAuthorName: user.name, text };
+      await Notification.create({ userId: thread.authorId, type: 'new_reply', payload, read: false });
+      const io = req.app?.get('io');
+      if (io) io.to(`user:${thread.authorId.toString()}`).emit('notification', { type: 'new_reply', payload });
+    }
 
     return res.status(200).json({ success: true, data: { ...updated, id: updated?._id } });
   } catch (error) {
