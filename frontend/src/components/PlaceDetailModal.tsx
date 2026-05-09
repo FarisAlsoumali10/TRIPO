@@ -1,54 +1,18 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { X, Star, MapPin, Sparkles, Send, MessageSquare, Clock, ThumbsUp, Award, Camera, Building2, CheckCircle, ArrowLeft, ChevronLeft, ChevronRight, Bookmark, ExternalLink, FolderPlus, Plus, CheckCheck, Navigation } from 'lucide-react';
+import { Skeleton, SafeImage } from './ui';
 import { Place, Rental, QAItem } from '../types/index';
 import { PhotoLightbox } from './PhotoLightbox';
 import { reviewAPI, googlePlacesAPI, aiAPI, GooglePlaceDetails } from '../services/api';
+import { useWeather } from '../hooks/useWeather';
 
-// ─── helpers ────────────────────────────────────────────────────────────────
-
-const DAY_KEYS = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
-const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-
-function isOpenNow(openingHours?: Record<string, { open: string; close: string; closed?: boolean }>): boolean | null {
-  if (!openingHours) return null;
-  const now = new Date();
-  const dayKey = DAY_KEYS[now.getDay()];
-  const hours = openingHours[dayKey];
-  if (!hours || hours.closed) return false;
-  const [openH, openM] = hours.open.split(':').map(Number);
-  const [closeH, closeM] = hours.close.split(':').map(Number);
-  const nowMins = now.getHours() * 60 + now.getMinutes();
-  const openMins = openH * 60 + openM;
-  const closeMins = closeH * 60 + closeM;
-  // handle overnight (e.g. 20:00 – 02:00)
-  if (closeMins < openMins) return nowMins >= openMins || nowMins < closeMins;
-  return nowMins >= openMins && nowMins < closeMins;
-}
-
-function getTodayHours(openingHours?: Record<string, { open: string; close: string; closed?: boolean }>): string {
-  if (!openingHours) return '';
-  const dayKey = DAY_KEYS[new Date().getDay()];
-  const h = openingHours[dayKey];
-  if (!h) return '';
-  if (h.closed) return 'Closed today';
-  return `${h.open} – ${h.close}`;
-}
-
-function getPriceRange(place: Place): number | null {
-  if (place.priceRange) return place.priceRange;
-  const cost = place.avgCost;
-  if (cost === undefined || cost === null) return null;
-  if (cost === 0) return 1;
-  if (cost <= 50) return 2;
-  if (cost <= 150) return 3;
-  return 4;
-}
+import { isOpenNow, getTodayHours, getPriceRange, DAY_KEYS, DAY_LABELS } from '../utils/placeHelpers';
 
 function renderPriceDollars(level: number): React.ReactNode {
   return (
-    <span className="font-bold text-emerald-600">
+    <span className="font-black text-oasis-spring tracking-widest">
       {'$'.repeat(level)}
-      <span className="text-slate-300">{'$'.repeat(4 - level)}</span>
+      <span className="text-white/10">{'$'.repeat(4 - level)}</span>
     </span>
   );
 }
@@ -62,6 +26,10 @@ interface PlaceDetailModalProps {
   allPlaces?: Place[];
   onSwitchPlace?: (p: Place) => void;
   mode?: 'modal' | 'page';
+  lang?: 'en' | 'ar';
+  isSaved?: boolean;
+  onToggleSave?: (e: React.MouseEvent) => void;
+  onOpenAddToTrip?: (e: React.MouseEvent) => void;
 }
 
 const RATING_CATS = ['Atmosphere', 'Value', 'Service', 'Location'] as const;
@@ -79,7 +47,21 @@ interface ModalTrip { id: string; name: string; placeIds: string[] }
 
 // ─── component ───────────────────────────────────────────────────────────────
 
-export const PlaceDetailModal = ({ place, onClose, t, allPlaces, onSwitchPlace, mode = 'modal' }: PlaceDetailModalProps) => {
+export const PlaceDetailModal = ({
+  place,
+  onClose,
+  t,
+  allPlaces,
+  onSwitchPlace,
+  mode = 'modal',
+  lang,
+  isSaved,
+  onToggleSave,
+  onOpenAddToTrip
+}: PlaceDetailModalProps) => {
+  const ar = lang === 'ar';
+  const isRTL = ar;
+
   // ── existing state ──────────────────────────────────────────────────────
   const [summary, setSummary] = useState<string>('');
   const [isSummaryLoading, setIsSummaryLoading] = useState(true);
@@ -155,6 +137,9 @@ export const PlaceDetailModal = ({ place, onClose, t, allPlaces, onSwitchPlace, 
   // ── Feature 14: Rating breakdown ────────────────────────────────────────────
   const [reviewBreakdown, setReviewBreakdown] = useState<Partial<Record<RatingCatType, number>>>({});
   const [showBreakdown, setShowBreakdown] = useState(false);
+
+  const placeCity = (place as any).city || (place as any).locationName || '';
+  const { weather, loading: weatherLoading } = useWeather(placeCity);
 
   const breakdownAggregate = useMemo(() => {
     const pid = (place as Place)._id || (place as Place).id || '';
@@ -569,7 +554,11 @@ export const PlaceDetailModal = ({ place, onClose, t, allPlaces, onSwitchPlace, 
     setShowTripPanel(false);
   };
 
-  const handleSave = () => {
+  const handleSave = (e: React.MouseEvent) => {
+    if (onToggleSave) {
+      onToggleSave(e);
+      return;
+    }
     try {
       const list: string[] = JSON.parse(localStorage.getItem('tripo_saved_places') || '[]');
       const updated = saved ? list.filter(id => id !== placeId) : [...list, placeId];
@@ -592,22 +581,23 @@ export const PlaceDetailModal = ({ place, onClose, t, allPlaces, onSwitchPlace, 
         <PhotoLightbox photos={placePhotos} initialIndex={lightboxIdx} onClose={() => setLightboxIdx(null)} />
       )}
       <div className={mode === 'page'
-        ? "fixed inset-0 z-[100] bg-slate-50 dark:bg-slate-950 overflow-y-auto"
-        : "fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-4 animate-in fade-in duration-200"
+        ? "fixed inset-0 z-[100] bg-midnight overflow-y-auto"
+        : "fixed inset-0 z-[100] bg-black/80 backdrop-blur-md flex items-end sm:items-center justify-center p-4 animate-in fade-in duration-200"
       }>
         <div className={mode === 'page'
-          ? "relative w-full max-w-2xl mx-auto min-h-full flex flex-col"
-          : "bg-white dark:bg-slate-900 w-full max-w-sm rounded-3xl overflow-hidden shadow-2xl relative animate-in slide-in-from-bottom duration-300 max-h-[90vh] flex flex-col"
+          ? "relative w-full max-w-2xl mx-auto min-h-full flex flex-col bg-midnight"
+          : "bg-chamber w-full max-w-sm rounded-[2.5rem] overflow-hidden shadow-2xl relative animate-in slide-in-from-bottom duration-300 max-h-[90vh] flex flex-col border border-white/5"
         }>
 
           {/* ── CINEMATIC HERO ── */}
           <div className={`${mode === 'page' ? 'h-[55vh]' : 'h-64'} w-full relative bg-slate-900 shrink-0 overflow-hidden`}>
-            <img
-              src={placePhotos[photoIdx] || (googleData?.photos?.[0] ? googlePlacesAPI.photoSrc(googleData.photos[0].url) : null) || 'https://images.unsplash.com/photo-1557683311-eac922347aa1?w=800&q=80'}
+            <SafeImage
+              src={placePhotos[photoIdx] || (googleData?.photos?.[0] ? googlePlacesAPI.photoSrc(googleData.photos[0].url) : null)}
               className="w-full h-full object-cover transition-opacity duration-500 cursor-zoom-in"
               alt={placeName}
               onClick={() => placePhotos.length > 0 && setLightboxIdx(photoIdx)}
-              onError={(e) => { (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1557683311-eac922347aa1?w=800&q=80'; }}
+              fallbackType="placeholder"
+              seed={placeId}
             />
             {/* Top scrim */}
             <div className="absolute inset-x-0 top-0 h-28 bg-gradient-to-b from-black/70 to-transparent pointer-events-none" />
@@ -615,11 +605,11 @@ export const PlaceDetailModal = ({ place, onClose, t, allPlaces, onSwitchPlace, 
             <div className="absolute inset-x-0 bottom-0 h-56 bg-gradient-to-t from-black/95 via-black/50 to-transparent pointer-events-none" />
 
             {/* Back / close button */}
-            <button
+            <button 
               onClick={onClose}
-              className="absolute top-5 left-4 z-10 flex items-center gap-1.5 bg-white/20 backdrop-blur-md text-white px-3 py-1.5 rounded-full text-sm font-semibold border border-white/30 hover:bg-white/30 transition-colors"
+              className="absolute top-5 start-4 z-10 flex items-center gap-2 bg-midnight/40 backdrop-blur-md text-white px-4 py-2 rounded-2xl text-[10px] font-black uppercase tracking-widest border border-white/10 hover:bg-midnight/60 transition-all active:scale-95"
             >
-              <ArrowLeft className="w-4 h-4" />
+              <ArrowLeft className={`w-4 h-4 ${lang === 'ar' ? 'rotate-180' : ''}`} />
               {mode === 'page' ? (t.backBtn || 'Back') : ''}
             </button>
 
@@ -627,38 +617,38 @@ export const PlaceDetailModal = ({ place, onClose, t, allPlaces, onSwitchPlace, 
             {placePhotos.length > 1 && (
               <button
                 onClick={() => setLightboxIdx(photoIdx)}
-                className="absolute top-5 right-4 z-10 flex items-center gap-1.5 bg-black/45 backdrop-blur-md text-white px-3 py-1.5 rounded-full text-xs font-bold border border-white/20 hover:bg-black/60 transition"
+                className="absolute top-5 end-4 z-10 flex items-center gap-1.5 bg-midnight/40 backdrop-blur-md text-white px-3 py-2 rounded-2xl text-[10px] font-black uppercase tracking-widest border border-white/10 hover:bg-midnight/60 transition shadow-lg"
               >
-                <Camera className="w-3.5 h-3.5" />
+                <Camera className="w-3.5 h-3.5 text-oasis-spring" />
                 {placePhotos.length}
               </button>
             )}
 
             {/* Title + rating overlaid on hero */}
-            <div className="absolute bottom-0 left-0 right-0 p-5 z-10">
-              <div className="flex items-center gap-2 mb-2 flex-wrap">
+            <div className="absolute bottom-0 start-0 end-0 p-6 z-10">
+              <div className="flex items-center gap-2 mb-3 flex-wrap">
                 {placeCat && (
-                  <span className="text-[11px] font-bold bg-emerald-500/90 text-white px-2.5 py-0.5 rounded-full backdrop-blur-sm">
+                  <span className="text-[10px] font-black uppercase tracking-widest bg-oasis-spring text-midnight px-3 py-1 rounded-xl shadow-mint-glow">
                     {placeCat}
                   </span>
                 )}
                 {isTravellersChoice && (
-                  <span className="flex items-center gap-1 text-[11px] font-bold bg-amber-400/90 text-amber-900 px-2.5 py-0.5 rounded-full backdrop-blur-sm">
-                    <Award className="w-3 h-3" /> {t.travellersChoice || "Travellers' Choice"}
+                  <span className="flex items-center gap-1 text-[10px] font-black uppercase tracking-widest bg-karam text-midnight px-3 py-1 rounded-xl shadow-xl">
+                    <Award className="w-3.5 h-3.5" /> {t.travellersChoice || "Travellers' Choice"}
                   </span>
                 )}
               </div>
-              <h1 className="text-2xl font-extrabold text-white leading-tight drop-shadow-lg mb-2">{placeName}</h1>
-              <div className="flex items-center gap-3 flex-wrap">
-                <span className="flex items-center gap-1 text-white/90 text-sm">
-                  <MapPin className="w-3.5 h-3.5 text-white/70" />
+              <h1 className="text-4xl font-black text-white leading-none tracking-tighter drop-shadow-2xl mb-3 uppercase">{placeName}</h1>
+              <div className="flex items-center gap-4 flex-wrap">
+                <span className="flex items-center gap-1.5 text-moon text-[11px] font-black uppercase tracking-widest">
+                  <MapPin className="w-4 h-4 text-oasis-spring" />
                   {placeLocation}
                 </span>
                 {avgRating > 0 && (
-                  <span className="flex items-center gap-1 bg-white/15 backdrop-blur-sm text-white text-sm font-bold px-2.5 py-0.5 rounded-full">
-                    <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
+                  <span className="flex items-center gap-2 bg-midnight/60 backdrop-blur-xl text-white text-[11px] font-black px-3 py-1.5 rounded-2xl border border-white/10 shadow-2xl">
+                    <Star className="w-4 h-4 fill-amber-500 text-amber-500" />
                     {avgRating.toFixed(1)}
-                    {reviewCount > 0 && <span className="text-white/60 font-normal text-xs">({reviewCount})</span>}
+                    {reviewCount > 0 && <span className="text-moon/40 ml-1">({reviewCount})</span>}
                   </span>
                 )}
               </div>
@@ -668,18 +658,18 @@ export const PlaceDetailModal = ({ place, onClose, t, allPlaces, onSwitchPlace, 
             {placePhotos.length > 1 && (
               <>
                 <button onClick={() => setPhotoIdx(i => (i - 1 + placePhotos.length) % placePhotos.length)}
-                  className="absolute left-3 top-1/2 -translate-y-1/2 w-8 h-8 bg-black/40 backdrop-blur-sm rounded-full flex items-center justify-center text-white hover:bg-black/60 transition z-10">
-                  <ChevronLeft className="w-4 h-4" />
+                  className="absolute start-3 top-1/2 -translate-y-1/2 w-11 h-11 bg-midnight/40 backdrop-blur-md rounded-2xl flex items-center justify-center text-white hover:bg-midnight transition z-10 border border-white/10 shadow-2xl">
+                  <ChevronLeft className={`w-6 h-6 ${lang === 'ar' ? 'rotate-180' : ''}`} />
                 </button>
                 <button onClick={() => setPhotoIdx(i => (i + 1) % placePhotos.length)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 w-8 h-8 bg-black/40 backdrop-blur-sm rounded-full flex items-center justify-center text-white hover:bg-black/60 transition z-10">
-                  <ChevronRight className="w-4 h-4" />
+                  className="absolute end-3 top-1/2 -translate-y-1/2 w-11 h-11 bg-midnight/40 backdrop-blur-md rounded-2xl flex items-center justify-center text-white hover:bg-midnight transition z-10 border border-white/10 shadow-2xl">
+                  <ChevronRight className={`w-6 h-6 ${lang === 'ar' ? 'rotate-180' : ''}`} />
                 </button>
-                <div className="absolute bottom-5 right-5 flex items-center gap-1.5 z-10">
+                <div className="absolute bottom-6 end-6 flex items-center gap-2 z-10">
                   {placePhotos.slice(0, 6).map((_, i) => (
                     <button key={i} onClick={() => setPhotoIdx(i)}
-                      className="transition-all duration-300 rounded-full"
-                      style={{ width: i === photoIdx ? 16 : 5, height: 5, background: i === photoIdx ? '#10b981' : 'rgba(255,255,255,0.5)' }}
+                      className="transition-all duration-500 rounded-full"
+                      style={{ width: i === photoIdx ? 24 : 6, height: 6, background: i === photoIdx ? '#7CF7C8' : 'rgba(255,255,255,0.2)' }}
                     />
                   ))}
                 </div>
@@ -688,17 +678,17 @@ export const PlaceDetailModal = ({ place, onClose, t, allPlaces, onSwitchPlace, 
           </div>
 
           {/* ── ACTION PILL BAR ── */}
-          <div className="flex items-center gap-2.5 px-4 py-3 bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-white/8 shrink-0 overflow-x-auto no-scrollbar relative">
+          <div className="flex items-center gap-3 px-4 py-4 bg-chamber border-b border-white/10 shrink-0 overflow-x-auto no-scrollbar relative">
             {/* Directions button */}
             <div className="relative flex-shrink-0">
               <button
                 onClick={handleDirectionsClick}
-                className="flex items-center gap-1.5 bg-emerald-600 text-white px-4 py-2 rounded-full text-sm font-bold hover:bg-emerald-700 transition-colors shadow-sm"
+                className="flex items-center gap-2 bg-oasis-spring text-midnight px-5 py-2.5 rounded-2xl text-[11px] font-black uppercase tracking-widest hover:scale-105 transition-all shadow-mint-glow active:scale-95"
               >
                 <Navigation className="w-4 h-4" />
                 {t.directions || 'الاتجاهات'}
                 {distanceText && (
-                  <span className="bg-white/20 px-2 py-0.5 rounded-full text-[11px] font-black ml-1">
+                  <span className="bg-midnight/10 px-2 py-0.5 rounded-lg text-[9px] font-black ms-2">
                     {distanceText}
                   </span>
                 )}
@@ -706,61 +696,57 @@ export const PlaceDetailModal = ({ place, onClose, t, allPlaces, onSwitchPlace, 
 
               {/* Map app picker */}
               {showMapChoice && (
-                <div className="absolute top-full mt-2 left-0 z-50 bg-white dark:bg-slate-800 rounded-2xl shadow-2xl border border-slate-100 dark:border-white/10 overflow-hidden w-52" onClick={e => e.stopPropagation()}>
-                  <p className="text-[10px] font-black text-slate-400 px-4 pt-3 pb-1 uppercase tracking-wider">افتح في</p>
+                <div className="absolute top-full mt-4 start-0 z-50 bg-lifted/95 backdrop-blur-2xl rounded-[2rem] shadow-2xl border border-white/10 overflow-hidden w-64 animate-in fade-in slide-in-from-top-4 duration-300" onClick={e => e.stopPropagation()}>
+                  <p className="text-[10px] font-black text-moon/40 px-5 pt-4 pb-1 uppercase tracking-[0.2em]">{isRTL ? 'افتح في' : 'OPEN IN'}</p>
 
-                  {/* Google Maps */}
                   <a
                     href={getGoogleMapsUrl()}
                     target="_blank"
                     rel="noopener noreferrer"
                     onClick={() => setShowMapChoice(false)}
-                    className="flex items-center gap-3 px-4 py-3 hover:bg-slate-50 dark:hover:bg-white/5 transition-colors"
+                    className="flex items-center gap-4 px-5 py-5 hover:bg-white/5 transition-colors border-b border-white/5"
                   >
-                    <span className="text-xl">🗺️</span>
+                    <div className="w-11 h-11 bg-chamber rounded-2xl flex items-center justify-center text-2xl shadow-xl border border-white/5">🗺️</div>
                     <div>
-                      <p className="text-sm font-bold text-slate-800 dark:text-white">Google Maps</p>
-                      {placeCoords && <p className="text-[10px] text-slate-400">اتجاهات دقيقة بالإحداثيات</p>}
+                      <p className="text-xs font-black text-white uppercase tracking-widest">Google Maps</p>
+                      {placeCoords && <p className="text-[10px] text-moon/50 font-black mt-1 uppercase tracking-tighter">{isRTL ? 'إحداثيات دقيقة' : 'PRECISE COORDS'}</p>}
                     </div>
                   </a>
 
-                  {/* Apple Maps — iOS only */}
                   {isIOS && (
                     <a
                       href={getAppleMapsUrl()}
                       onClick={() => setShowMapChoice(false)}
-                      className="flex items-center gap-3 px-4 py-3 hover:bg-slate-50 dark:hover:bg-white/5 transition-colors"
+                      className="flex items-center gap-4 px-5 py-5 hover:bg-white/5 transition-colors border-b border-white/5"
                     >
-                      <span className="text-xl">🍎</span>
+                      <div className="w-11 h-11 bg-chamber rounded-2xl flex items-center justify-center text-2xl shadow-xl border border-white/5">🍎</div>
                       <div>
-                        <p className="text-sm font-bold text-slate-800 dark:text-white">Apple Maps</p>
-                        <p className="text-[10px] text-slate-400">افتح في خرائط آبل</p>
+                        <p className="text-xs font-black text-white uppercase tracking-widest">Apple Maps</p>
+                        <p className="text-[10px] text-moon/50 font-black mt-1 uppercase tracking-tighter">{isRTL ? 'خرائط آبل' : 'APPLE MAPS'}</p>
                       </div>
                     </a>
                   )}
 
-                  {/* Waze */}
                   <a
                     href={getWazeUrl()}
                     target="_blank"
                     rel="noopener noreferrer"
                     onClick={() => setShowMapChoice(false)}
-                    className="flex items-center gap-3 px-4 py-3 hover:bg-slate-50 dark:hover:bg-white/5 transition-colors border-t border-slate-100 dark:border-white/5"
+                    className="flex items-center gap-4 px-5 py-5 hover:bg-white/5 transition-colors"
                   >
-                    <span className="text-xl">🚗</span>
+                    <div className="w-11 h-11 bg-chamber rounded-2xl flex items-center justify-center text-2xl shadow-xl border border-white/5">🚗</div>
                     <div>
-                      <p className="text-sm font-bold text-slate-800 dark:text-white">Waze</p>
-                      <p className="text-[10px] text-slate-400">مع تجنب الازدحام</p>
+                      <p className="text-xs font-black text-white uppercase tracking-widest">Waze</p>
+                      <p className="text-[10px] text-moon/50 font-black mt-1 uppercase tracking-tighter">{isRTL ? 'تجنب الازدحام' : 'AVOID TRAFFIC'}</p>
                     </div>
                   </a>
 
-                  {/* Distance info */}
                   {distanceText && userPos && (
-                    <div className="px-4 py-2 bg-emerald-50 dark:bg-emerald-900/20 border-t border-slate-100 dark:border-white/5">
-                      <p className="text-[11px] text-emerald-700 dark:text-emerald-400 font-black flex items-center gap-1">
-                        <MapPin className="w-3 h-3" /> {distanceText} منك
-                        {placeCoords && <span className="text-emerald-500 font-normal mr-1">
-                          (~{Math.round(haversineKm(userPos.lat, userPos.lng, placeCoords.lat, placeCoords.lng) / 50 * 60)} دقيقة)
+                    <div className="px-5 py-4 bg-oasis-spring/10 border-t border-white/10">
+                      <p className="text-[11px] text-oasis-spring font-black flex items-center gap-2 uppercase tracking-tight">
+                        <MapPin className="w-4 h-4" /> {distanceText} {isRTL ? 'منك' : 'FROM YOU'}
+                        {placeCoords && <span className="text-moon/60 font-bold ms-1">
+                          (~{Math.round(haversineKm(userPos.lat, userPos.lng, placeCoords.lat, placeCoords.lng) / 50 * 60)} MIN)
                         </span>}
                       </p>
                     </div>
@@ -771,30 +757,37 @@ export const PlaceDetailModal = ({ place, onClose, t, allPlaces, onSwitchPlace, 
             {placePhotos.length > 0 && (
               <button
                 onClick={() => setLightboxIdx(0)}
-                className="flex-shrink-0 flex items-center gap-1.5 bg-slate-100 dark:bg-white/10 text-slate-700 dark:text-slate-200 px-4 py-2 rounded-full text-sm font-semibold hover:bg-slate-200 dark:hover:bg-white/15 transition-colors"
+                className="flex-shrink-0 flex items-center gap-2 bg-lifted text-white px-5 py-2.5 rounded-2xl text-[11px] font-black border border-white/10 hover:bg-white/15 transition-all uppercase tracking-widest"
               >
-                <Camera className="w-4 h-4" />
+                <Camera className="w-4 h-4 text-oasis-spring" />
                 {t.photos || 'Photos'}
               </button>
             )}
             <button
               onClick={handleShare}
-              className="flex-shrink-0 flex items-center gap-1.5 bg-slate-100 dark:bg-white/10 text-slate-700 dark:text-slate-200 px-4 py-2 rounded-full text-sm font-semibold hover:bg-slate-200 dark:hover:bg-white/15 transition-colors"
+              className="flex-shrink-0 flex items-center gap-2 bg-lifted text-white px-5 py-2.5 rounded-2xl text-[11px] font-black border border-white/10 hover:bg-white/15 transition-all uppercase tracking-widest"
             >
-              <ExternalLink className="w-4 h-4" />
+              <ExternalLink className="w-4 h-4 text-moon" />
               {t.share || 'Share'}
             </button>
             <button
               onClick={handleSave}
-              className={`flex-shrink-0 flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-semibold transition-colors ${saved ? 'bg-rose-50 dark:bg-rose-500/15 text-rose-600 dark:text-rose-400' : 'bg-slate-100 dark:bg-white/10 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-white/15'}`}
+              className={`flex-shrink-0 flex items-center gap-2 px-5 py-2.5 rounded-2xl text-[11px] font-black border uppercase tracking-widest transition-all ${(isSaved ?? saved) ? 'bg-rose-500/10 text-rose-500 border-rose-500/20' : 'bg-lifted text-white border-white/10 hover:bg-white/15'}`}
             >
-              <Bookmark className={`w-4 h-4 ${saved ? 'fill-rose-500 text-rose-500' : ''}`} />
-              {saved ? (t.saved || 'Saved') : (t.save || 'Save')}
+              <Bookmark className={`w-4 h-4 ${(isSaved ?? saved) ? 'fill-rose-500' : ''}`} />
+              {(isSaved ?? saved) ? (t.saved || 'Saved') : (t.save || 'Save')}
             </button>
             {isPlace && placeId && (
               <button
-                onClick={() => { setShowTripPanel(v => !v); setAddingNewTrip(trips.length === 0); }}
-                className="flex-shrink-0 flex items-center gap-1.5 bg-slate-100 dark:bg-white/10 text-slate-700 dark:text-slate-200 px-4 py-2 rounded-full text-sm font-semibold hover:bg-slate-200 dark:hover:bg-white/15 transition-colors"
+                onClick={(e) => {
+                  if (onOpenAddToTrip) {
+                    onOpenAddToTrip(e);
+                  } else {
+                    setShowTripPanel(v => !v);
+                    setAddingNewTrip(trips.length === 0);
+                  }
+                }}
+                className="flex-shrink-0 flex items-center gap-2 bg-lifted text-white px-5 py-2.5 rounded-2xl text-[11px] font-black border border-white/10 hover:bg-white/15 transition-all uppercase tracking-widest"
               >
                 <FolderPlus className="w-4 h-4" />
                 Add to Trip
@@ -804,44 +797,44 @@ export const PlaceDetailModal = ({ place, onClose, t, allPlaces, onSwitchPlace, 
 
           {/* Trip panel */}
           {showTripPanel && isPlace && (
-            <div className="px-4 pb-3 bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-white/8">
-              <div className="bg-slate-50 dark:bg-white/5 rounded-2xl p-3">
-                <div className="flex items-center justify-between mb-2">
-                  <p className="text-xs font-bold text-slate-600 dark:text-slate-300">Add to a Trip</p>
-                  <button onClick={() => setShowTripPanel(false)}><X className="w-3.5 h-3.5 text-slate-400" /></button>
+            <div className="px-4 pb-3 bg-chamber border-b border-white/5">
+              <div className="bg-lifted rounded-2xl p-4 shadow-xl">
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-[10px] font-black text-moon uppercase tracking-widest">Add to a Trip</p>
+                  <button onClick={() => setShowTripPanel(false)}><X className="w-4 h-4 text-dusk hover:text-white transition-colors" /></button>
                 </div>
                 {trips.length > 0 && !addingNewTrip && (
-                  <div className="space-y-1.5 mb-2">
+                  <div className="space-y-2 mb-3">
                     {trips.map(trip => {
                       const alreadyIn = trip.placeIds.includes(placeId);
                       return (
                         <button key={trip.id} onClick={() => !alreadyIn && addToTrip(trip.id)}
-                          className={`w-full flex items-center justify-between px-3 py-2 rounded-xl border text-left text-xs transition-all ${alreadyIn ? 'border-emerald-200 bg-emerald-50 dark:bg-emerald-500/10 cursor-default' : 'border-slate-200 dark:border-white/10 hover:border-emerald-400 hover:bg-emerald-50/50 bg-white dark:bg-white/5'}`}>
-                          <span className="font-semibold text-slate-700 dark:text-slate-200">{trip.name}</span>
+                          className={`w-full flex items-center justify-between px-4 py-3 rounded-xl border text-left text-xs transition-all ${alreadyIn ? 'border-oasis-spring/30 bg-oasis-spring/5 cursor-default' : 'border-white/5 hover:border-oasis-spring/40 hover:bg-white/5 bg-chamber'}`}>
+                          <span className="font-black text-white">{trip.name}</span>
                           {alreadyIn
-                            ? <CheckCheck className="w-3.5 h-3.5 text-emerald-500" />
-                            : <Plus className="w-3.5 h-3.5 text-slate-400" />}
+                            ? <CheckCheck className="w-4 h-4 text-oasis-spring" />
+                            : <Plus className="w-4 h-4 text-dusk" />}
                         </button>
                       );
                     })}
                   </div>
                 )}
                 {addingNewTrip ? (
-                  <div className="flex gap-1.5">
+                  <div className="flex gap-2">
                     <input autoFocus value={newTripName} onChange={e => setNewTripName(e.target.value)}
                       onKeyDown={e => e.key === 'Enter' && createAndAddTrip()}
                       placeholder="Trip name…"
-                      className="flex-1 px-3 py-1.5 bg-white dark:bg-white/8 border border-slate-200 dark:border-white/10 rounded-xl text-xs outline-none focus:ring-2 focus:ring-emerald-500 dark:text-white dark:placeholder-slate-500" />
-                    {trips.length > 0 && <button onClick={() => setAddingNewTrip(false)} className="px-2 py-1.5 text-xs text-slate-500 hover:text-slate-700">Cancel</button>}
+                      className="flex-1 px-4 py-2.5 bg-chamber border border-white/10 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-oasis-spring/40 text-white placeholder-dusk" />
+                    {trips.length > 0 && <button onClick={() => setAddingNewTrip(false)} className="px-2 py-2 text-[10px] font-black uppercase tracking-widest text-dusk hover:text-white">Cancel</button>}
                     <button onClick={createAndAddTrip} disabled={!newTripName.trim()}
-                      className="px-3 py-1.5 bg-emerald-600 text-white rounded-xl text-xs font-bold disabled:opacity-50 hover:bg-emerald-700 transition">
+                      className="px-4 py-2.5 bg-oasis-spring text-midnight rounded-xl text-xs font-black uppercase tracking-widest disabled:opacity-50 shadow-mint-glow">
                       Add
                     </button>
                   </div>
                 ) : (
                   <button onClick={() => setAddingNewTrip(true)}
-                    className="w-full flex items-center justify-center gap-1.5 py-2 border border-dashed border-slate-300 dark:border-white/15 rounded-xl text-xs text-slate-400 hover:border-emerald-400 hover:text-emerald-600 transition-colors">
-                    <FolderPlus className="w-3.5 h-3.5" /> New Trip
+                    className="w-full flex items-center justify-center gap-2 py-3 border border-dashed border-white/10 rounded-xl text-xs font-black uppercase tracking-widest text-dusk hover:border-oasis-spring hover:text-oasis-spring transition-all">
+                    <Plus className="w-4 h-4" /> New Trip
                   </button>
                 )}
               </div>
@@ -849,77 +842,83 @@ export const PlaceDetailModal = ({ place, onClose, t, allPlaces, onSwitchPlace, 
           )}
 
           {/* ── INFO CHIPS STRIP ── */}
-          <div className="flex items-center gap-2 px-4 py-2.5 overflow-x-auto no-scrollbar bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-white/8 shrink-0">
+          <div className="flex items-center gap-2 px-4 py-3 overflow-x-auto no-scrollbar bg-midnight border-b border-white/5 shrink-0">
+            {/* Weather Chip */}
+            {placeCity && (
+              <span className="flex-shrink-0 flex items-center gap-2 bg-blue-500/10 border border-blue-500/20 text-blue-400 px-3 py-1.5 rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-lg">
+                {weatherLoading ? (
+                  <span className="w-3.5 h-3.5 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
+                ) : weather ? (
+                  <>
+                    <span className="animate-weather-sway">{weather.emoji}</span>
+                    <span>{weather.temp}°</span>
+                  </>
+                ) : (
+                  <>☀️ 28°</>
+                )}
+              </span>
+            )}
+
             {avgRating > 0 && (
-              <span className="flex-shrink-0 flex items-center gap-1 bg-orange-50 dark:bg-orange-500/15 border border-orange-100 dark:border-orange-500/20 text-orange-700 dark:text-orange-400 px-2.5 py-1 rounded-full text-xs font-bold">
-                <Star className="w-3 h-3 fill-orange-500 text-orange-500" /> {avgRating.toFixed(1)}
+              <span className="flex-shrink-0 flex items-center gap-1.5 bg-amber-500/10 border border-amber-500/20 text-amber-500 px-3 py-1.5 rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-lg">
+                <Star className="w-3.5 h-3.5 fill-amber-500" /> {avgRating.toFixed(1)}
               </span>
             )}
             {openNow === true && (
-              <span className="flex-shrink-0 flex items-center gap-1.5 bg-emerald-50 dark:bg-emerald-500/15 border border-emerald-100 dark:border-emerald-500/20 text-emerald-700 dark:text-emerald-400 px-2.5 py-1 rounded-full text-xs font-bold">
-                <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
+              <span className="flex-shrink-0 flex items-center gap-2 bg-oasis-spring/10 border border-oasis-spring/20 text-oasis-spring px-3 py-1.5 rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-oasis-spring/5">
+                <div className="w-2 h-2 bg-oasis-spring rounded-full animate-pulse shadow-mint-glow" />
                 {t.openNow || 'Open Now'}
               </span>
             )}
             {openNow === false && (
-              <span className="flex-shrink-0 bg-red-50 dark:bg-red-500/15 border border-red-100 dark:border-red-500/20 text-red-600 dark:text-red-400 px-2.5 py-1 rounded-full text-xs font-bold">
+              <span className="flex-shrink-0 bg-red-500/10 border border-red-500/20 text-red-400 px-3 py-1.5 rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-lg">
                 {t.closedStatus || 'Closed'}
               </span>
             )}
             {priceLevel && (
-              <span className="flex-shrink-0 bg-slate-50 dark:bg-white/8 border border-slate-200 dark:border-white/10 text-slate-600 dark:text-slate-300 px-2.5 py-1 rounded-full text-xs font-bold">
+              <span className="flex-shrink-0 bg-lifted border border-white/5 text-moon px-3 py-1.5 rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-lg">
                 {'$'.repeat(priceLevel)}{'·'.repeat(4 - priceLevel)}
               </span>
             )}
-            {placeCat && (
-              <span className="flex-shrink-0 bg-slate-50 dark:bg-white/8 border border-slate-200 dark:border-white/10 text-slate-600 dark:text-slate-300 px-2.5 py-1 rounded-full text-xs font-semibold">
-                {placeCat}
-              </span>
-            )}
             {accessibility?.wheelchair && (
-              <span className="flex-shrink-0 bg-blue-50 dark:bg-blue-500/15 border border-blue-100 dark:border-blue-500/20 text-blue-700 dark:text-blue-400 px-2.5 py-1 rounded-full text-xs font-semibold">
+              <span className="flex-shrink-0 bg-blue-500/10 border border-blue-500/20 text-blue-400 px-3 py-1.5 rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-lg">
                 ♿ {t.accessWheelchair || 'Accessible'}
               </span>
             )}
             {accessibility?.family && (
-              <span className="flex-shrink-0 bg-purple-50 dark:bg-purple-500/15 border border-purple-100 dark:border-purple-500/20 text-purple-700 dark:text-purple-400 px-2.5 py-1 rounded-full text-xs font-semibold">
+              <span className="flex-shrink-0 bg-purple-500/10 border border-purple-500/20 text-purple-400 px-3 py-1.5 rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-lg">
                 👨‍👩‍👧 {t.accessFamily || 'Family'}
-              </span>
-            )}
-            {accessibility?.parking && (
-              <span className="flex-shrink-0 bg-slate-50 dark:bg-white/8 border border-slate-200 dark:border-white/10 text-slate-600 dark:text-slate-300 px-2.5 py-1 rounded-full text-xs font-semibold">
-                🅿 {t.accessParking || 'Parking'}
               </span>
             )}
           </div>
 
           {/* ── SCROLLABLE BODY ── */}
-          <div className={`${mode === 'page' ? 'flex-1 max-w-2xl mx-auto w-full' : 'overflow-y-auto flex-1'} bg-slate-50 dark:bg-slate-950`}>
+          <div className={`${mode === 'page' ? 'flex-1 max-w-2xl mx-auto w-full' : 'overflow-y-auto flex-1'} bg-midnight`}>
 
             {/* ── PHOTO MOSAIC GRID ── */}
             {placePhotos.length >= 2 && (
               <div className="px-4 pt-4">
-                <div className="grid gap-1.5 rounded-2xl overflow-hidden"
-                  style={{ gridTemplateColumns: '2fr 1fr', gridTemplateRows: '120px 120px' }}>
-                  <div className="row-span-2 overflow-hidden cursor-zoom-in" onClick={() => setLightboxIdx(0)}>
-                    <img src={placePhotos[0]} alt="" className="w-full h-full object-cover hover:scale-105 transition duration-300"
-                      onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                <div className="grid gap-2 rounded-3xl overflow-hidden shadow-2xl border border-white/5"
+                  style={{ gridTemplateColumns: '2fr 1fr', gridTemplateRows: '140px 140px' }}>
+                  <div className="row-span-2 overflow-hidden cursor-zoom-in group" onClick={() => setLightboxIdx(0)}>
+                    <SafeImage src={placePhotos[0]} alt="" className="w-full h-full object-cover group-hover:scale-110 transition duration-700"
+                      fallbackType="placeholder" seed={`${placeId}-0`} />
                   </div>
-                  <div className="overflow-hidden cursor-zoom-in" onClick={() => setLightboxIdx(1)}>
-                    <img src={placePhotos[1]} alt="" className="w-full h-full object-cover hover:scale-105 transition duration-300"
-                      onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                  <div className="overflow-hidden cursor-zoom-in group" onClick={() => setLightboxIdx(1)}>
+                    <SafeImage src={placePhotos[1]} alt="" className="w-full h-full object-cover group-hover:scale-110 transition duration-700"
+                      fallbackType="placeholder" seed={`${placeId}-1`} />
                   </div>
-                  <div className="relative overflow-hidden cursor-zoom-in bg-slate-200 dark:bg-slate-800"
+                  <div className="relative overflow-hidden cursor-zoom-in bg-chamber group"
                     onClick={() => setLightboxIdx(Math.min(2, placePhotos.length - 1))}>
                     {placePhotos[2] && (
-                      <img src={placePhotos[2]} alt="" className="w-full h-full object-cover hover:scale-105 transition duration-300"
-                        onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                      <SafeImage src={placePhotos[2]} alt="" className="w-full h-full object-cover group-hover:scale-110 transition duration-700"
+                        fallbackType="placeholder" seed={`${placeId}-2`} />
                     )}
                     {placePhotos.length > 3 && (
-                      <div className="absolute inset-0 bg-black/60 flex flex-col items-center justify-center text-white">
-                        <Camera className="w-5 h-5 mb-0.5" />
-                        <span className="text-sm font-bold">+{placePhotos.length - 3}</span>
-                        <span className="text-[10px] opacity-75">{t.seeAllPhotos || 'See all'}</span>
+                      <div className="absolute inset-0 bg-midnight/80 backdrop-blur-sm flex flex-col items-center justify-center text-white">
+                        <Camera className="w-5 h-5 mb-1 text-oasis-spring" />
+                        <span className="text-base font-black">+{placePhotos.length - 3}</span>
+                        <span className="text-[10px] font-black uppercase tracking-widest text-moon">{t.seeAllPhotos || 'See all'}</span>
                       </div>
                     )}
                   </div>
@@ -933,25 +932,25 @@ export const PlaceDetailModal = ({ place, onClose, t, allPlaces, onSwitchPlace, 
                 <input ref={photoContribRef} type="file" accept="image/*" multiple className="hidden" onChange={handleContribPhoto} />
                 {contributedPhotos.length > 0 ? (
                   <div>
-                    <div className="flex items-center justify-between mb-2">
-                      <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Your Photos ({contributedPhotos.length})</p>
+                    <div className="flex items-center justify-between mb-3 px-1">
+                      <p className="text-[10px] font-black text-moon/40 uppercase tracking-widest">{isRTL ? 'صورك' : 'Your Photos'} ({contributedPhotos.length})</p>
                       <button onClick={() => photoContribRef.current?.click()}
-                        className="text-xs text-emerald-600 dark:text-emerald-400 font-semibold hover:text-emerald-700 transition-colors flex items-center gap-1">
-                        <Camera className="w-3 h-3" /> Add more
+                        className="text-[10px] text-oasis-spring font-black uppercase tracking-widest hover:underline transition-all flex items-center gap-1.5">
+                        <Camera className="w-3.5 h-3.5" /> {isRTL ? 'إضافة المزيد' : 'Add more'}
                       </button>
                     </div>
-                    <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
+                    <div className="flex gap-3 overflow-x-auto no-scrollbar pb-1">
                       {contributedPhotos.map((src, i) => (
-                        <div key={i} className="relative flex-shrink-0">
-                          <img src={src} alt="" className="w-20 h-20 rounded-xl object-cover border border-slate-100 dark:border-white/10" />
+                        <div key={i} className="relative flex-shrink-0 group">
+                          <SafeImage src={src} alt="" className="w-24 h-24 rounded-2xl object-cover border border-white/5 shadow-lg group-hover:scale-105 transition-transform" />
                           <button
                             onClick={() => setContributedPhotos(prev => {
                               const updated = prev.filter((_, j) => j !== i);
                               try { localStorage.setItem(`tripo_contributed_photos_${placeId}`, JSON.stringify(updated)); } catch { }
                               return updated;
                             })}
-                            className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center shadow">
-                            <X className="w-3 h-3" />
+                            className="absolute -top-2 -end-2 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center shadow-xl border-2 border-midnight hover:scale-110 transition-transform">
+                            <X className="w-3.5 h-3.5" />
                           </button>
                         </div>
                       ))}
@@ -960,10 +959,10 @@ export const PlaceDetailModal = ({ place, onClose, t, allPlaces, onSwitchPlace, 
                 ) : (
                   <button
                     onClick={() => photoContribRef.current?.click()}
-                    className="w-full flex items-center justify-center gap-2 border border-dashed border-slate-300 dark:border-white/15 rounded-2xl py-3 text-sm text-slate-400 dark:text-slate-500 hover:border-emerald-400 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors"
+                    className="w-full flex items-center justify-center gap-3 border border-dashed border-white/10 rounded-2xl py-5 text-[10px] font-black uppercase tracking-widest text-moon/20 hover:border-oasis-spring/40 hover:text-oasis-spring transition-all group bg-chamber/50"
                   >
-                    <Camera className="w-4 h-4" />
-                    Contribute Photos to this Place
+                    <Camera className="w-5 h-5 group-hover:scale-110 transition-transform text-oasis-spring" />
+                    {isRTL ? 'شارك صورك لهذا المكان' : 'Contribute Photos to this Place'}
                   </button>
                 )}
               </div>
@@ -971,53 +970,59 @@ export const PlaceDetailModal = ({ place, onClose, t, allPlaces, onSwitchPlace, 
 
             {/* ── PROMO BANNER ── */}
             {activePromo && (
-              <div className="mx-4 mt-4 bg-emerald-50 dark:bg-emerald-500/15 border border-emerald-200 dark:border-emerald-500/20 rounded-2xl px-4 py-3 flex items-center gap-2">
-                <span className="text-base">🎉</span>
-                <p className="text-sm font-semibold text-emerald-800 dark:text-emerald-300">{activePromo}</p>
+              <div className="mx-4 mt-4 bg-oasis-spring/10 border border-oasis-spring/20 rounded-2xl px-5 py-4 flex items-center gap-3 shadow-mint-glow animate-pulse">
+                <span className="text-xl">🎉</span>
+                <p className="text-sm font-black text-oasis-spring uppercase tracking-wide leading-tight">{activePromo}</p>
               </div>
             )}
 
             {/* ── AI SUMMARY ── */}
-            <div className="mx-4 mt-4 bg-white dark:bg-slate-900 rounded-2xl p-4 border border-slate-100 dark:border-white/8 relative overflow-hidden shadow-sm">
-              <div className="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-violet-500 to-blue-500 rounded-l-2xl" />
-              <div className="flex items-center gap-2 mb-2">
-                <Sparkles className="w-4 h-4 text-violet-600 dark:text-violet-400" />
-                <h3 className="font-bold text-sm text-slate-900 dark:text-white">{t.aiSummaryTitle || 'AI Summary'}</h3>
+            <div className="mx-4 mt-6 bg-chamber rounded-[2.5rem] p-6 border border-white/10 relative overflow-hidden shadow-2xl">
+              <div className="absolute top-0 start-0 w-2 h-full bg-gradient-to-b from-oasis-spring to-blue-500 shadow-mint-glow" />
+              <div className="flex items-center gap-3 mb-4">
+                <div className="p-2 bg-oasis-spring/10 rounded-xl border border-oasis-spring/20">
+                  <Sparkles className="w-5 h-5 text-oasis-spring" />
+                </div>
+                <h3 className="font-black text-[11px] uppercase tracking-[0.2em] text-white">{t.aiSummaryTitle || 'AI Summary'}</h3>
               </div>
               {isSummaryLoading ? (
-                <div className="space-y-2 animate-pulse">
-                  <div className="h-3 bg-slate-200 dark:bg-white/10 rounded w-3/4" />
-                  <div className="h-3 bg-slate-200 dark:bg-white/10 rounded w-full" />
-                  <div className="h-3 bg-slate-200 dark:bg-white/10 rounded w-5/6" />
+                <div className="space-y-3 animate-pulse px-2">
+                  <div className="h-3 bg-white/5 rounded-full w-3/4" />
+                  <div className="h-3 bg-white/5 rounded-full w-full" />
+                  <div className="h-3 bg-white/5 rounded-full w-5/6" />
                 </div>
               ) : (
                 <>
-                  <p className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed">{summary}</p>
-                  <p className="text-[10px] text-slate-400 mt-3 text-right italic">{t.aiSource || 'Generated by Gemini AI'}</p>
+                  <p className="text-sm text-moon/80 leading-relaxed font-bold px-1">{summary}</p>
+                  <p className="text-[10px] text-moon/20 mt-6 text-end italic font-black uppercase tracking-widest">{t.aiSource || 'Generated by Gemini AI'}</p>
                 </>
               )}
             </div>
 
             {/* ── STICKY TAB BAR ── */}
             {isPlace && (
-              <div className="sticky top-0 z-20 bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-white/8 mt-4 shadow-sm">
-                <div className="flex">
+              <div className="sticky top-0 z-20 bg-midnight/80 backdrop-blur-2xl border-b border-white/5 mt-8 shadow-2xl">
+                <div className="flex px-4">
                   {(['reviews', 'info', 'qa'] as const).map(tab => (
-                    <button
-                      key={tab}
-                      onClick={() => setActiveSection(tab)}
-                      className={`flex-1 py-3 text-xs font-bold transition-all border-b-2 ${activeSection === tab
-                        ? 'text-emerald-600 dark:text-emerald-400 border-emerald-500'
-                        : 'text-slate-400 dark:text-slate-500 border-transparent hover:text-slate-600 dark:hover:text-slate-300'
-                        }`}
-                    >
-                      {tab === 'reviews'
-                        ? `${t.reviews || 'Reviews'}${reviews.length > 0 ? ` (${reviews.length})` : ''}`
-                        : tab === 'info'
-                          ? (t.infoTab || 'Info')
-                          : `Q&A${qaItems.length > 0 ? ` (${qaItems.length})` : ''}`
-                      }
-                    </button>
+                    <div key={tab} className="flex-1 relative">
+                      <button
+                        onClick={() => setActiveSection(tab)}
+                        className={`w-full py-5 text-[11px] font-black uppercase tracking-widest transition-all ${activeSection === tab
+                          ? 'text-oasis-spring'
+                          : 'text-moon/30 hover:text-white'
+                          }`}
+                      >
+                        {tab === 'reviews'
+                          ? `${t.reviews || 'Reviews'}${reviews.length > 0 ? ` (${reviews.length})` : ''}`
+                          : tab === 'info'
+                            ? (t.infoTab || 'Info')
+                            : `Q&A${qaItems.length > 0 ? ` (${qaItems.length})` : ''}`
+                        }
+                      </button>
+                      {activeSection === tab && (
+                        <div className="absolute bottom-0 start-1/2 -translate-x-1/2 w-10 h-1.5 bg-oasis-spring rounded-full shadow-mint-glow" />
+                      )}
+                    </div>
                   ))}
                 </div>
               </div>
@@ -1030,21 +1035,23 @@ export const PlaceDetailModal = ({ place, onClose, t, allPlaces, onSwitchPlace, 
                 <>
                   {/* Opening hours */}
                   {asPlace?.openingHours ? (
-                    <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-white/8 overflow-hidden shadow-sm">
-                      <div className="flex items-center gap-2 px-4 pt-4 pb-2">
-                        <Clock className="w-4 h-4 text-slate-500" />
-                        <h4 className="font-bold text-sm text-slate-900 dark:text-white">{t.openingHours || 'Opening Hours'}</h4>
-                        {openNow === true && <span className="ml-auto text-[11px] font-bold bg-emerald-500 text-white px-2 py-0.5 rounded-full">{t.openNow || 'Open Now'}</span>}
-                        {openNow === false && <span className="ml-auto text-[11px] font-bold bg-red-400 text-white px-2 py-0.5 rounded-full">{t.closedStatus || 'Closed'}</span>}
+                    <div className="bg-chamber rounded-[2rem] border border-white/5 overflow-hidden shadow-2xl">
+                      <div className="flex items-center gap-3 px-6 pt-6 pb-4">
+                        <div className="p-2.5 bg-lifted rounded-2xl border border-white/5 shadow-xl">
+                          <Clock className="w-5 h-5 text-oasis-spring" />
+                        </div>
+                        <h4 className="font-black text-[11px] uppercase tracking-widest text-white">{t.openingHours || 'Opening Hours'}</h4>
+                        {openNow === true && <span className="ms-auto text-[10px] font-black uppercase bg-oasis-spring text-midnight px-3 py-1.5 rounded-xl shadow-mint-glow">{t.openNow || 'Open Now'}</span>}
+                        {openNow === false && <span className="ms-auto text-[10px] font-black uppercase bg-red-500 text-white px-3 py-1.5 rounded-xl shadow-xl">{t.closedStatus || 'Closed'}</span>}
                       </div>
-                      <div className="px-4 pb-4 space-y-1.5">
+                      <div className="px-5 pb-5 space-y-2.5">
                         {DAY_KEYS.map((key, i) => {
                           const h = asPlace.openingHours![key];
                           const isToday = i === new Date().getDay();
                           return (
-                            <div key={key} className={`flex justify-between text-xs py-1 border-b border-slate-50 dark:border-white/5 last:border-0 ${isToday ? 'font-semibold text-slate-900 dark:text-white' : 'text-slate-500 dark:text-slate-400'}`}>
-                              <span className="flex items-center gap-1.5">
-                                {isToday && <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full" />}
+                            <div key={key} className={`flex justify-between text-xs py-2 border-b border-white/5 last:border-0 ${isToday ? 'font-black text-white' : 'text-moon font-bold'}`}>
+                              <span className="flex items-center gap-2">
+                                {isToday && <span className="w-1.5 h-1.5 bg-oasis-spring rounded-full shadow-mint-glow" />}
                                 {DAY_LABELS[i]}{isToday ? ` ${t.todayLabel || '(today)'}` : ''}
                               </span>
                               <span>{h ? (h.closed ? (t.closedStatus || 'Closed') : `${h.open} – ${h.close}`) : '—'}</span>
@@ -1054,26 +1061,28 @@ export const PlaceDetailModal = ({ place, onClose, t, allPlaces, onSwitchPlace, 
                       </div>
                     </div>
                   ) : (
-                    <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-white/8 p-6 text-center shadow-sm">
-                      <Clock className="w-8 h-8 mx-auto mb-2 text-slate-300 dark:text-white/20" />
-                      <p className="text-sm text-slate-400">{t.noHoursInfo || 'Opening hours not available'}</p>
+                    <div className="bg-chamber rounded-[2rem] border border-white/5 p-8 text-center shadow-2xl">
+                      <Clock className="w-10 h-10 mx-auto mb-3 text-dusk opacity-20" />
+                      <p className="text-sm text-moon font-bold">{t.noHoursInfo || 'Opening hours not available'}</p>
                     </div>
                   )}
 
                   {/* Accessibility */}
                   {accessibility && (accessibility.wheelchair || accessibility.parking || accessibility.family) && (
-                    <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-white/8 p-4 shadow-sm">
-                      <h4 className="font-bold text-sm text-slate-900 dark:text-white mb-3">{t.accessibility || 'Accessibility'}</h4>
-                      <div className="space-y-2.5">
+                    <div className="bg-chamber rounded-[2rem] border border-white/5 p-6 shadow-2xl">
+                      <h4 className="font-black text-[10px] uppercase tracking-widest text-white mb-4">{t.accessibility || 'Accessibility'}</h4>
+                      <div className="space-y-4">
                         {[
                           { key: 'wheelchair', icon: '♿', label: t.accessWheelchair || 'Wheelchair Accessible' },
                           { key: 'parking', icon: '🅿', label: t.accessParking || 'Parking Available' },
                           { key: 'family', icon: '👨‍👩‍👧', label: t.accessFamily || 'Family-Friendly' },
                         ].map(({ key, icon, label }) => (accessibility as any)[key] && (
-                          <div key={key} className="flex items-center gap-3">
-                            <span className="text-lg">{icon}</span>
-                            <span className="text-sm text-slate-700 dark:text-slate-300 flex-1">{label}</span>
-                            <CheckCircle className="w-4 h-4 text-emerald-500" />
+                          <div key={key} className="flex items-center gap-4">
+                            <span className="text-xl">{icon}</span>
+                            <span className="text-sm text-moon font-bold flex-1">{label}</span>
+                            <div className="bg-oasis-spring/10 p-1 rounded-full shadow-mint-glow">
+                              <CheckCheck className="w-4 h-4 text-oasis-spring" />
+                            </div>
                           </div>
                         ))}
                       </div>
@@ -1082,18 +1091,20 @@ export const PlaceDetailModal = ({ place, onClose, t, allPlaces, onSwitchPlace, 
 
                   {/* Google rating summary */}
                   {!googleLoading && googleData?.rating && (
-                    <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-white/8 p-4 shadow-sm">
-                      <div className="flex items-center gap-2 mb-3">
-                        <img src="https://www.google.com/favicon.ico" alt="Google" className="w-4 h-4" />
-                        <h4 className="font-bold text-sm text-slate-900 dark:text-white">Google Rating</h4>
+                    <div className="bg-chamber rounded-[2rem] border border-white/5 p-6 shadow-2xl">
+                      <div className="flex items-center gap-2.5 mb-4">
+                        <div className="w-6 h-6 bg-white rounded-full flex items-center justify-center p-1 shadow-lg">
+                          <SafeImage src="https://www.google.com/favicon.ico" alt="Google" className="w-full h-full" fallbackType="icon" />
+                        </div>
+                        <h4 className="font-black text-[10px] uppercase tracking-widest text-white">Google Rating</h4>
                       </div>
-                      <div className="flex items-center gap-4">
-                        <span className="text-4xl font-black text-slate-900 dark:text-white">{googleData.rating.toFixed(1)}</span>
+                      <div className="flex items-center gap-6">
+                        <span className="text-5xl font-black text-white">{googleData.rating.toFixed(1)}</span>
                         <div>
-                          <div className="flex gap-0.5 mb-1">
-                            {[1, 2, 3, 4, 5].map(s => <Star key={s} className={`w-4 h-4 ${s <= Math.round(googleData.rating!) ? 'fill-amber-400 text-amber-400' : 'text-slate-200 dark:text-white/15'}`} />)}
+                          <div className="flex gap-1 mb-1.5">
+                            {[1, 2, 3, 4, 5].map(s => <Star key={s} className={`w-5 h-5 ${s <= Math.round(googleData.rating!) ? 'fill-karam text-karam' : 'text-white/10'}`} />)}
                           </div>
-                          {googleData.userRatingCount && <span className="text-xs text-slate-400">{googleData.userRatingCount.toLocaleString()} reviews on Google</span>}
+                          {googleData.userRatingCount && <span className="text-[10px] font-black uppercase tracking-widest text-moon">{googleData.userRatingCount.toLocaleString()} reviews on Google</span>}
                         </div>
                       </div>
                     </div>
@@ -1108,15 +1119,15 @@ export const PlaceDetailModal = ({ place, onClose, t, allPlaces, onSwitchPlace, 
                       .slice(0, 6);
                     if (!nearby.length) return null;
                     return (
-                      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-white/8 p-4 shadow-sm">
-                        <div className="flex items-center justify-between mb-3">
-                          <h4 className="font-bold text-sm text-slate-900 dark:text-white">Nearby in {asPlace.city}</h4>
+                      <div className="bg-chamber rounded-[2rem] border border-white/5 p-6 shadow-2xl">
+                        <div className="flex items-center justify-between mb-4">
+                          <h4 className="font-black text-[10px] uppercase tracking-widest text-white">Nearby in {asPlace.city}</h4>
                           <a
                             href={`https://www.google.com/maps/search/attractions+near+${encodeURIComponent(asPlace.city || '')}`}
                             target="_blank" rel="noopener noreferrer"
-                            className="text-xs text-emerald-600 dark:text-emerald-400 font-semibold flex items-center gap-1 hover:text-emerald-700 transition-colors"
+                            className="text-[10px] font-black uppercase tracking-widest text-oasis-spring hover:underline transition-all flex items-center gap-1"
                           >
-                            <ExternalLink className="w-3 h-3" /> View on Maps
+                            <ExternalLink className="w-3 h-3" /> Maps
                           </a>
                         </div>
                         <div className="flex gap-3 overflow-x-auto no-scrollbar pb-1 -mx-1 px-1">
@@ -1125,19 +1136,15 @@ export const PlaceDetailModal = ({ place, onClose, t, allPlaces, onSwitchPlace, 
                             const img = p.photos?.[0] || p.image;
                             return (
                               <button key={pid} onClick={() => onSwitchPlace?.(p)}
-                                className="flex-shrink-0 w-28 text-left group bg-white dark:bg-slate-800 rounded-xl overflow-hidden border border-slate-100 dark:border-white/8 shadow-sm active:scale-95 transition-transform">
-                                <div className="h-16 overflow-hidden bg-slate-100 dark:bg-slate-700">
-                                  {img ? (
-                                    <img src={img} alt={p.name} className="w-full h-full object-cover group-hover:scale-110 transition duration-300"
-                                      onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
-                                  ) : (
-                                    <div className="w-full h-full flex items-center justify-center"><MapPin className="w-4 h-4 text-slate-300" /></div>
-                                  )}
+                                className="flex-shrink-0 w-28 text-left group bg-lifted rounded-xl overflow-hidden border border-white/5 shadow-lg active:scale-95 transition-all">
+                                <div className="h-16 overflow-hidden bg-midnight">
+                                    <SafeImage src={img} alt={p.name} className="w-full h-full object-cover group-hover:scale-110 transition duration-300"
+                                      fallbackType="placeholder" seed={pid} />
                                 </div>
-                                <div className="p-1.5">
-                                  <p className="text-[10px] font-bold text-slate-800 dark:text-white line-clamp-2 leading-tight">{p.name}</p>
+                                <div className="p-2">
+                                  <p className="text-[10px] font-black text-white line-clamp-2 leading-tight">{p.name}</p>
                                   {p.categoryTags?.[0] && (
-                                    <p className="text-[9px] text-slate-400 uppercase mt-0.5">{p.categoryTags[0]}</p>
+                                    <p className="text-[9px] text-dusk font-bold uppercase mt-0.5">{p.categoryTags[0]}</p>
                                   )}
                                 </div>
                               </button>
@@ -1155,73 +1162,73 @@ export const PlaceDetailModal = ({ place, onClose, t, allPlaces, onSwitchPlace, 
                 <>
                   {/* Write review */}
                   {isPlace && placeId && /^[0-9a-fA-F]{24}$/.test(placeId) && (
-                    <div className="bg-white dark:bg-slate-900 rounded-2xl p-4 border border-slate-100 dark:border-white/8 shadow-sm">
-                      <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-3">{t.writeReview || 'Write a review'}</p>
-                      <div className="flex items-center gap-1 mb-3">
+                    <div className="bg-chamber rounded-[2rem] p-6 border border-white/5 shadow-2xl">
+                      <p className="text-[10px] font-black text-dusk uppercase tracking-widest mb-4">{t.writeReview || 'Write a review'}</p>
+                      <div className="flex items-center gap-1.5 mb-5">
                         {[1, 2, 3, 4, 5].map(s => (
-                          <button key={s} onClick={() => setReviewRating(s)} className="transition-transform active:scale-90">
-                            <Star className={`w-7 h-7 transition-colors ${s <= reviewRating ? 'fill-amber-400 text-amber-400' : 'text-slate-200 dark:text-white/15'}`} />
+                          <button key={s} onClick={() => setReviewRating(s)} className="transition-all active:scale-90 hover:scale-110">
+                            <Star className={`w-8 h-8 transition-colors ${s <= reviewRating ? 'fill-karam text-karam shadow-xl' : 'text-white/10'}`} />
                           </button>
                         ))}
-                        <span className="ml-2 text-xs font-semibold text-slate-500 dark:text-slate-400">
+                        <span className="ml-3 text-[10px] font-black uppercase tracking-widest text-oasis-spring">
                           {['', 'Poor', 'Fair', 'Good', 'Very Good', 'Excellent'][reviewRating]}
                         </span>
                       </div>
-                      <div className="flex gap-2 mb-2">
+                      <div className="flex gap-3 mb-3">
                         <input
-                          className="flex-1 bg-slate-50 dark:bg-white/8 rounded-xl px-3 py-2.5 text-sm border border-slate-200 dark:border-white/10 outline-none focus:ring-2 focus:ring-emerald-500 dark:text-white dark:placeholder-slate-500"
+                          className="flex-1 bg-lifted rounded-2xl px-5 py-3.5 text-sm font-bold border border-white/5 outline-none focus:ring-2 focus:ring-oasis-spring/40 text-white placeholder-dusk shadow-inner"
                           placeholder={t.reviewPlaceholder || 'Share your experience...'}
                           value={reviewComment}
                           onChange={e => setReviewComment(e.target.value)}
                           onKeyDown={e => e.key === 'Enter' && handleSubmitReview()}
                         />
                         <button onClick={handleSubmitReview} disabled={!reviewComment.trim() || isSubmitting}
-                          className="p-2.5 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 transition disabled:opacity-50">
-                          <Send className="w-4 h-4" />
+                          className="p-3.5 bg-oasis-spring text-midnight rounded-2xl hover:scale-105 transition-all disabled:opacity-50 shadow-mint-glow">
+                          <Send className="w-5 h-5" />
                         </button>
                       </div>
                       {reviewPhotos.length > 0 && (
-                        <div className="flex gap-2 mb-2 flex-wrap">
+                        <div className="flex gap-3 mb-3 flex-wrap">
                           {reviewPhotos.map((photo, idx) => (
-                            <div key={idx} className="relative w-14 h-14 flex-shrink-0">
-                              <img src={photo} alt="" className="w-14 h-14 rounded-xl object-cover" />
+                            <div key={idx} className="relative w-16 h-16 flex-shrink-0 group">
+                              <SafeImage src={photo} alt="" className="w-16 h-16 rounded-xl object-cover border border-white/10 shadow-lg" fallbackType="placeholder" />
                               <button onClick={() => removeReviewPhoto(idx)}
-                                className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center shadow">
-                                <X className="w-2.5 h-2.5" />
+                                className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center shadow-xl border-2 border-midnight hover:scale-110 transition-transform">
+                                <X className="w-3.5 h-3.5" />
                               </button>
                             </div>
                           ))}
                         </div>
                       )}
                       {/* Feature 14: Breakdown toggle */}
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-3">
                         {reviewPhotos.length < 3 && (
                           <button onClick={() => photoInputRef.current?.click()}
-                            className="flex items-center gap-1.5 text-xs text-slate-400 dark:text-slate-500 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors">
-                            <Camera className="w-3.5 h-3.5" />
+                            className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-dusk hover:text-oasis-spring transition-colors">
+                            <Camera className="w-4 h-4" />
                             {t.addPhotos || 'Add Photos'}{reviewPhotos.length > 0 ? ` (${reviewPhotos.length}/3)` : ''}
                           </button>
                         )}
                         <button onClick={() => setShowBreakdown(v => !v)}
-                          className="flex items-center gap-1 text-xs text-slate-400 dark:text-slate-500 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors ml-auto">
-                          <Star className="w-3.5 h-3.5" />
+                          className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-dusk hover:text-oasis-spring transition-colors ml-auto">
+                          <Star className="w-4 h-4" />
                           {showBreakdown ? 'Hide breakdown' : 'Rate by category'}
                         </button>
                       </div>
 
                       {/* Feature 14: Category rating breakdown */}
                       {showBreakdown && (
-                        <div className="mt-3 space-y-2 bg-slate-50 dark:bg-white/5 rounded-xl p-3">
-                          <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Rate by Category (optional)</p>
+                        <div className="mt-4 space-y-3 bg-lifted rounded-2xl p-4 border border-white/5 shadow-inner">
+                          <p className="text-[10px] font-black text-dusk uppercase tracking-widest">Rate by Category</p>
                           {RATING_CATS.map(cat => (
-                            <div key={cat} className="flex items-center justify-between gap-3">
-                              <span className="text-xs text-slate-600 dark:text-slate-300 w-20 flex-shrink-0">{cat}</span>
-                              <div className="flex gap-0.5">
+                            <div key={cat} className="flex items-center justify-between gap-4">
+                              <span className="text-[10px] font-black uppercase tracking-widest text-moon w-20 flex-shrink-0">{cat}</span>
+                              <div className="flex gap-1">
                                 {[1, 2, 3, 4, 5].map(n => (
                                   <button key={n} type="button"
                                     onClick={() => setReviewBreakdown(prev => ({ ...prev, [cat]: n }))}
-                                    className="transition-transform active:scale-90 focus:outline-none">
-                                    <Star className={`w-5 h-5 transition-colors ${n <= (reviewBreakdown[cat] ?? 0) ? 'fill-amber-400 text-amber-400' : 'text-slate-200 dark:text-white/15'}`} />
+                                    className="transition-all active:scale-90 hover:scale-110 focus:outline-none">
+                                    <Star className={`w-6 h-6 transition-colors ${n <= (reviewBreakdown[cat] ?? 0) ? 'fill-karam text-karam' : 'text-white/10'}`} />
                                   </button>
                                 ))}
                               </div>
@@ -1235,18 +1242,18 @@ export const PlaceDetailModal = ({ place, onClose, t, allPlaces, onSwitchPlace, 
 
                   {/* Feature 14: Breakdown aggregate */}
                   {breakdownAggregate && (
-                    <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-white/8 p-4 shadow-sm">
-                      <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-3">Rating Breakdown</p>
-                      <div className="space-y-2.5">
+                    <div className="bg-chamber rounded-[2rem] border border-white/5 p-6 shadow-2xl">
+                      <p className="text-[10px] font-black text-dusk uppercase tracking-widest mb-4">Rating Breakdown</p>
+                      <div className="space-y-4">
                         {RATING_CATS.filter(c => breakdownAggregate[c] != null).map(cat => {
                           const val = breakdownAggregate[cat]!;
                           return (
-                            <div key={cat} className="flex items-center gap-3">
-                              <span className="text-xs text-slate-600 dark:text-slate-300 w-20 flex-shrink-0">{cat}</span>
-                              <div className="flex-1 h-1.5 bg-slate-100 dark:bg-white/10 rounded-full overflow-hidden">
-                                <div className="h-full bg-amber-400 rounded-full transition-all" style={{ width: `${(val / 5) * 100}%` }} />
+                            <div key={cat} className="flex items-center gap-4">
+                              <span className="text-[10px] font-black uppercase tracking-widest text-moon w-24 flex-shrink-0">{cat}</span>
+                              <div className="flex-1 h-2 bg-lifted rounded-full overflow-hidden shadow-inner">
+                                <div className="h-full bg-karam rounded-full transition-all shadow-[0_0_10px_rgba(255,184,0,0.4)]" style={{ width: `${(val / 5) * 100}%` }} />
                               </div>
-                              <span className="text-xs font-bold text-slate-700 dark:text-slate-300 w-6 text-right">{val.toFixed(1)}</span>
+                              <span className="text-xs font-black text-white w-8 text-right">{val.toFixed(1)}</span>
                             </div>
                           );
                         })}
@@ -1256,9 +1263,9 @@ export const PlaceDetailModal = ({ place, onClose, t, allPlaces, onSwitchPlace, 
 
                   {/* Review list */}
                   {reviews.length === 0 && (!googleData || googleData.reviews.length === 0) ? (
-                    <div className="text-center py-10 bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-white/8">
-                      <MessageSquare className="w-10 h-10 mx-auto mb-2 text-slate-200 dark:text-white/15" />
-                      <p className="text-sm font-medium text-slate-400">{t.noReviews || 'No reviews yet — be the first!'}</p>
+                    <div className="text-center py-12 bg-chamber rounded-[2rem] border border-white/5 shadow-2xl">
+                      <MessageSquare className="w-12 h-12 mx-auto mb-3 text-dusk opacity-20" />
+                      <p className="text-sm font-bold text-moon">{t.noReviews || 'No reviews yet — be the first!'}</p>
                     </div>
                   ) : (
                     <>
@@ -1271,46 +1278,46 @@ export const PlaceDetailModal = ({ place, onClose, t, allPlaces, onSwitchPlace, 
                         const authorName: string = typeof r.userId === 'object' ? (r.userId?.name ?? 'User') : 'User';
                         const initials = authorName.split(' ').map((w: string) => w[0]).join('').slice(0, 2).toUpperCase();
                         return (
-                          <div key={reviewId} className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-white/8 p-4 shadow-sm">
-                            <div className="flex items-start gap-3 mb-3">
-                              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-emerald-400 to-teal-600 flex items-center justify-center text-white text-xs font-bold flex-shrink-0 shadow-sm">
+                          <div key={reviewId} className="bg-chamber rounded-[2rem] border border-white/5 p-5 shadow-2xl">
+                            <div className="flex items-start gap-4 mb-4">
+                              <div className="w-12 h-12 rounded-full bg-gradient-to-br from-oasis-spring to-blue-500 flex items-center justify-center text-midnight text-sm font-black flex-shrink-0 shadow-mint-glow">
                                 {initials}
                               </div>
-                              <div className="flex-1 min-w-0">
-                                <p className="font-bold text-sm text-slate-900 dark:text-white">{authorName}</p>
-                                {r.createdAt && <p className="text-[11px] text-slate-400">{new Date(r.createdAt).toLocaleDateString()}</p>}
+                              <div className="flex-1 min-w-0 pt-0.5">
+                                <p className="font-black text-sm text-white">{authorName}</p>
+                                {r.createdAt && <p className="text-[10px] font-black uppercase tracking-widest text-dusk mt-0.5">{new Date(r.createdAt).toLocaleDateString()}</p>}
                               </div>
-                              <div className="flex gap-0.5 flex-shrink-0">
+                              <div className="flex gap-1 flex-shrink-0 pt-1">
                                 {[1, 2, 3, 4, 5].map(s => (
-                                  <Star key={s} className={`w-3.5 h-3.5 ${s <= r.rating ? 'fill-amber-400 text-amber-400' : 'text-slate-200 dark:text-white/15'}`} />
+                                  <Star key={s} className={`w-4 h-4 ${s <= r.rating ? 'fill-karam text-karam shadow-lg' : 'text-white/5'}`} />
                                 ))}
                               </div>
                             </div>
-                            {r.comment && <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed mb-3">{r.comment}</p>}
+                            {r.comment && <p className="text-sm text-moon font-bold leading-relaxed mb-4">{r.comment}</p>}
                             {photos.length > 0 && (
-                              <div className="flex gap-2 mb-3 overflow-x-auto no-scrollbar">
+                              <div className="flex gap-3 mb-4 overflow-x-auto no-scrollbar pb-1">
                                 {photos.map((photo, idx) => (
-                                  <img key={idx} src={photo} alt="" className="w-16 h-16 rounded-xl object-cover flex-shrink-0" />
+                                <SafeImage key={idx} src={photo} alt="" className="w-20 h-20 rounded-2xl object-cover flex-shrink-0 border border-white/5 shadow-lg" fallbackType="placeholder" />
                                 ))}
                               </div>
                             )}
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-3">
                               <button onClick={() => handleHelpfulVote(reviewId)} disabled={voted}
-                                className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full border transition-colors ${voted ? 'border-emerald-200 dark:border-emerald-500/30 text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 cursor-default' : 'border-slate-200 dark:border-white/10 text-slate-500 dark:text-slate-400 hover:border-emerald-300 hover:text-emerald-600'}`}>
-                                <ThumbsUp className="w-3 h-3" />
+                                className={`flex items-center gap-2 text-[10px] font-black uppercase tracking-widest px-4 py-2 rounded-xl border transition-all ${voted ? 'border-oasis-spring/30 text-oasis-spring bg-oasis-spring/5 cursor-default' : 'border-white/5 text-dusk hover:border-oasis-spring/40 hover:text-white bg-lifted'}`}>
+                                <ThumbsUp className="w-3.5 h-3.5" />
                                 {t.helpfulBtn || 'Helpful'}{voteCount > 0 ? ` · ${voteCount}` : ''}
                               </button>
                               {!reply && (
                                 <button onClick={() => { setReplyingTo(reviewId); setReplyDraft(''); }}
-                                  className="text-xs text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 transition-colors ml-auto">
+                                  className="text-[10px] font-black uppercase tracking-widest text-moon/40 hover:text-oasis-spring transition-colors ms-auto">
                                   {t.replyAsOwner || 'Reply as Owner'}
                                 </button>
                               )}
                             </div>
                             {replyingTo === reviewId && (
-                              <div className="mt-3 flex gap-1.5">
+                              <div className="mt-5 flex gap-3">
                                 <input
-                                  className="flex-1 bg-slate-50 dark:bg-white/8 rounded-xl px-3 py-2 text-xs border border-slate-200 dark:border-white/10 outline-none focus:ring-2 focus:ring-emerald-500 dark:text-white"
+                                  className="flex-1 bg-lifted rounded-[1.25rem] px-5 py-4 text-xs font-bold border border-white/10 outline-none focus:ring-2 focus:ring-oasis-spring/40 text-white placeholder-moon/20"
                                   placeholder={t.writeResponsePlaceholder || 'Write your response...'}
                                   value={replyDraft}
                                   onChange={e => setReplyDraft(e.target.value)}
@@ -1318,18 +1325,23 @@ export const PlaceDetailModal = ({ place, onClose, t, allPlaces, onSwitchPlace, 
                                   autoFocus
                                 />
                                 <button onClick={() => handleOwnerReply(reviewId)} disabled={!replyDraft.trim()}
-                                  className="p-2 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 transition disabled:opacity-40">
-                                  <Send className="w-3 h-3" />
+                                  className="p-4 bg-oasis-spring text-midnight rounded-[1.25rem] hover:scale-105 transition disabled:opacity-40 shadow-mint-glow">
+                                  <Send className="w-5 h-5" />
                                 </button>
-                                <button onClick={() => setReplyingTo(null)} className="p-2 text-slate-400 hover:text-slate-600 transition">
-                                  <X className="w-3 h-3" />
+                                <button onClick={() => setReplyingTo(null)} className="p-4 text-moon/40 hover:text-white transition-colors">
+                                  <X className="w-5 h-5" />
                                 </button>
                               </div>
                             )}
                             {reply && (
-                              <div className="mt-3 ml-4 pl-3 border-l-2 border-emerald-300 dark:border-emerald-500/40 bg-emerald-50 dark:bg-emerald-500/10 rounded-r-xl p-2.5">
-                                <p className="text-[11px] font-bold text-emerald-700 dark:text-emerald-400 mb-0.5">{t.ownerResponse || 'Owner Response'}</p>
-                                <p className="text-xs text-slate-700 dark:text-slate-300">{reply.text}</p>
+                              <div className={`mt-6 ${isRTL ? 'mr-4 pr-6 border-r-4' : 'ml-4 pl-6 border-l-4'} border-oasis-spring/40 bg-oasis-spring/5 rounded-[1.75rem] p-5 shadow-inner`}>
+                                <div className="flex items-center gap-2 mb-2">
+                                  <div className="w-2 h-2 bg-oasis-spring rounded-full shadow-mint-glow" />
+                                  <p className="text-[10px] font-black text-oasis-spring uppercase tracking-widest">
+                                    {t.ownerResponse || 'Owner Response'}
+                                  </p>
+                                </div>
+                                <p className="text-xs text-moon/80 font-bold leading-relaxed">{reply.text}</p>
                               </div>
                             )}
                           </div>
@@ -1338,36 +1350,38 @@ export const PlaceDetailModal = ({ place, onClose, t, allPlaces, onSwitchPlace, 
 
                       {/* Google Reviews */}
                       {!googleLoading && googleData && googleData.reviews.length > 0 && (
-                        <div>
-                          <div className="flex items-center gap-2 mb-3 px-1">
-                            <img src="https://www.google.com/favicon.ico" alt="Google" className="w-4 h-4" />
-                            <span className="text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wide">Google Reviews</span>
-                            {googleData.userRatingCount !== undefined && <span className="text-[10px] text-slate-400">({googleData.userRatingCount.toLocaleString()})</span>}
+                        <div className="space-y-4">
+                          <div className="flex items-center gap-2.5 px-1 pt-4">
+                            <div className="w-5 h-5 bg-white rounded-full flex items-center justify-center p-1 shadow-lg">
+                              <SafeImage src="https://www.google.com/favicon.ico" alt="Google" className="w-full h-full" fallbackType="icon" />
+                            </div>
+                            <span className="text-[10px] font-black uppercase tracking-widest text-moon">Google Reviews</span>
+                            {googleData.userRatingCount !== undefined && <span className="text-[10px] font-black text-dusk ml-1">({googleData.userRatingCount.toLocaleString()})</span>}
                             {googleData.rating !== undefined && (
-                              <span className="ml-auto flex items-center gap-0.5 text-xs font-bold text-amber-600 dark:text-amber-400">
-                                <Star className="w-3 h-3 fill-amber-400 text-amber-400" /> {googleData.rating.toFixed(1)}
+                              <span className="ml-auto flex items-center gap-1 text-[10px] font-black text-karam">
+                                <Star className="w-3.5 h-3.5 fill-karam" /> {googleData.rating.toFixed(1)}
                               </span>
                             )}
                           </div>
                           <div className="space-y-3">
                             {googleData.reviews.map((r, i) => (
-                              <div key={i} className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-white/8 p-4 shadow-sm">
-                                <div className="flex items-start gap-3 mb-2">
-                                  <img
+                              <div key={i} className="bg-chamber rounded-[2rem] border border-white/5 p-5 shadow-2xl">
+                                <div className="flex items-start gap-4 mb-3">
+                                  <SafeImage
                                     src={r.authorPhoto || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(r.author)}`}
-                                    className="w-9 h-9 rounded-full bg-slate-100 object-cover flex-shrink-0 shadow-sm"
+                                    className="w-10 h-10 rounded-full bg-lifted object-cover flex-shrink-0 shadow-lg border border-white/5"
                                     alt={r.author}
-                                    onError={(e) => { (e.target as HTMLImageElement).src = `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(r.author)}`; }}
+                                    fallbackType="icon"
                                   />
-                                  <div className="flex-1 min-w-0">
-                                    <p className="text-sm font-bold text-slate-900 dark:text-white truncate">{r.author}</p>
-                                    <p className="text-[10px] text-slate-400">{r.relativeTime}</p>
+                                  <div className="flex-1 min-w-0 pt-0.5">
+                                    <p className="text-sm font-black text-white truncate">{r.author}</p>
+                                    <p className="text-[10px] font-black uppercase tracking-widest text-dusk mt-0.5">{r.relativeTime}</p>
                                   </div>
-                                  <div className="flex gap-0.5 flex-shrink-0">
-                                    {[1, 2, 3, 4, 5].map(s => <Star key={s} className={`w-3.5 h-3.5 ${s <= r.rating ? 'fill-amber-400 text-amber-400' : 'text-slate-200 dark:text-white/15'}`} />)}
+                                  <div className="flex gap-1 flex-shrink-0 pt-1">
+                                    {[1, 2, 3, 4, 5].map(s => <Star key={s} className={`w-3.5 h-3.5 ${s <= r.rating ? 'fill-karam text-karam' : 'text-white/5'}`} />)}
                                   </div>
                                 </div>
-                                {r.text && <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed line-clamp-4">{r.text}</p>}
+                                {r.text && <p className="text-sm text-moon font-bold leading-relaxed line-clamp-4">{r.text}</p>}
                               </div>
                             ))}
                           </div>
@@ -1381,56 +1395,56 @@ export const PlaceDetailModal = ({ place, onClose, t, allPlaces, onSwitchPlace, 
               {/* ── Q&A TAB ── */}
               {activeSection === 'qa' && isPlace && (
                 <>
-                  <div className="bg-white dark:bg-slate-900 rounded-2xl p-4 border border-slate-100 dark:border-white/8 shadow-sm">
+                  <div className="bg-chamber rounded-[2rem] p-5 border border-white/5 shadow-2xl">
                     <div className="flex gap-2">
                       <input
-                        className="flex-1 bg-slate-50 dark:bg-white/8 rounded-xl px-3 py-2.5 text-sm border border-slate-200 dark:border-white/10 outline-none focus:ring-2 focus:ring-emerald-500 dark:text-white dark:placeholder-slate-500"
+                        className="flex-1 bg-lifted rounded-xl px-5 py-3 text-sm font-bold border border-white/5 outline-none focus:ring-2 focus:ring-oasis-spring/40 text-white placeholder-dusk"
                         placeholder={t.askQuestionPlaceholder || 'Ask a question about this place...'}
                         value={qaQuestion}
                         onChange={e => setQaQuestion(e.target.value)}
                         onKeyDown={e => e.key === 'Enter' && handleAskQuestion()}
                       />
                       <button onClick={handleAskQuestion} disabled={!qaQuestion.trim()}
-                        className="p-2.5 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 transition disabled:opacity-50">
-                        <Send className="w-4 h-4" />
+                        className="p-3 bg-oasis-spring text-midnight rounded-xl hover:scale-105 transition shadow-mint-glow disabled:opacity-50">
+                        <Send className="w-5 h-5" />
                       </button>
                     </div>
                   </div>
 
                   {qaItems.length === 0 ? (
-                    <div className="text-center py-10 bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-white/8">
-                      <MessageSquare className="w-10 h-10 mx-auto mb-2 text-slate-200 dark:text-white/15" />
-                      <p className="text-sm font-medium text-slate-400">{t.noQuestionsYet || 'No questions yet — ask the first one!'}</p>
+                    <div className="text-center py-12 bg-chamber rounded-[2rem] border border-white/5 shadow-2xl">
+                      <MessageSquare className="w-12 h-12 mx-auto mb-3 text-dusk opacity-20" />
+                      <p className="text-sm font-bold text-moon">{t.noQuestionsYet || 'No questions yet — ask the first one!'}</p>
                     </div>
                   ) : (
-                    <div className="space-y-3">
+                    <div className="space-y-4">
                       {qaItems.map(q => (
-                        <div key={q.id} className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-white/8 p-4 shadow-sm">
-                          <div className="flex items-start gap-3 mb-3">
-                            <span className="w-7 h-7 rounded-full bg-emerald-100 dark:bg-emerald-500/20 flex items-center justify-center text-emerald-700 dark:text-emerald-400 font-black text-sm flex-shrink-0">Q</span>
+                        <div key={q.id} className="bg-chamber rounded-[2rem] border border-white/5 p-5 shadow-2xl">
+                          <div className="flex items-start gap-4 mb-4">
+                            <div className="w-8 h-8 rounded-full bg-oasis-spring/10 flex items-center justify-center text-oasis-spring font-black text-sm flex-shrink-0 shadow-mint-glow border border-oasis-spring/20">Q</div>
                             <div>
-                              <p className="text-sm font-semibold text-slate-800 dark:text-white">{q.question}</p>
-                              <p className="text-[10px] text-slate-400 mt-0.5">{q.askedBy} · {new Date(q.askedAt).toLocaleDateString()}</p>
+                              <p className="text-sm font-black text-white leading-relaxed">{q.question}</p>
+                              <p className="text-[10px] font-black uppercase tracking-widest text-dusk mt-1.5">{q.askedBy} · {new Date(q.askedAt).toLocaleDateString()}</p>
                             </div>
                           </div>
                           {q.answers.map(a => (
-                            <div key={a.id} className="flex items-start gap-3 ml-10 mb-2">
-                              <span className="w-6 h-6 rounded-full bg-blue-100 dark:bg-blue-500/20 flex items-center justify-center text-blue-700 dark:text-blue-400 font-black text-xs flex-shrink-0">A</span>
-                              <div className="flex-1 bg-slate-50 dark:bg-white/5 rounded-xl p-2.5">
-                                <p className="text-xs text-slate-700 dark:text-slate-300">{a.text}</p>
-                                <p className="text-[10px] text-slate-400 mt-0.5">{a.answeredBy} · {new Date(a.answeredAt).toLocaleDateString()}</p>
+                            <div key={a.id} className="flex items-start gap-3 ms-10 mb-3 group">
+                              <div className="w-6 h-6 rounded-full bg-blue-500/10 flex items-center justify-center text-blue-400 font-black text-[10px] flex-shrink-0 border border-blue-500/20">A</div>
+                              <div className="flex-1 bg-lifted rounded-2xl p-4 shadow-inner">
+                                <p className="text-xs text-moon font-bold leading-relaxed">{a.text}</p>
+                                <p className="text-[10px] font-black uppercase tracking-widest text-moon/20 mt-2">{a.answeredBy} · {new Date(a.answeredAt).toLocaleDateString()}</p>
                               </div>
                             </div>
                           ))}
                           {answeringId !== q.id ? (
                             <button onClick={() => { setAnsweringId(q.id); setAnswerDraft(''); }}
-                              className="text-xs text-emerald-600 dark:text-emerald-400 font-semibold hover:text-emerald-700 transition ml-10">
+                              className="text-[10px] font-black uppercase tracking-widest text-oasis-spring hover:underline transition-all ms-12 mt-2">
                               {t.answerBtn || '+ Answer'}
                             </button>
                           ) : (
-                            <div className="ml-10 flex gap-1.5 mt-2">
+                            <div className="ms-12 flex gap-3 mt-4">
                               <input
-                                className="flex-1 bg-slate-50 dark:bg-white/8 rounded-xl px-3 py-2 text-xs border border-slate-200 dark:border-white/10 outline-none focus:ring-2 focus:ring-emerald-500 dark:text-white"
+                                className="flex-1 bg-lifted rounded-xl px-5 py-3 text-xs font-bold border border-white/10 outline-none focus:ring-2 focus:ring-oasis-spring/40 text-white placeholder-moon/20"
                                 placeholder={t.writeAnswerPlaceholder || 'Write your answer...'}
                                 value={answerDraft}
                                 onChange={e => setAnswerDraft(e.target.value)}
@@ -1438,11 +1452,11 @@ export const PlaceDetailModal = ({ place, onClose, t, allPlaces, onSwitchPlace, 
                                 autoFocus
                               />
                               <button onClick={() => handleAddAnswer(q.id)} disabled={!answerDraft.trim()}
-                                className="p-1.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition disabled:opacity-40">
-                                <Send className="w-3 h-3" />
+                                className="p-3 bg-oasis-spring text-midnight rounded-xl hover:scale-105 transition disabled:opacity-40 shadow-mint-glow">
+                                <Send className="w-4 h-4" />
                               </button>
-                              <button onClick={() => setAnsweringId(null)} className="p-1.5 text-slate-400 hover:text-slate-600 transition">
-                                <X className="w-3 h-3" />
+                              <button onClick={() => setAnsweringId(null)} className="p-3 text-moon/40 hover:text-white transition-colors">
+                                <X className="w-4 h-4" />
                               </button>
                             </div>
                           )}
@@ -1455,31 +1469,33 @@ export const PlaceDetailModal = ({ place, onClose, t, allPlaces, onSwitchPlace, 
 
               {/* ── SIMILAR PLACES ── */}
               {similarPlaces.length > 0 && (
-                <div className="pt-2">
-                  <h3 className="font-bold text-sm text-slate-900 dark:text-white mb-3">{t.similarPlaces || 'Similar Places'}</h3>
-                  <div className="flex gap-3 overflow-x-auto no-scrollbar -mx-1 px-1 pb-1">
+                <div className="pt-4 px-1">
+                  <h3 className="font-black text-[10px] uppercase tracking-widest text-white mb-4">{t.similarPlaces || 'Similar Places'}</h3>
+                  <div className="flex gap-4 overflow-x-auto no-scrollbar -mx-1 px-1 pb-1">
                     {similarPlaces.map(p => {
                       const pid = p._id || p.id || '';
                       return (
                         <button key={pid} onClick={() => onSwitchPlace?.(p)}
-                          className="flex-shrink-0 w-40 text-left group bg-white dark:bg-slate-900 rounded-2xl overflow-hidden border border-slate-100 dark:border-white/8 shadow-sm active:scale-95 transition-transform">
-                          <div className="h-24 overflow-hidden bg-slate-100 dark:bg-slate-800 relative">
-                            <img
-                              src={p.photos?.[0] || p.image || 'https://images.unsplash.com/photo-1557683311-eac922347aa1?w=400&q=60'}
-                              className="w-full h-full object-cover group-hover:scale-105 transition duration-300"
+                          className="flex-shrink-0 w-40 text-left group bg-chamber rounded-[2rem] overflow-hidden border border-white/5 shadow-2xl active:scale-95 transition-all">
+                          <div className="h-28 overflow-hidden bg-midnight relative">
+                            <SafeImage
+                              src={p.photos?.[0] || p.image}
+                              className="w-full h-full object-cover group-hover:scale-110 transition duration-700"
                               alt={p.name}
-                              onError={(e) => { (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1557683311-eac922347aa1?w=400&q=60'; }}
+                              fallbackType="placeholder"
+                              seed={pid}
                             />
+                            <div className="absolute inset-0 bg-gradient-to-t from-midnight/80 to-transparent" />
                             {p.ratingSummary?.avgRating != null && (
-                              <span className="absolute top-2 right-2 flex items-center gap-0.5 bg-black/50 backdrop-blur-sm text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">
-                                <Star className="w-2.5 h-2.5 fill-amber-400 text-amber-400" />
-                                {p.ratingSummary.avgRating.toFixed(1)}
-                              </span>
+                              <div className="absolute top-3 right-3 flex items-center gap-1 bg-midnight/60 backdrop-blur-md px-2 py-1 rounded-xl border border-white/10">
+                                <Star className="w-3 h-3 fill-karam text-karam" />
+                                <span className="text-[10px] font-black text-white">{p.ratingSummary.avgRating.toFixed(1)}</span>
+                              </div>
                             )}
                           </div>
-                          <div className="p-2.5">
-                            <p className="text-xs font-bold text-slate-800 dark:text-white leading-tight line-clamp-2">{p.name}</p>
-                            {p.city && <p className="text-[10px] text-slate-400 mt-0.5 flex items-center gap-0.5"><MapPin className="w-2.5 h-2.5" />{p.city}</p>}
+                          <div className="p-3.5">
+                            <p className="text-xs font-black text-white leading-tight line-clamp-2 group-hover:text-oasis-spring transition-colors">{p.name}</p>
+                            {p.city && <p className="text-[10px] font-bold text-moon mt-1.5 flex items-center gap-1.5"><MapPin className="w-3 h-3 text-oasis-spring" />{p.city}</p>}
                           </div>
                         </button>
                       );
@@ -1489,12 +1505,12 @@ export const PlaceDetailModal = ({ place, onClose, t, allPlaces, onSwitchPlace, 
               )}
 
               {/* ── CLAIM LISTING ── */}
-              <div className="pt-4 border-t border-slate-100 dark:border-white/8 text-center">
+              <div className="pt-8 border-t border-white/5 text-center">
                 <button
                   onClick={() => { setShowClaimModal(true); setClaimSubmitted(false); }}
-                  className="text-xs text-slate-400 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors inline-flex items-center gap-1"
+                  className="text-[10px] font-black uppercase tracking-widest text-dusk hover:text-oasis-spring transition-colors inline-flex items-center gap-2"
                 >
-                  <Building2 className="w-3.5 h-3.5" />
+                  <Building2 className="w-4 h-4" />
                   {t.claimListing || 'Are you the owner? Claim this listing →'}
                 </button>
               </div>
@@ -1506,52 +1522,54 @@ export const PlaceDetailModal = ({ place, onClose, t, allPlaces, onSwitchPlace, 
 
       {/* ── CLAIM LISTING MODAL ── */}
       {showClaimModal && (
-        <div className="fixed inset-0 z-[200] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
+        <div className="fixed inset-0 z-[200] bg-black/80 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-200"
           onClick={() => setShowClaimModal(false)}>
-          <div className="bg-white dark:bg-slate-900 rounded-3xl w-full max-w-sm p-6 shadow-2xl" onClick={e => e.stopPropagation()}>
+          <div className="bg-chamber rounded-[2.5rem] w-full max-w-sm p-8 shadow-2xl border border-white/10 animate-in zoom-in duration-300" onClick={e => e.stopPropagation()}>
             {claimSubmitted ? (
-              <div className="text-center py-4">
-                <CheckCircle className="w-12 h-12 text-emerald-500 mx-auto mb-3" />
-                <p className="font-bold text-slate-900 dark:text-white mb-1">Claim submitted!</p>
-                <p className="text-sm text-slate-500">We'll verify within 48 hours.</p>
+              <div className="text-center py-6">
+                <div className="w-16 h-16 bg-oasis-spring/10 rounded-full flex items-center justify-center mx-auto mb-4 shadow-mint-glow">
+                  <CheckCheck className="w-8 h-8 text-oasis-spring" />
+                </div>
+                <p className="font-black text-white text-lg mb-2">Claim submitted!</p>
+                <p className="text-sm text-moon font-bold">We'll verify your business details within 48 hours.</p>
                 <button onClick={() => setShowClaimModal(false)}
-                  className="mt-5 px-6 py-2.5 bg-emerald-600 text-white rounded-xl text-sm font-semibold hover:bg-emerald-700 transition">
+                  className="mt-8 w-full py-4 bg-oasis-spring text-midnight rounded-2xl text-sm font-black uppercase tracking-widest hover:scale-105 transition shadow-mint-glow">
                   Done
                 </button>
               </div>
             ) : (
               <>
-                <div className="flex items-center justify-between mb-5">
-                  <h3 className="text-lg font-bold text-slate-900 dark:text-white">Claim Listing</h3>
-                  <button onClick={() => setShowClaimModal(false)} className="p-1.5 rounded-full hover:bg-slate-100 dark:hover:bg-white/10 transition">
-                    <X className="w-4 h-4 text-slate-500" />
+                <div className="flex items-center justify-between mb-6">
+                  <h3 className="text-lg font-black text-white">Claim Listing</h3>
+                  <button onClick={() => setShowClaimModal(false)} className="p-2 rounded-full hover:bg-white/5 transition">
+                    <X className="w-5 h-5 text-dusk hover:text-white" />
                   </button>
                 </div>
-                <div className="space-y-4">
+                <div className="space-y-5">
                   <div>
-                    <label className="text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1 block">Business Name</label>
-                    <input className="w-full bg-slate-50 dark:bg-white/8 rounded-xl px-3 py-2.5 text-sm border border-slate-200 dark:border-white/10 outline-none focus:ring-2 focus:ring-emerald-500 dark:text-white"
+                    <label className="text-[10px] font-black uppercase tracking-widest text-moon mb-2 block">Business Name</label>
+                    <input className="w-full bg-lifted rounded-xl px-4 py-3 text-sm font-bold border border-white/5 outline-none focus:ring-2 focus:ring-oasis-spring/40 text-white placeholder-dusk"
                       value={claimBusinessName} onChange={e => setClaimBusinessName(e.target.value)} placeholder="Enter business name" />
                   </div>
                   <div>
-                    <label className="text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1 block">Your Role</label>
+                    <label className="text-[10px] font-black uppercase tracking-widest text-moon/40 mb-3 block">{isRTL ? 'دورك' : 'Your Role'}</label>
                     <div className="flex gap-2">
                       {(['Owner', 'Manager', 'Marketing'] as const).map(r => (
                         <button key={r} onClick={() => setClaimRole(r)}
-                          className={`flex-1 py-2 rounded-xl text-xs font-semibold border transition-all ${claimRole === r ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-slate-50 dark:bg-white/8 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-white/10 hover:border-emerald-400'}`}>
+                          className={`flex-1 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest border transition-all ${claimRole === r ? 'bg-oasis-spring text-midnight border-oasis-spring shadow-mint-glow' : 'bg-lifted text-moon/40 border-white/10 hover:border-oasis-spring/40'}`}>
                           {r}
                         </button>
                       ))}
                     </div>
                   </div>
                   <div>
-                    <label className="text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1 block">Contact Email</label>
-                    <input type="email" className="w-full bg-slate-50 dark:bg-white/8 rounded-xl px-3 py-2.5 text-sm border border-slate-200 dark:border-white/10 outline-none focus:ring-2 focus:ring-emerald-500 dark:text-white"
+                    <label className="text-[10px] font-black uppercase tracking-widest text-moon/40 mb-3 block">{isRTL ? 'البريد الإلكتروني' : 'Contact Email'}</label>
+                    <input type="email" className="w-full bg-lifted rounded-2xl px-5 py-4 text-sm font-bold border border-white/10 outline-none focus:ring-2 focus:ring-oasis-spring/40 text-white placeholder-moon/20"
                       value={claimEmail} onChange={e => setClaimEmail(e.target.value)} placeholder="you@example.com" />
                   </div>
                   <button onClick={handleSubmitClaim} disabled={!claimBusinessName.trim() || !claimEmail.trim()}
-                    className="w-full py-3 bg-emerald-600 text-white rounded-xl text-sm font-bold hover:bg-emerald-700 transition disabled:opacity-50">
-                    Submit Claim
+                    className="w-full py-5 bg-oasis-spring text-midnight rounded-2xl text-[11px] font-black uppercase tracking-widest hover:scale-105 transition shadow-mint-glow disabled:opacity-50 mt-4">
+                    {isRTL ? 'إرسال الطلب' : 'Submit Claim'}
                   </button>
                 </div>
               </>

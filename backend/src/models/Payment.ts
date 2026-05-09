@@ -44,7 +44,7 @@ const paymentSchema = new Schema<IPayment>(
     },
     provider: {
       type: String,
-      default: 'stripe',
+      default: 'moyasar',
     },
     providerSessionId: {
       type: String,

@@ -15,6 +15,7 @@ export interface IRental extends Document {
   images?: string[];
   active: boolean;
   hostId?: Types.ObjectId;
+  commissionRate?: number;
   rating?: number;
   ratingSummary: { avgRating: number; reviewCount: number };
   cleaningFee?: number;

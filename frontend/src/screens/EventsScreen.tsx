@@ -31,10 +31,10 @@ export const EventsScreen = ({ lang, t, onCreateWithEvent, initialEventId, onEve
   // 3. Loading State
   if (isLoading) {
     return (
-      <div className="flex h-full items-center justify-center bg-slate-50">
+      <div className="flex h-full items-center justify-center bg-slate-50 dark:bg-navy-950 transition-colors duration-300">
         <div className="flex flex-col items-center gap-3">
-          <div className="w-8 h-8 border-4 border-emerald-200 border-t-emerald-600 rounded-full animate-spin" />
-          <p className="text-sm font-bold text-slate-500 animate-pulse">{ar ? 'جارٍ تحميل الفعاليات...' : 'Loading amazing events...'}</p>
+          <div className="w-8 h-8 border-4 border-emerald-200 dark:border-white/10 border-t-emerald-600 rounded-full animate-spin" />
+          <p className="text-sm font-bold text-slate-500 dark:text-slate-400 animate-pulse">{ar ? 'جارٍ تحميل الفعاليات...' : 'Loading amazing events...'}</p>
         </div>
       </div>
     );
@@ -52,17 +52,17 @@ export const EventsScreen = ({ lang, t, onCreateWithEvent, initialEventId, onEve
   // 5. Empty State (If DB is empty)
   if (events.length === 0) {
     return (
-      <div className="flex flex-col h-full items-center justify-center p-6 text-center text-slate-400">
+      <div className="flex flex-col h-full items-center justify-center p-6 text-center text-slate-400 bg-slate-50 dark:bg-navy-950 transition-colors duration-300">
         <Calendar className="w-12 h-12 mb-3 opacity-20" />
-        <h3 className="font-bold text-lg text-slate-600">{ar ? 'لا توجد فعاليات' : 'No Events Found'}</h3>
-        <p className="text-sm mt-1">{ar ? 'لا توجد فعاليات قادمة حالياً. تفقد لاحقاً!' : 'Looks like there are no upcoming events. Check back later!'}</p>
+        <h3 className="font-bold text-lg text-slate-600 dark:text-slate-300">{ar ? 'لا توجد فعاليات' : 'No Events Found'}</h3>
+        <p className="text-sm mt-1 dark:text-slate-500">{ar ? 'لا توجد فعاليات قادمة حالياً. تفقد لاحقاً!' : 'Looks like there are no upcoming events. Check back later!'}</p>
       </div>
     );
   }
 
   // 6. Render Real Data
   return (
-    <div className="p-4 space-y-4 pb-24 bg-slate-50 h-full overflow-y-auto">
+    <div className="p-4 space-y-4 pb-24 bg-slate-50 dark:bg-navy-950 h-full overflow-y-auto transition-colors duration-300">
       {/* CTA Hero Banner */}
       <div className="relative rounded-3xl overflow-hidden mb-2" style={{ background: 'linear-gradient(135deg, #7c3aed, #4f46e5)' }}>
         <div className="absolute -top-6 -right-6 w-32 h-32 bg-white/10 rounded-full" />
@@ -88,10 +88,10 @@ export const EventsScreen = ({ lang, t, onCreateWithEvent, initialEventId, onEve
         </div>
       </div>
 
-      <h2 className="text-2xl font-black text-slate-900 mb-6">{ar ? 'الفعاليات القادمة' : 'Upcoming Events'}</h2>
+      <h2 className="text-2xl font-black text-slate-900 dark:text-white mb-6">{ar ? 'الفعاليات القادمة' : 'Upcoming Events'}</h2>
 
       {events.map((event) => (
-        <div key={event.id} className="bg-white rounded-3xl overflow-hidden shadow-sm border border-slate-100">
+        <div key={event.id} className="bg-white dark:bg-navy-900 rounded-3xl overflow-hidden shadow-sm border border-slate-100 dark:border-white/10 transition-colors">
           <div className="h-40 relative">
             <img src={event.image || 'https://placehold.co/600x400?text=Event'} className="w-full h-full object-cover" alt={event.title} />
             <div className="absolute top-3 left-3 bg-white/90 backdrop-blur-sm px-2.5 py-1 rounded-lg text-xs font-bold text-emerald-700 flex items-center gap-1">
@@ -110,7 +110,7 @@ export const EventsScreen = ({ lang, t, onCreateWithEvent, initialEventId, onEve
           </div>
           
           <div className="p-5">
-            <h3 className="text-lg font-black text-slate-900 mb-1">{event.title}</h3>
+            <h3 className="text-lg font-black text-slate-900 dark:text-white mb-1">{event.title}</h3>
             {event.description && <p className="text-sm text-slate-500 line-clamp-2 mb-3">{event.description}</p>}
             
             <div className="flex items-center gap-4 text-xs font-bold text-slate-400 mt-2">

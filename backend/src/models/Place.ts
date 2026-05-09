@@ -3,8 +3,10 @@ import { Coordinates, RatingSummary, ContentStatus } from '../types';
 
 export interface IPlace extends Document {
   name: string;
+  nameAr?: string;
   city: string;
   description: string;
+  descriptionAr?: string;
   categoryTags: string[];
   coordinates: Coordinates;
   photos: string[];
@@ -51,6 +53,10 @@ const placeSchema = new Schema({
     required: true,
     trim: true
   },
+  nameAr: {
+    type: String,
+    trim: true
+  },
   city: {
     type: String,
     required: true,
@@ -60,6 +66,9 @@ const placeSchema = new Schema({
   description: {
     type: String,
     required: true
+  },
+  descriptionAr: {
+    type: String
   },
   categoryTags: {
     type: [String],

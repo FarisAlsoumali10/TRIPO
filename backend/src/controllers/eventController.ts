@@ -30,49 +30,52 @@ export const getEvent = async (req: Request, res: Response) => {
 
 export const createEvent = async (req: AuthRequest, res: Response) => {
   try {
-    const userId = req.user?.userId;
-    if (!userId) return res.status(401).json({ success: false, error: 'Authentication required' });
+    const {
+      communityId, title, description, date, time, endTime, locationName,
+      mapUrl, category, coverPreset, maxAttendees, minAttendees, recurrence,
+      isFree, fee, requirements, organizerNote, status,
+    } = req.body;
 
-    const event = await Event.create({ ...req.body, organizerId: userId });
-    return res.status(201).json({ success: true, data: event });
-  } catch (error: any) {
-    console.error('❌ Error creating event:', error);
-    return res.status(500).json({ success: false, error: 'Server Error' });
+    if (!communityId || !title || !date)
+      return res.status(400).json({ message: 'communityId, title, and date required' });
+
+    const event = await Event.create({
+      communityId, title, description, date, time, endTime, locationName,
+      mapUrl, category, coverPreset, maxAttendees, minAttendees,
+      recurrence: recurrence ?? 'once',
+      isFree: isFree ?? true,
+      fee: isFree ? 0 : fee,
+      requirements: requirements ?? [],
+      organizerNote, status: status ?? 'published',
+      attendees: [req.user!.userId],
+      createdBy: req.user!.userId,
+    });
+    res.status(201).json(event);
+  } catch (err) {
+    res.status(500).json({ message: 'Server error' });
   }
 };
 
 export const toggleEventMembership = async (req: AuthRequest, res: Response) => {
   try {
-    const userId = req.user?.userId;
-    if (!userId) return res.status(401).json({ success: false, error: 'Authentication required' });
+    const userId = req.user!.userId;
+    const event = await Event.findById(req.params.id);
+    if (!event) return res.status(404).json({ message: 'Event not found' });
 
-    const event = await Event.findById(req.params.eventId);
-    if (!event) return res.status(404).json({ success: false, error: 'Event not found' });
+    const isJoined = event.attendees.includes(userId);
 
-    const attendees = (event.attendees ?? []).map(String);
-    const alreadyJoined = attendees.includes(String(userId));
+    if (!isJoined && event.maxAttendees && event.attendees.length >= event.maxAttendees)
+      return res.status(400).json({ message: 'Event is full' });
 
-    if (alreadyJoined) {
-      event.attendees = (event.attendees ?? []).filter((id) => String(id) !== String(userId)) as any;
-      event.attendeesCount = Math.max(0, (event.attendeesCount ?? 1) - 1);
+    if (isJoined) {
+      event.attendees = event.attendees.filter((id) => id !== userId);
     } else {
-      (event.attendees ?? (event.attendees = [])).push(userId as any);
-      event.attendeesCount = (event.attendeesCount ?? 0) + 1;
-
-      // Notify the event organizer
-      const io = (req as any).app?.get('io');
-      if ((event as any).organizerId && String((event as any).organizerId) !== String(userId)) {
-        const payload = { eventId: event._id, eventTitle: event.title, joinerId: userId };
-        await Notification.create({ userId: (event as any).organizerId, type: 'new_joiner', payload, read: false });
-        if (io) io.to(`user:${String((event as any).organizerId)}`).emit('notification', { type: 'new_joiner', payload });
-      }
+      event.attendees.push(userId);
     }
-
     await event.save();
-    return res.status(200).json({ success: true, data: event, joined: !alreadyJoined });
-  } catch (error: any) {
-    console.error('❌ Error toggling event membership:', error);
-    return res.status(500).json({ success: false, error: 'Server Error' });
+    res.json({ joined: !isJoined, attendeesCount: event.attendees.length, event });
+  } catch (err) {
+    res.status(500).json({ message: 'Server error' });
   }
 };
 

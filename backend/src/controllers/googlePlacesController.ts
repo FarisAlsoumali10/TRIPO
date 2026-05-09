@@ -64,7 +64,8 @@ export const proxyGooglePhoto = async (req: Request, res: Response) => {
     });
 
     const contentType = upstream.headers['content-type'] || 'image/jpeg';
-    res.setHeader('Content-Type', contentType);
+    const ct = typeof contentType === 'string' ? contentType : 'application/json';
+    res.setHeader('Content-Type', ct);
     res.setHeader('Cache-Control', 'public, max-age=86400'); // cache 24 h
     upstream.data.pipe(res);
   } catch {

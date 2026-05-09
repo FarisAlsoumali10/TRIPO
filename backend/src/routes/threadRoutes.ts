@@ -1,17 +1,21 @@
 import { Router } from 'express';
-import { getThreadsByCommunity, createThread, addReply, toggleReaction, votePoll, togglePin } from '../controllers/threadController';
-import { authenticate, requireRole } from '../middleware/auth';
+import { authenticate } from '../middleware/auth';
+import {
+  getThreads,
+  createThread,
+  replyToThread,
+  toggleReaction,
+  votePoll,
+  togglePin,
+} from '../controllers/threadController';
 
-const router = Router({ mergeParams: true }); // Important: allows inheriting :communityId
+const router = Router();
 
-// Base route: /api/v1/communities/:communityId/threads
-router.get('/', authenticate, getThreadsByCommunity);
+router.get('/', getThreads);
 router.post('/', authenticate, createThread);
-
-// Actions on specific threads
-router.post('/:threadId/replies', authenticate, addReply);
-router.post('/:threadId/reactions', authenticate, toggleReaction);
-router.post('/:threadId/vote', authenticate, votePoll);
-router.patch('/:threadId/pin', authenticate, requireRole('admin'), togglePin);
+router.post('/:id/reply', authenticate, replyToThread);
+router.post('/:id/react', authenticate, toggleReaction);
+router.post('/:id/vote', authenticate, votePoll);
+router.patch('/:id/pin', authenticate, togglePin);
 
 export default router;

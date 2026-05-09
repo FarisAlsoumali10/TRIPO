@@ -346,7 +346,7 @@ export const TourDetailScreen: React.FC<TourDetailScreenProps> = ({ tour, onBack
         </div>
       )}
 
-      <div className="flex flex-col h-full bg-white overflow-hidden">
+      <div className="flex flex-col h-full bg-midnight overflow-y-auto no-scrollbar">
         {/* Hero Image slideshow */}
         <div className="relative flex-shrink-0 overflow-hidden" style={{ height: '18rem' }}>
           <img
@@ -363,24 +363,24 @@ export const TourDetailScreen: React.FC<TourDetailScreenProps> = ({ tour, onBack
           {/* Back button */}
           <button
             onClick={onBack}
-            className="absolute top-4 left-4 w-10 h-10 bg-white/90 backdrop-blur-sm rounded-full flex items-center justify-center shadow-lg hover:bg-white transition z-10"
+            className="absolute top-4 left-4 w-10 h-10 bg-chamber/80 backdrop-blur-md rounded-full flex items-center justify-center shadow-lg hover:bg-chamber transition z-10 border border-white/10"
           >
-            <ChevronLeft className="w-5 h-5 text-slate-700" />
+            <ChevronLeft className="w-5 h-5 text-white" />
           </button>
 
           {/* Feature 11 – Share + Feature 1 – Save (top-right) */}
           <div className="absolute top-4 right-4 flex gap-2 z-10">
             <button
               onClick={handleShare}
-              className="w-10 h-10 bg-white/90 backdrop-blur-sm rounded-full flex items-center justify-center shadow-lg hover:bg-white transition active:scale-95"
+              className="w-10 h-10 bg-chamber/80 backdrop-blur-md rounded-full flex items-center justify-center shadow-lg hover:bg-chamber transition active:scale-95 border border-white/10"
             >
-              <Share2 className="w-5 h-5 text-slate-700" />
+              <Share2 className="w-5 h-5 text-white" />
             </button>
             <button
               onClick={toggleSaved}
-              className="w-10 h-10 bg-white/90 backdrop-blur-sm rounded-full flex items-center justify-center shadow-lg hover:bg-white transition active:scale-95"
+              className="w-10 h-10 bg-chamber/80 backdrop-blur-md rounded-full flex items-center justify-center shadow-lg hover:bg-chamber transition active:scale-95 border border-white/10"
             >
-              <Bookmark className={`w-5 h-5 ${isSaved ? 'text-rose-500 fill-rose-500' : 'text-slate-700'}`} />
+              <Bookmark className={`w-5 h-5 ${isSaved ? 'text-rose-500 fill-rose-500' : 'text-white'}`} />
             </button>
           </div>
 
@@ -403,17 +403,17 @@ export const TourDetailScreen: React.FC<TourDetailScreenProps> = ({ tour, onBack
           )}
 
           {/* Title overlay */}
-          <div className="absolute bottom-0 left-0 right-0 p-5">
-            <span className="inline-block px-2.5 py-0.5 bg-white/20 backdrop-blur-sm text-white text-xs font-bold rounded-full mb-2 uppercase tracking-wider">
+          <div className="absolute bottom-0 left-0 right-0 p-5 bg-gradient-to-t from-midnight/90 to-transparent">
+            <span className="inline-block px-2.5 py-0.5 bg-oasis-spring/20 backdrop-blur-sm text-oasis-spring text-xs font-bold rounded-full mb-2 uppercase tracking-wider">
               {tour.category}
             </span>
             <h1 className="text-2xl font-extrabold text-white leading-tight drop-shadow">{tour.title}</h1>
             {tour.rating !== undefined && (
               <div className="flex items-center gap-1 mt-1">
-                <Star className="w-4 h-4 text-amber-400 fill-amber-400" />
+                <Star className="w-4 h-4 text-karam fill-karam" />
                 <span className="text-white font-bold text-sm">{tour.rating.toFixed(1)}</span>
                 {tour.reviewCount !== undefined && (
-                  <span className="text-white/70 text-xs">({tour.reviewCount} {t.reviewsCount || 'reviews'})</span>
+                  <span className="text-moon text-xs">({tour.reviewCount} {t.reviewsCount || 'reviews'})</span>
                 )}
               </div>
             )}
@@ -424,7 +424,7 @@ export const TourDetailScreen: React.FC<TourDetailScreenProps> = ({ tour, onBack
                     key={i}
                     onClick={() => setImgIdx(i)}
                     className="transition-all duration-300 rounded-full"
-                    style={{ width: i === imgIdx ? 16 : 5, height: 5, background: i === imgIdx ? '#10b981' : 'rgba(255,255,255,0.55)' }}
+                    style={{ width: i === imgIdx ? 16 : 5, height: 5, background: i === imgIdx ? '#7CF7C8' : 'rgba(255,255,255,0.35)' }}
                   />
                 ))}
               </div>
@@ -434,13 +434,13 @@ export const TourDetailScreen: React.FC<TourDetailScreenProps> = ({ tour, onBack
 
         {/* Thumbnail strip + See all photos */}
         {tourImages.length > 1 && (
-          <div className="bg-white border-b border-slate-100 flex-shrink-0">
+          <div className="bg-midnight border-b border-white/5 flex-shrink-0">
             <div className="flex gap-1.5 overflow-x-auto no-scrollbar px-4 pt-2 pb-1">
               {tourImages.map((src, i) => (
                 <button
                   key={i}
                   onClick={() => { setImgIdx(i); setLightboxIdx(i); }}
-                  className={`flex-shrink-0 w-16 h-12 rounded-xl overflow-hidden border-2 transition-all ${i === imgIdx ? 'border-emerald-500 shadow-md' : 'border-transparent opacity-60 hover:opacity-100'}`}
+                  className={`flex-shrink-0 w-16 h-12 rounded-xl overflow-hidden border-2 transition-all ${i === imgIdx ? 'border-oasis-spring shadow-mint-glow' : 'border-transparent opacity-40 hover:opacity-100'}`}
                 >
                   <img src={src} className="w-full h-full object-cover" alt="" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
                 </button>
@@ -449,7 +449,7 @@ export const TourDetailScreen: React.FC<TourDetailScreenProps> = ({ tour, onBack
             {/* Feature 16 – See all photos button */}
             <button
               onClick={() => setShowPhotoGrid(true)}
-              className="flex items-center gap-1.5 mx-4 mb-2 text-xs font-bold text-emerald-600 hover:text-emerald-700 transition"
+              className="flex items-center gap-1.5 mx-4 mb-2 text-xs font-bold text-oasis-spring hover:opacity-80 transition"
             >
               <Images className="w-3.5 h-3.5" />
               See all {tourImages.length} photos
@@ -457,45 +457,45 @@ export const TourDetailScreen: React.FC<TourDetailScreenProps> = ({ tour, onBack
           </div>
         )}
 
-        {/* Scrollable Content */}
-        <div className="flex-1 overflow-y-auto pb-36">
+        {/* Content Section */}
+        <div className="flex-1 pb-36">
           {/* Quick stats row */}
-          <div className="grid grid-cols-4 gap-2 px-5 py-4 border-b border-slate-100">
+          <div className="grid grid-cols-4 gap-2 px-5 py-4 border-b border-white/5 bg-chamber/30">
             <div className="flex flex-col items-center gap-1">
-              <Clock className="w-5 h-5 text-emerald-600" />
-              <span className="text-xs font-bold text-slate-800">{tour.totalDuration}h</span>
-              <span className="text-[10px] text-slate-400">{t.tourDuration || 'Duration'}</span>
+              <Clock className="w-5 h-5 text-oasis-spring" />
+              <span className="text-xs font-bold text-white">{tour.totalDuration}h</span>
+              <span className="text-[10px] text-moon">{t.tourDuration || 'Duration'}</span>
             </div>
             <div className="flex flex-col items-center gap-1">
-              <Users className="w-5 h-5 text-emerald-600" />
-              <span className="text-xs font-bold text-slate-800">{t.tourMaxGroup || 'Max'} {tour.maxGroupSize}</span>
-              <span className="text-[10px] text-slate-400">{t.tourGroupSize || 'Group size'}</span>
+              <Users className="w-5 h-5 text-oasis-spring" />
+              <span className="text-xs font-bold text-white">{t.tourMaxGroup || 'Max'} {tour.maxGroupSize}</span>
+              <span className="text-[10px] text-moon">{t.tourGroupSize || 'Group size'}</span>
             </div>
             <div className="flex flex-col items-center gap-1">
-              <Mountain className="w-5 h-5 text-emerald-600" />
-              <span className={`text-xs font-bold px-1.5 py-0.5 rounded-full ${difficulty.color}`}>
+              <Mountain className="w-5 h-5 text-oasis-spring" />
+              <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${difficulty.color.replace('emerald-100', 'oasis-spring/10').replace('emerald-800', 'oasis-spring')}`}>
                 {difficulty.label}
               </span>
-              <span className="text-[10px] text-slate-400">{t.tourDifficulty || 'Difficulty'}</span>
+              <span className="text-[10px] text-moon">{t.tourDifficulty || 'Difficulty'}</span>
             </div>
             <div className="flex flex-col items-center gap-1">
-              <Tag className="w-5 h-5 text-emerald-600" />
-              <span className="text-xs font-bold text-emerald-700">{tour.pricePerPerson}</span>
-              <span className="text-[10px] text-slate-400">{t.tourSarPerson || 'SAR/person'}</span>
+              <Tag className="w-5 h-5 text-oasis-spring" />
+              <span className="text-xs font-bold text-oasis-spring">{tour.pricePerPerson}</span>
+              <span className="text-[10px] text-moon">{t.tourSarPerson || 'SAR/person'}</span>
             </div>
           </div>
 
           <div className="px-5 py-5 space-y-8">
             {/* Description */}
-            <p className="text-slate-600 text-sm leading-relaxed">{tour.description}</p>
+            <p className="text-moon text-sm leading-relaxed">{tour.description}</p>
 
             {/* Departure info */}
-            <div className="flex items-start gap-3 p-4 bg-slate-50 rounded-2xl">
-              <MapPin className="w-5 h-5 text-emerald-600 flex-shrink-0 mt-0.5" />
+            <div className="flex items-start gap-3 p-4 bg-chamber rounded-2xl border border-white/5">
+              <MapPin className="w-5 h-5 text-oasis-spring flex-shrink-0 mt-0.5" />
               <div>
-                <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-0.5">{t.tourDeparture || 'Departure'}</p>
-                <p className="text-sm font-semibold text-slate-800">{tour.departureLocation}</p>
-                <p className="text-xs text-slate-500 mt-0.5">
+                <p className="text-xs font-bold text-dusk uppercase tracking-wider mb-0.5">{t.tourDeparture || 'Departure'}</p>
+                <p className="text-sm font-semibold text-white">{tour.departureLocation}</p>
+                <p className="text-xs text-moon mt-0.5">
                   {tour.departureTime}
                   {tour.returnTime ? ` — ${t.tourReturnBy || 'Return by'} ${tour.returnTime}` : ''}
                 </p>
@@ -505,14 +505,14 @@ export const TourDetailScreen: React.FC<TourDetailScreenProps> = ({ tour, onBack
             {/* Highlights */}
             {tour.highlights.length > 0 && (
               <div>
-                <h2 className="text-base font-extrabold text-slate-900 mb-3">{t.tourHighlights || 'Highlights'}</h2>
+                <h2 className="text-base font-extrabold text-white mb-3">{t.tourHighlights || 'Highlights'}</h2>
                 <ul className="space-y-2">
                   {tour.highlights.map((h, i) => (
                     <li key={i} className="flex items-start gap-2.5">
-                      <div className="w-5 h-5 rounded-full bg-emerald-100 flex items-center justify-center flex-shrink-0 mt-0.5">
-                        <Check className="w-3 h-3 text-emerald-600" />
+                      <div className="w-5 h-5 rounded-full bg-oasis-spring/10 flex items-center justify-center flex-shrink-0 mt-0.5">
+                        <Check className="w-3 h-3 text-oasis-spring" />
                       </div>
-                      <span className="text-sm text-slate-700">{h}</span>
+                      <span className="text-sm text-moon">{h}</span>
                     </li>
                   ))}
                 </ul>
@@ -522,40 +522,40 @@ export const TourDetailScreen: React.FC<TourDetailScreenProps> = ({ tour, onBack
             {/* Day Plan / Stops */}
             {tour.stops.length > 0 && (
               <div>
-                <h2 className="text-base font-extrabold text-slate-900 mb-4">{t.tourDayPlan || 'Your Day Plan'}</h2>
+                <h2 className="text-base font-extrabold text-white mb-4">{t.tourDayPlan || 'Your Day Plan'}</h2>
                 <div className="relative">
-                  <div className="absolute left-[1.375rem] top-6 bottom-6 w-0.5 bg-slate-100" />
+                  <div className="absolute left-[1.375rem] top-6 bottom-6 w-0.5 bg-white/5" />
                   <div className="space-y-5">
                     {tour.stops.map((stop, i) => (
                       <div key={i} className="flex gap-4 relative">
                         <div className="flex-shrink-0 flex flex-col items-center">
-                          <div className="w-11 h-11 rounded-full bg-emerald-600 flex items-center justify-center text-white text-xs font-extrabold shadow-md z-10">
+                          <div className="w-11 h-11 rounded-full bg-oasis-spring flex items-center justify-center text-midnight text-xs font-extrabold shadow-mint-glow z-10">
                             {stop.order}
                           </div>
                           {stop.timeSlot && (
-                            <span className="text-[9px] text-emerald-700 font-bold mt-1 whitespace-nowrap">
+                            <span className="text-[9px] text-oasis-spring font-bold mt-1 whitespace-nowrap">
                               {stop.timeSlot}
                             </span>
                           )}
                         </div>
-                        <div className="flex-1 bg-white border border-slate-100 rounded-2xl p-4 shadow-sm">
+                        <div className="flex-1 bg-chamber border border-white/5 rounded-2xl p-4 shadow-sm">
                           <div className="flex items-start gap-3">
                             {stop.image && (
                               <img
                                 src={stop.image}
                                 alt={stop.placeName}
-                                className="w-14 h-14 rounded-xl object-cover flex-shrink-0"
+                                className="w-14 h-14 rounded-xl object-cover flex-shrink-0 border border-white/10"
                                 onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
                               />
                             )}
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2 flex-wrap mb-1">
-                                <h3 className="font-bold text-slate-900 text-sm">{stop.placeName}</h3>
-                                <span className="px-2 py-0.5 bg-slate-100 text-slate-500 text-[10px] font-bold rounded-full">
+                                <h3 className="font-bold text-white text-sm">{stop.placeName}</h3>
+                                <span className="px-2 py-0.5 bg-lifted text-moon text-[10px] font-bold rounded-full border border-white/10">
                                   {stop.duration} {t.tourMin || 'min'}
                                 </span>
                               </div>
-                              <p className="text-xs text-slate-500 leading-relaxed">{stop.description}</p>
+                              <p className="text-xs text-dusk leading-relaxed">{stop.description}</p>
                             </div>
                           </div>
                         </div>
@@ -569,29 +569,29 @@ export const TourDetailScreen: React.FC<TourDetailScreenProps> = ({ tour, onBack
             {/* What's Included / Not Included */}
             {(tour.included.length > 0 || tour.excluded.length > 0) && (
               <div>
-                <h2 className="text-base font-extrabold text-slate-900 mb-3">{t.tourWhatsIncluded || "What's Included"}</h2>
+                <h2 className="text-base font-extrabold text-white mb-3">{t.tourWhatsIncluded || "What's Included"}</h2>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   {tour.included.length > 0 && (
-                    <div className="bg-emerald-50 rounded-2xl p-4">
-                      <p className="text-xs font-bold text-emerald-700 uppercase tracking-wider mb-2">{t.tourIncluded || 'Included'}</p>
+                    <div className="bg-oasis-spring/5 border border-oasis-spring/10 rounded-2xl p-4">
+                      <p className="text-xs font-bold text-oasis-spring uppercase tracking-wider mb-2">{t.tourIncluded || 'Included'}</p>
                       <ul className="space-y-1.5">
                         {tour.included.map((item, i) => (
                           <li key={i} className="flex items-start gap-2">
-                            <Check className="w-4 h-4 text-emerald-600 flex-shrink-0 mt-0.5" />
-                            <span className="text-sm text-emerald-900">{item}</span>
+                            <Check className="w-4 h-4 text-oasis-spring flex-shrink-0 mt-0.5" />
+                            <span className="text-sm text-moon">{item}</span>
                           </li>
                         ))}
                       </ul>
                     </div>
                   )}
                   {tour.excluded.length > 0 && (
-                    <div className="bg-red-50 rounded-2xl p-4">
-                      <p className="text-xs font-bold text-red-700 uppercase tracking-wider mb-2">{t.tourNotIncluded || 'Not Included'}</p>
+                    <div className="bg-red-500/5 border border-red-500/10 rounded-2xl p-4">
+                      <p className="text-xs font-bold text-red-400 uppercase tracking-wider mb-2">{t.tourNotIncluded || 'Not Included'}</p>
                       <ul className="space-y-1.5">
                         {tour.excluded.map((item, i) => (
                           <li key={i} className="flex items-start gap-2">
-                            <X className="w-4 h-4 text-red-500 flex-shrink-0 mt-0.5" />
-                            <span className="text-sm text-red-900">{item}</span>
+                            <X className="w-4 h-4 text-red-400 flex-shrink-0 mt-0.5" />
+                            <span className="text-sm text-moon">{item}</span>
                           </li>
                         ))}
                       </ul>
@@ -603,16 +603,16 @@ export const TourDetailScreen: React.FC<TourDetailScreenProps> = ({ tour, onBack
 
             {/* Guide Card */}
             <div>
-              <h2 className="text-base font-extrabold text-slate-900 mb-3">{t.tourYourGuide || 'Your Guide'}</h2>
-              <div className="flex items-center gap-4 p-4 bg-slate-50 rounded-2xl">
+              <h2 className="text-base font-extrabold text-white mb-3">{t.tourYourGuide || 'Your Guide'}</h2>
+              <div className="flex items-center gap-4 p-4 bg-chamber rounded-2xl border border-white/5">
                 <img
                   src={tour.guideAvatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${tour.guideName}`}
                   alt={tour.guideName}
-                  className="w-16 h-16 rounded-full border-2 border-white shadow-md object-cover bg-slate-100"
+                  className="w-16 h-16 rounded-full border-2 border-white/10 shadow-md object-cover bg-midnight"
                 />
                 <div className="flex-1">
-                  <h3 className="font-extrabold text-slate-900">{tour.guideName}</h3>
-                  <span className="inline-block mt-0.5 px-2.5 py-0.5 bg-emerald-100 text-emerald-800 text-xs font-bold rounded-full">
+                  <h3 className="font-extrabold text-white">{tour.guideName}</h3>
+                  <span className="inline-block mt-0.5 px-2.5 py-0.5 bg-oasis-spring/10 text-oasis-spring text-xs font-bold rounded-full">
                     {t.tourCertifiedGuide || 'Certified Guide'}
                   </span>
                   {tour.guideRating !== undefined && (
@@ -622,58 +622,58 @@ export const TourDetailScreen: React.FC<TourDetailScreenProps> = ({ tour, onBack
                           key={star}
                           className={`w-3.5 h-3.5 ${
                             star <= Math.round(tour.guideRating!)
-                              ? 'text-amber-400 fill-amber-400'
-                              : 'text-slate-200 fill-slate-200'
+                              ? 'text-karam fill-karam'
+                              : 'text-moon/20 fill-moon/20'
                           }`}
                         />
                       ))}
-                      <span className="text-xs text-slate-500 ml-1">{tour.guideRating.toFixed(1)}</span>
+                      <span className="text-xs text-moon ml-1">{tour.guideRating.toFixed(1)}</span>
                     </div>
                   )}
                 </div>
               </div>
             </div>
 
-            {/* Feature 17 – Physical Requirements / Accessibility */}
+            {/* Physical Requirements / Accessibility */}
             {tour.accessibility && (
               <div>
-                <h2 className="text-base font-extrabold text-slate-900 mb-3">Physical Requirements</h2>
+                <h2 className="text-base font-extrabold text-white mb-3">Physical Requirements</h2>
                 <div className="grid grid-cols-2 gap-3">
                   {tour.accessibility.minAge != null && (
-                    <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-2xl">
-                      <Baby className="w-5 h-5 text-emerald-600 flex-shrink-0" />
+                    <div className="flex items-center gap-3 p-3 bg-chamber border border-white/5 rounded-2xl">
+                      <Baby className="w-5 h-5 text-oasis-spring flex-shrink-0" />
                       <div>
-                        <p className="text-[10px] text-slate-400 uppercase font-bold tracking-wide">Min Age</p>
-                        <p className="text-sm font-bold text-slate-800">{tour.accessibility.minAge}+</p>
+                        <p className="text-[10px] text-moon uppercase font-bold tracking-wide">Min Age</p>
+                        <p className="text-sm font-bold text-white">{tour.accessibility.minAge}+</p>
                       </div>
                     </div>
                   )}
                   {tour.accessibility.fitnessLevel && (
-                    <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-2xl">
-                      <Activity className="w-5 h-5 text-emerald-600 flex-shrink-0" />
+                    <div className="flex items-center gap-3 p-3 bg-chamber border border-white/5 rounded-2xl">
+                      <Activity className="w-5 h-5 text-oasis-spring flex-shrink-0" />
                       <div>
-                        <p className="text-[10px] text-slate-400 uppercase font-bold tracking-wide">Fitness</p>
-                        <p className="text-sm font-bold text-slate-800">{tour.accessibility.fitnessLevel}</p>
+                        <p className="text-[10px] text-moon uppercase font-bold tracking-wide">Fitness</p>
+                        <p className="text-sm font-bold text-white">{tour.accessibility.fitnessLevel}</p>
                       </div>
                     </div>
                   )}
                   {tour.accessibility.wheelchairFriendly != null && (
-                    <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-2xl">
-                      <ShieldCheck className={`w-5 h-5 flex-shrink-0 ${tour.accessibility.wheelchairFriendly ? 'text-emerald-600' : 'text-slate-400'}`} />
+                    <div className="flex items-center gap-3 p-3 bg-chamber border border-white/5 rounded-2xl">
+                      <ShieldCheck className={`w-5 h-5 flex-shrink-0 ${tour.accessibility.wheelchairFriendly ? 'text-oasis-spring' : 'text-moon/30'}`} />
                       <div>
-                        <p className="text-[10px] text-slate-400 uppercase font-bold tracking-wide">Wheelchair</p>
-                        <p className={`text-sm font-bold ${tour.accessibility.wheelchairFriendly ? 'text-emerald-700' : 'text-slate-600'}`}>
+                        <p className="text-[10px] text-moon uppercase font-bold tracking-wide">Wheelchair</p>
+                        <p className={`text-sm font-bold ${tour.accessibility.wheelchairFriendly ? 'text-oasis-spring' : 'text-moon'}`}>
                           {tour.accessibility.wheelchairFriendly ? 'Accessible' : 'Not Accessible'}
                         </p>
                       </div>
                     </div>
                   )}
                   {tour.accessibility.familyFriendly != null && (
-                    <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-2xl">
-                      <Users className={`w-5 h-5 flex-shrink-0 ${tour.accessibility.familyFriendly ? 'text-emerald-600' : 'text-slate-400'}`} />
+                    <div className="flex items-center gap-3 p-3 bg-chamber border border-white/5 rounded-2xl">
+                      <Users className={`w-5 h-5 flex-shrink-0 ${tour.accessibility.familyFriendly ? 'text-oasis-spring' : 'text-moon/30'}`} />
                       <div>
-                        <p className="text-[10px] text-slate-400 uppercase font-bold tracking-wide">Family</p>
-                        <p className={`text-sm font-bold ${tour.accessibility.familyFriendly ? 'text-emerald-700' : 'text-slate-600'}`}>
+                        <p className="text-[10px] text-moon uppercase font-bold tracking-wide">Family</p>
+                        <p className={`text-sm font-bold ${tour.accessibility.familyFriendly ? 'text-oasis-spring' : 'text-moon'}`}>
                           {tour.accessibility.familyFriendly ? 'Family Friendly' : 'Adults Preferred'}
                         </p>
                       </div>
@@ -686,12 +686,12 @@ export const TourDetailScreen: React.FC<TourDetailScreenProps> = ({ tour, onBack
             {/* Upcoming Dates */}
             {upcomingDates.length > 0 && (
               <div>
-                <h2 className="text-base font-extrabold text-slate-900 mb-3">{t.tourUpcomingDates || 'Upcoming Dates'}</h2>
+                <h2 className="text-base font-extrabold text-white mb-3">{t.tourUpcomingDates || 'Upcoming Dates'}</h2>
                 <div className="flex flex-wrap gap-2">
                   {upcomingDates.map((date, i) => (
                     <span
                       key={i}
-                      className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 border border-emerald-100 text-emerald-800 text-xs font-bold rounded-full"
+                      className="flex items-center gap-1.5 px-3 py-1.5 bg-oasis-spring/5 border border-oasis-spring/10 text-oasis-spring text-xs font-bold rounded-full"
                     >
                       <Calendar className="w-3.5 h-3.5" />
                       {formatDate(date)}
@@ -704,34 +704,34 @@ export const TourDetailScreen: React.FC<TourDetailScreenProps> = ({ tour, onBack
             {/* Reviews */}
             <div>
               <div className="flex items-center justify-between mb-4">
-                <h2 className="text-base font-extrabold text-slate-900">
+                <h2 className="text-base font-extrabold text-white">
                   {t.reviewsHeader || 'Reviews'}
                   {totalCount > 0 && (
-                    <span className="ml-2 text-sm font-semibold text-slate-400">({totalCount})</span>
+                    <span className="ml-2 text-sm font-semibold text-moon">({totalCount})</span>
                   )}
                 </h2>
                 <button
                   onClick={() => setShowReviewForm(f => !f)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 text-white text-xs font-bold rounded-full hover:bg-emerald-700 active:scale-95 transition-all"
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-oasis-spring text-midnight text-xs font-bold rounded-full hover:opacity-90 active:scale-95 transition-all"
                 >
                   <MessageSquarePlus className="w-3.5 h-3.5" />
                   {showReviewForm ? (t.cancelBtn || 'Cancel') : (t.writeReview || 'Write a Review')}
                 </button>
               </div>
 
-              {/* Feature 15 – Rating summary + distribution bars */}
+              {/* Rating summary + distribution bars */}
               {totalCount > 0 && (
-                <div className="p-4 bg-amber-50 rounded-2xl mb-4">
+                <div className="p-4 bg-karam/5 border border-karam/10 rounded-2xl mb-4">
                   <div className="flex items-start gap-5">
                     {/* Big score */}
                     <div className="text-center flex-shrink-0">
-                      <p className="text-3xl font-extrabold text-slate-900">{avgRating.toFixed(1)}</p>
+                      <p className="text-3xl font-extrabold text-white">{avgRating.toFixed(1)}</p>
                       <div className="flex items-center gap-0.5 mt-1 justify-center">
                         {[1, 2, 3, 4, 5].map(s => (
-                          <Star key={s} className={`w-3.5 h-3.5 ${s <= Math.round(avgRating) ? 'text-amber-400 fill-amber-400' : 'text-slate-200 fill-slate-200'}`} />
+                          <Star key={s} className={`w-3.5 h-3.5 ${s <= Math.round(avgRating) ? 'text-karam fill-karam' : 'text-moon/20 fill-moon/20'}`} />
                         ))}
                       </div>
-                      <p className="text-xs text-slate-500 mt-1">{totalCount} review{totalCount !== 1 ? 's' : ''}</p>
+                      <p className="text-xs text-moon mt-1">{totalCount} review{totalCount !== 1 ? 's' : ''}</p>
                     </div>
                     {/* Distribution bars */}
                     <div className="flex-1 space-y-1.5">
@@ -739,15 +739,15 @@ export const TourDetailScreen: React.FC<TourDetailScreenProps> = ({ tour, onBack
                         const pct = allReviews.length > 0 ? (count / allReviews.length) * 100 : 0;
                         return (
                           <div key={star} className="flex items-center gap-2">
-                            <span className="text-[10px] text-slate-500 w-3 text-right">{star}</span>
-                            <Star className="w-2.5 h-2.5 text-amber-400 fill-amber-400 flex-shrink-0" />
-                            <div className="flex-1 h-1.5 bg-amber-100 rounded-full overflow-hidden">
+                            <span className="text-[10px] text-moon w-3 text-right">{star}</span>
+                            <Star className="w-2.5 h-2.5 text-karam fill-karam flex-shrink-0" />
+                            <div className="flex-1 h-1.5 bg-white/5 rounded-full overflow-hidden">
                               <div
-                                className="h-full bg-amber-400 rounded-full transition-all duration-500"
+                                className="h-full bg-karam rounded-full transition-all duration-500"
                                 style={{ width: `${pct}%` }}
                               />
                             </div>
-                            <span className="text-[10px] text-slate-400 w-4 text-right">{count}</span>
+                            <span className="text-[10px] text-moon/40 w-4 text-right">{count}</span>
                           </div>
                         );
                       })}
@@ -756,20 +756,20 @@ export const TourDetailScreen: React.FC<TourDetailScreenProps> = ({ tour, onBack
                 </div>
               )}
 
-              {/* Feature 14 – Category aggregate bars */}
+              {/* Category aggregate bars */}
               {Object.keys(catAggregate).length > 0 && (
-                <div className="p-4 bg-slate-50 rounded-2xl mb-4 space-y-2">
-                  <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-3">Review Breakdown</p>
+                <div className="p-4 bg-chamber border border-white/5 rounded-2xl mb-4 space-y-2">
+                  <p className="text-[10px] font-bold text-moon uppercase tracking-wider mb-3">Review Breakdown</p>
                   {REVIEW_CATS.filter(cat => catAggregate[cat] != null).map(cat => (
                     <div key={cat} className="flex items-center gap-3">
-                      <span className="text-xs text-slate-500 w-28 flex-shrink-0">{REVIEW_CAT_LABELS[cat]}</span>
-                      <div className="flex-1 h-1.5 bg-slate-200 rounded-full overflow-hidden">
+                      <span className="text-xs text-moon w-28 flex-shrink-0">{REVIEW_CAT_LABELS[cat]}</span>
+                      <div className="flex-1 h-1.5 bg-white/5 rounded-full overflow-hidden">
                         <div
-                          className="h-full bg-emerald-500 rounded-full transition-all duration-500"
+                          className="h-full bg-oasis-spring rounded-full transition-all duration-500"
                           style={{ width: `${(catAggregate[cat]! / 5) * 100}%` }}
                         />
                       </div>
-                      <span className="text-xs font-bold text-slate-700 w-6 text-right">{catAggregate[cat]!.toFixed(1)}</span>
+                      <span className="text-xs font-bold text-white w-6 text-right">{catAggregate[cat]!.toFixed(1)}</span>
                     </div>
                   ))}
                 </div>
@@ -777,12 +777,12 @@ export const TourDetailScreen: React.FC<TourDetailScreenProps> = ({ tour, onBack
 
               {/* Review form */}
               {showReviewForm && (
-                <div className="bg-slate-50 rounded-2xl p-4 mb-4 space-y-3">
-                  <p className="text-sm font-bold text-slate-800">{t.shareExperience || 'Share your experience'}</p>
+                <div className="bg-chamber border border-white/5 rounded-2xl p-4 mb-4 space-y-4">
+                  <p className="text-sm font-bold text-white">{t.shareExperience || 'Share your experience'}</p>
 
                   {/* Overall star selector */}
                   <div>
-                    <p className="text-xs text-slate-500 mb-1.5">Overall Rating</p>
+                    <p className="text-xs text-moon mb-1.5">Overall Rating</p>
                     <div className="flex items-center gap-1">
                       {[1, 2, 3, 4, 5].map(s => (
                         <button
@@ -792,21 +792,21 @@ export const TourDetailScreen: React.FC<TourDetailScreenProps> = ({ tour, onBack
                           onClick={() => setReviewRating(s)}
                           className="transition-transform hover:scale-110"
                         >
-                          <Star className={`w-7 h-7 ${s <= (hoverRating || reviewRating) ? 'text-amber-400 fill-amber-400' : 'text-slate-200 fill-slate-200'}`} />
+                          <Star className={`w-8 h-8 ${s <= (hoverRating || reviewRating) ? 'text-karam fill-karam' : 'text-moon/10 fill-moon/10'}`} />
                         </button>
                       ))}
-                      <span className="ml-2 text-sm text-slate-500">
+                      <span className="ml-2 text-sm text-moon">
                         {['', 'Poor', 'Fair', 'Good', 'Great', 'Excellent'][hoverRating || reviewRating]}
                       </span>
                     </div>
                   </div>
 
-                  {/* Feature 14 – Category ratings */}
-                  <div className="space-y-2 border-t border-slate-200 pt-3">
-                    <p className="text-xs text-slate-500 mb-2">Rate specific aspects (optional)</p>
+                  {/* Category ratings */}
+                  <div className="space-y-2 border-t border-white/5 pt-3">
+                    <p className="text-xs text-moon mb-2">Rate specific aspects (optional)</p>
                     {REVIEW_CATS.map(cat => (
                       <div key={cat} className="flex items-center justify-between">
-                        <span className="text-xs text-slate-600 w-28 flex-shrink-0">{REVIEW_CAT_LABELS[cat]}</span>
+                        <span className="text-xs text-moon/60 w-28 flex-shrink-0">{REVIEW_CAT_LABELS[cat]}</span>
                         <div className="flex gap-1">
                           {[1, 2, 3, 4, 5].map(s => (
                             <button
@@ -818,7 +818,7 @@ export const TourDetailScreen: React.FC<TourDetailScreenProps> = ({ tour, onBack
                               )}
                               className="transition-transform hover:scale-110"
                             >
-                              <Star className={`w-5 h-5 ${s <= (hoverCat[cat] || catRatings[cat] || 0) ? 'text-amber-400 fill-amber-400' : 'text-slate-200 fill-slate-200'}`} />
+                              <Star className={`w-5 h-5 ${s <= (hoverCat[cat] || catRatings[cat] || 0) ? 'text-karam fill-karam' : 'text-moon/10 fill-moon/10'}`} />
                             </button>
                           ))}
                         </div>
@@ -832,7 +832,7 @@ export const TourDetailScreen: React.FC<TourDetailScreenProps> = ({ tour, onBack
                     placeholder={t.yourName || 'Your name'}
                     value={reviewAuthor}
                     onChange={e => setReviewAuthor(e.target.value)}
-                    className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-white"
+                    className="w-full px-4 py-2.5 bg-midnight border border-white/5 rounded-xl text-sm focus:outline-none focus:ring-1 focus:ring-oasis-spring text-white placeholder-moon/30"
                   />
 
                   {/* Comment textarea */}
@@ -841,13 +841,13 @@ export const TourDetailScreen: React.FC<TourDetailScreenProps> = ({ tour, onBack
                     value={reviewText}
                     onChange={e => setReviewText(e.target.value)}
                     rows={3}
-                    className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-white resize-none"
+                    className="w-full px-4 py-2.5 bg-midnight border border-white/5 rounded-xl text-sm focus:outline-none focus:ring-1 focus:ring-oasis-spring text-white placeholder-moon/30 resize-none"
                   />
 
                   <button
                     onClick={submitReview}
                     disabled={!reviewAuthor.trim() || !reviewText.trim()}
-                    className="w-full py-2.5 bg-emerald-600 text-white font-bold rounded-xl text-sm hover:bg-emerald-700 active:scale-95 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                    className="w-full py-3 bg-oasis-spring text-midnight font-bold rounded-xl text-sm hover:opacity-90 active:scale-95 transition-all disabled:opacity-30 disabled:cursor-not-allowed"
                   >
                     {t.submitReview || 'Submit Review'}
                   </button>
@@ -856,38 +856,38 @@ export const TourDetailScreen: React.FC<TourDetailScreenProps> = ({ tour, onBack
 
               {/* Reviews list */}
               {allReviews.length === 0 && !showReviewForm && (
-                <div className="text-center py-8 bg-slate-50 rounded-2xl">
-                  <Star className="w-8 h-8 text-slate-200 mx-auto mb-2" />
-                  <p className="text-sm text-slate-400">{t.noReviewsYet || 'No reviews yet — be the first!'}</p>
+                <div className="text-center py-10 bg-chamber border border-white/5 rounded-2xl">
+                  <Star className="w-8 h-8 text-white/5 mx-auto mb-2" />
+                  <p className="text-sm text-moon/40">{t.noReviewsYet || 'No reviews yet — be the first!'}</p>
                 </div>
               )}
 
               {allReviews.length > 0 && (
                 <div className="space-y-3">
                   {allReviews.slice().reverse().map(review => (
-                    <div key={review.id} className="bg-white border border-slate-100 rounded-2xl p-4 shadow-sm">
+                    <div key={review.id} className="bg-chamber border border-white/5 rounded-2xl p-4 shadow-sm">
                       <div className="flex items-start gap-3">
-                        <div className="w-9 h-9 rounded-full bg-emerald-100 flex items-center justify-center flex-shrink-0 text-emerald-700 font-extrabold text-sm">
+                        <div className="w-10 h-10 rounded-xl bg-oasis-spring/10 border border-oasis-spring/20 flex items-center justify-center flex-shrink-0 text-oasis-spring font-black text-sm">
                           {review.author.charAt(0).toUpperCase()}
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center justify-between gap-2 flex-wrap mb-1">
-                            <span className="font-bold text-slate-900 text-sm">{review.author}</span>
-                            <span className="text-[11px] text-slate-400">
+                            <span className="font-bold text-white text-sm">{review.author}</span>
+                            <span className="text-[10px] text-moon/40 uppercase font-bold tracking-wider">
                               {new Date(review.date).toLocaleDateString('en-SA', { day: 'numeric', month: 'short', year: 'numeric' })}
                             </span>
                           </div>
                           <div className="flex items-center gap-0.5 mb-2">
                             {[1, 2, 3, 4, 5].map(s => (
-                              <Star key={s} className={`w-3.5 h-3.5 ${s <= review.rating ? 'text-amber-400 fill-amber-400' : 'text-slate-200 fill-slate-200'}`} />
+                              <Star key={s} className={`w-3 h-3 ${s <= review.rating ? 'text-karam fill-karam' : 'text-moon/10 fill-moon/10'}`} />
                             ))}
                           </div>
-                          <p className="text-sm text-slate-600 leading-relaxed">{review.comment}</p>
+                          <p className="text-sm text-moon leading-relaxed">{review.comment}</p>
                           {/* Category rating pills */}
                           {review.categoryRatings && Object.keys(review.categoryRatings).length > 0 && (
-                            <div className="flex flex-wrap gap-1.5 mt-2">
+                            <div className="flex flex-wrap gap-1.5 mt-3">
                               {(Object.entries(review.categoryRatings) as [ReviewCat, number][]).map(([cat, val]) => (
-                                <span key={cat} className="flex items-center gap-1 px-2 py-0.5 bg-slate-100 text-slate-600 text-[10px] font-bold rounded-full">
+                                <span key={cat} className="flex items-center gap-1 px-2 py-0.5 bg-lifted border border-white/5 text-moon text-[9px] font-black rounded-full uppercase tracking-tighter">
                                   {REVIEW_CAT_LABELS[cat]}: {val}★
                                 </span>
                               ))}
@@ -904,13 +904,13 @@ export const TourDetailScreen: React.FC<TourDetailScreenProps> = ({ tour, onBack
             {/* Similar Tours */}
             {similarTours.length > 0 && (
               <div>
-                <h2 className="text-base font-extrabold text-slate-900 mb-3">{t.tourSimilarTours || 'Similar Tours'}</h2>
+                <h2 className="text-base font-extrabold text-white mb-3">{t.tourSimilarTours || 'Similar Tours'}</h2>
                 <div className="flex gap-3 overflow-x-auto pb-2 -mx-5 px-5 no-scrollbar">
                   {similarTours.map(t2 => (
                     <button
                       key={t2.id || t2._id}
                       onClick={() => onSelectTour?.(t2)}
-                      className="flex-shrink-0 w-44 bg-white rounded-2xl overflow-hidden border border-slate-100 shadow-sm text-left active:scale-95 transition-transform"
+                      className="flex-shrink-0 w-44 bg-chamber rounded-2xl overflow-hidden border border-white/5 shadow-sm text-left active:scale-95 transition-transform"
                     >
                       <div className="relative h-24">
                         <img
@@ -919,15 +919,15 @@ export const TourDetailScreen: React.FC<TourDetailScreenProps> = ({ tour, onBack
                           className="w-full h-full object-cover"
                           onError={(e) => { (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1509316785289-025f5b846b35?w=800&q=80'; }}
                         />
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
-                        <span className="absolute bottom-1.5 left-2 text-[10px] font-bold text-white uppercase tracking-wide">{t2.category}</span>
+                        <div className="absolute inset-0 bg-gradient-to-t from-midnight/80 to-transparent" />
+                        <span className="absolute bottom-1.5 left-2 text-[10px] font-bold text-oasis-spring uppercase tracking-wide">{t2.category}</span>
                       </div>
                       <div className="p-2.5">
-                        <p className="font-bold text-slate-900 text-xs line-clamp-2 leading-snug mb-1">{t2.title}</p>
+                        <p className="font-bold text-white text-xs line-clamp-2 leading-snug mb-1">{t2.title}</p>
                         <div className="flex items-center justify-between">
-                          <span className="text-emerald-700 font-bold text-xs">{t2.pricePerPerson} {t.sarLabel || 'SAR'}</span>
+                          <span className="text-oasis-spring font-bold text-xs">{t2.pricePerPerson} {t.sarLabel || 'SAR'}</span>
                           {t2.rating !== undefined && (
-                            <span className="text-[10px] text-amber-500 font-bold">★ {t2.rating.toFixed(1)}</span>
+                            <span className="text-[10px] text-karam font-bold">★ {t2.rating.toFixed(1)}</span>
                           )}
                         </div>
                       </div>
@@ -939,39 +939,38 @@ export const TourDetailScreen: React.FC<TourDetailScreenProps> = ({ tour, onBack
           </div>
         </div>
 
-        {/* Feature 18 – Group Members Preview + Sticky Bottom CTA */}
-        <div className="flex-shrink-0 bg-white border-t border-slate-100 px-5 pt-3 pb-4 shadow-[0_-4px_20px_rgba(0,0,0,0.06)]">
+        {/* Sticky Bottom CTA */}
+        <div className="flex-shrink-0 bg-midnight/80 backdrop-blur-lg border-t border-white/5 px-5 pt-3 pb-6 shadow-[0_-8px_30px_rgba(0,0,0,0.4)]">
           {/* Group preview */}
           {previewCount > 0 && (
-            <div className="flex items-center gap-3 mb-3">
+            <div className="flex items-center gap-3 mb-4">
               <div className="flex -space-x-2">
                 {Array.from({ length: previewCount }).map((_, i) => (
                   <div
                     key={i}
-                    className="w-7 h-7 rounded-full border-2 border-white shadow-sm bg-emerald-100 flex items-center justify-center text-[10px] font-extrabold text-emerald-700"
+                    className="w-7 h-7 rounded-full border-2 border-midnight shadow-sm bg-oasis-spring/10 flex items-center justify-center text-[10px] font-black text-oasis-spring"
                   >
                     {String.fromCharCode(65 + i)}
                   </div>
                 ))}
               </div>
-              <p className="text-xs text-slate-500">
-                <span className="font-bold text-slate-700">{previewCount} {previewCount === 1 ? 'person has' : 'people have'}</span> already joined the next group
+              <p className="text-[11px] text-moon">
+                <span className="font-bold text-oasis-spring">{previewCount} {previewCount === 1 ? 'person' : 'people'}</span> already joined
               </p>
             </div>
           )}
           {/* Price + Book */}
           <div className="flex items-center justify-between gap-4">
             <div>
-              <p className="text-xs text-slate-400">{t.tourFrom || 'From'}</p>
-              <p className="text-2xl font-extrabold text-emerald-700">
+              <p className="text-[10px] text-moon uppercase font-bold tracking-widest">{t.tourFrom || 'From'}</p>
+              <p className="text-2xl font-black text-oasis-spring">
                 {tour.pricePerPerson.toLocaleString()}
-                <span className="text-sm font-bold text-slate-500 ml-1">{t.sarLabel || 'SAR'}</span>
+                <span className="text-xs font-bold text-moon ml-1">{t.sarLabel || 'SAR'}</span>
               </p>
-              <p className="text-[10px] text-slate-400">{t.tourPerPerson || 'per person'}</p>
             </div>
             <button
               onClick={() => onBook(tour)}
-              className="flex-1 max-w-xs py-3.5 bg-gradient-to-r from-emerald-600 to-teal-500 text-white font-extrabold rounded-2xl shadow-lg shadow-emerald-200 hover:from-emerald-700 hover:to-teal-600 transition active:scale-95 text-base"
+              className="flex-1 max-w-xs py-4 bg-oasis-spring text-midnight font-black rounded-2xl shadow-mint-glow hover:opacity-90 transition active:scale-95 text-base"
             >
               {t.tourBookTrip || 'Book This Trip'}
             </button>

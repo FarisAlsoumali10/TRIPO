@@ -4,25 +4,25 @@ import {
   SlidersHorizontal, Bookmark, LayoutGrid, List, Map as MapIcon,
   Shuffle, CheckCheck, FolderPlus, Plus, Clock,
 } from 'lucide-react';
-import L from 'leaflet';
-import 'leaflet/dist/leaflet.css';
 import { Place } from '../types/index';
-import { placeAPI } from '../services/api';
 import { PlaceDetailModal } from '../components/PlaceDetailModal';
-import { SkeletonCard } from '../components/ui';
+import { placeAPI } from '../services/api';
+import { SkeletonCard, SafeImage } from '../components/ui';
 import { showToast } from '../components/Toast';
+import { isOpenNow, getPriceLevel, formatDuration } from '../utils/placeHelpers';
+
 import { TrendingCards, TrendingItem } from '../components/TrendingSlideshow';
 import { FeaturedSlideshow, SlideItem } from '../components/FeaturedSlideshow';
 
-// ── Constants (module-scope — never recreated on render) ──────────────────────
+const TripMap = React.lazy(() => import('../components/TripMap'));
 
+// ── Constants ──────────────────────────────────────────────────────────────────
 const CATEGORY_KEYS = ['All', 'Nature', 'Heritage', 'Adventure', 'Food', 'Urban', 'Beach', 'Desert', 'Cultural'];
 const CITY_LIST = ['All', 'Riyadh', 'Jeddah', 'Mecca', 'Medina', 'AlUla', 'Abha', 'Dammam', 'Taif', 'Yanbu'];
 const CITY_LIST_AR: Record<string, string> = {
   All: 'الكل', Riyadh: 'الرياض', Jeddah: 'جدة', Mecca: 'مكة', Medina: 'المدينة',
   AlUla: 'العُلا', Abha: 'أبها', Dammam: 'الدمام', Taif: 'الطائف', Yanbu: 'ينبع',
 };
-const DAY_KEYS = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
 
 const PRICE_LEVEL_OPTIONS = [
   { v: 0, l: 'Any' }, { v: 1, l: 'Free' }, { v: 2, l: '$ Budget' },
@@ -34,7 +34,7 @@ const SEASON_OPTIONS = [
 ];
 const ACCESSIBILITY_OPTIONS = [
   { k: 'wheelchair' as const, icon: '♿', l: 'Wheelchair' },
-  { k: 'family' as const, icon: '👨‍👩‍👧', l: 'Family' },
+  { k: 'family' as const, icon: '👨👩👧', l: 'Family' },
   { k: 'parking' as const, icon: '🅿', l: 'Parking' },
 ];
 
@@ -60,8 +60,7 @@ const DEFAULT_PLACE_FILTER: PlaceFilterState = {
   priceLevel: 0, season: 'All', wheelchair: false, family: false, parking: false,
 };
 
-// ── Pure helpers (module-scope) ───────────────────────────────────────────────
-
+// ── Pure helpers ──────────────────────────────────────────────────────────────
 function haversineKm(lat1: number, lon1: number, lat2: number, lon2: number) {
   const R = 6371;
   const dLat = (lat2 - lat1) * Math.PI / 180;
@@ -80,44 +79,11 @@ function cityDistanceKm(cityName: string, userLat: number, userLon: number): num
   return 9999;
 }
 
-// FIX: single `new Date()` call instead of three separate calls
-function isOpenNow(openingHours?: Record<string, { open: string; close: string; closed?: boolean }>): boolean | null {
-  if (!openingHours) return null;
-  const now = new Date();
-  const hours = openingHours[DAY_KEYS[now.getDay()]];
-  if (!hours || hours.closed) return false;
-  const [openH, openM] = hours.open.split(':').map(Number);
-  const [closeH, closeM] = hours.close.split(':').map(Number);
-  const nowMins = now.getHours() * 60 + now.getMinutes();
-  const openMins = openH * 60 + openM;
-  const closeMins = closeH * 60 + closeM;
-  return closeMins < openMins
-    ? nowMins >= openMins || nowMins < closeMins
-    : nowMins >= openMins && nowMins < closeMins;
-}
-
-function formatDuration(mins?: number): string | null {
-  if (!mins || mins <= 0) return null;
-  if (mins < 60) return `~${mins}m`;
-  const h = Math.floor(mins / 60), m = mins % 60;
-  return m > 0 ? `~${h}h ${m}m` : `~${h}h`;
-}
-
 function formatDistance(km: number): string {
   if (km >= 9999) return '';
   if (km < 1) return `${Math.round(km * 1000)}m`;
   if (km < 10) return `${km.toFixed(1)}km`;
   return `${Math.round(km)}km`;
-}
-
-function getPriceLevel(p: Place): number {
-  if (p.priceRange) return p.priceRange;
-  const cost = p.avgCost;
-  if (cost == null) return 0;
-  if (cost === 0) return 1;
-  if (cost <= 50) return 2;
-  if (cost <= 150) return 3;
-  return 4;
 }
 
 function getPlaceId(p: Place): string { return p._id || p.id || ''; }
@@ -126,7 +92,6 @@ function countActiveFilters(f: PlaceFilterState): number {
   return [f.priceLevel > 0, f.season !== 'All', f.wheelchair || f.family || f.parking].filter(Boolean).length;
 }
 
-/** Shared localStorage Set toggle — replaces the repeated read-parse-update-save pattern */
 function toggleLocalSet(key: string, id: string, currentSet: Set<string>): Set<string> {
   const list: string[] = JSON.parse(localStorage.getItem(key) || '[]');
   const updated = currentSet.has(id) ? list.filter(x => x !== id) : [...list, id];
@@ -138,79 +103,7 @@ function readLocalSet(key: string): Set<string> {
   try { return new Set<string>(JSON.parse(localStorage.getItem(key) || '[]')); } catch { return new Set<string>(); }
 }
 
-// ── MapView ───────────────────────────────────────────────────────────────────
-
-const MapView = React.memo(({ places, userCoords, onSelectPlace, ar }: {
-  places: Place[];
-  userCoords: [number, number] | null;
-  onSelectPlace: (p: Place) => void;
-  ar?: boolean;
-}) => {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const mapRef = useRef<L.Map | null>(null);
-  const layerRef = useRef<L.LayerGroup | null>(null);
-  const userMarkerRef = useRef<L.CircleMarker | null>(null); // FIX: track user marker to prevent accumulation
-
-  useEffect(() => {
-    if (!containerRef.current || mapRef.current) return;
-    const center: [number, number] = userCoords ?? [23.8859, 45.0792];
-    const map = L.map(containerRef.current, { zoomControl: false, attributionControl: false }).setView(center, userCoords ? 10 : 5);
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', { maxZoom: 19 }).addTo(map);
-    layerRef.current = L.layerGroup().addTo(map);
-    mapRef.current = map;
-  }, []);
-
-  useEffect(() => {
-    if (!layerRef.current) return;
-    layerRef.current.clearLayers();
-    places.forEach(p => {
-      const lat = p.coordinates?.lat ?? p.lat;
-      const lng = p.coordinates?.lng ?? p.lng;
-      if (!lat || !lng) return;
-      const marker = L.circleMarker([lat, lng], {
-        radius: 9, fillColor: '#0d9488', color: '#fff', weight: 2, opacity: 1, fillOpacity: 1,
-      });
-      const rating = p.ratingSummary?.avgRating ?? p.rating;
-      marker.bindTooltip(
-        `<strong>${p.name}</strong>${rating ? ` ⭐ ${Number(rating).toFixed(1)}` : ''}`,
-        { direction: 'top', offset: [0, -12] }
-      );
-      marker.on('click', () => onSelectPlace(p));
-      layerRef.current!.addLayer(marker);
-    });
-  }, [places, onSelectPlace]);
-
-  useEffect(() => {
-    if (!mapRef.current || !userCoords) return;
-    userMarkerRef.current?.remove(); // FIX: remove previous before adding new
-    userMarkerRef.current = L.circleMarker(userCoords, {
-      radius: 8, fillColor: '#3b82f6', color: '#fff', weight: 2, fillOpacity: 1,
-    }).addTo(mapRef.current).bindTooltip(ar ? 'أنت' : 'You', { permanent: false });
-  }, [userCoords]);
-
-  useEffect(() => () => {
-    if (mapRef.current) { mapRef.current.remove(); mapRef.current = null; layerRef.current = null; }
-  }, []);
-
-  const hasCoords = places.some(p => (p.coordinates?.lat ?? p.lat) && (p.coordinates?.lng ?? p.lng));
-
-  return (
-    <div className="relative w-full h-full">
-      <div ref={containerRef} className="w-full h-full" />
-      {!hasCoords && (
-        <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
-          <div className="bg-white/90 backdrop-blur rounded-2xl px-4 py-3 text-center shadow-md">
-            <MapPin className="w-8 h-8 text-slate-300 mx-auto mb-1" />
-            <p className="text-xs font-semibold text-slate-500">{ar ? 'لا توجد إحداثيات لهذه الأماكن' : 'No map coordinates for these places'}</p>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-});
-
 // ── AddToTripModal ─────────────────────────────────────────────────────────────
-
 const AddToTripModal = ({ placeId, placeName, onClose, trips, onTripsChange }: {
   placeId: string; placeName: string; onClose: () => void;
   trips: Trip[]; onTripsChange: (t: Trip[]) => void;
@@ -241,19 +134,22 @@ const AddToTripModal = ({ placeId, placeName, onClose, trips, onTripsChange }: {
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center">
-      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
-      <div className="relative bg-white w-full max-w-lg rounded-t-3xl shadow-2xl p-5 pb-8">
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative bg-chamber w-full max-w-lg rounded-t-3xl shadow-2xl p-5 pb-8 border border-white/10">
+        <div className="w-10 h-1 bg-white/20 rounded-full mx-auto mb-5" />
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
-            <FolderPlus className="w-5 h-5 text-emerald-600" />
-            <h3 className="font-bold text-lg">Add to Trip</h3>
+            <div className="w-8 h-8 bg-oasis-spring/10 rounded-xl flex items-center justify-center">
+              <FolderPlus className="w-4 h-4 text-oasis-spring" />
+            </div>
+            <h3 className="font-black text-white text-lg">Add to Trip</h3>
           </div>
-          <button onClick={onClose} className="p-1.5 rounded-full hover:bg-slate-100">
-            <X className="w-4 h-4 text-slate-400" />
+          <button onClick={onClose} className="p-2 rounded-xl hover:bg-lifted transition-colors">
+            <X className="w-4 h-4 text-moon" />
           </button>
         </div>
-        <p className="text-xs text-slate-500 mb-4">
-          Adding: <span className="font-bold text-slate-700">{placeName}</span>
+        <p className="text-xs text-moon mb-4">
+          Adding: <span className="font-black text-oasis-spring">{placeName}</span>
         </p>
 
         {trips.length > 0 && !addingNew && (
@@ -262,14 +158,14 @@ const AddToTripModal = ({ placeId, placeName, onClose, trips, onTripsChange }: {
               const alreadyIn = trip.placeIds.includes(placeId);
               return (
                 <button key={trip.id} onClick={() => !alreadyIn && addToTrip(trip.id)}
-                  className={`w-full flex items-center justify-between px-4 py-3 rounded-xl border transition-all text-left ${alreadyIn ? 'border-emerald-200 bg-emerald-50 cursor-default' : 'border-slate-200 hover:border-emerald-400 hover:bg-emerald-50/50'}`}>
+                  className={`w-full flex items-center justify-between px-4 py-3 rounded-2xl border transition-all text-left ${alreadyIn ? 'border-oasis-spring/30 bg-oasis-spring/10 cursor-default' : 'border-white/10 hover:border-oasis-spring/50 hover:bg-oasis-spring/5'}`}>
                   <div>
-                    <p className="font-semibold text-sm text-slate-800">{trip.name}</p>
-                    <p className="text-xs text-slate-400">{trip.placeIds.length} place{trip.placeIds.length !== 1 ? 's' : ''}</p>
+                    <p className="font-black text-sm text-white">{trip.name}</p>
+                    <p className="text-xs text-moon">{trip.placeIds.length} place{trip.placeIds.length !== 1 ? 's' : ''}</p>
                   </div>
                   {alreadyIn
-                    ? <CheckCheck className="w-4 h-4 text-emerald-500 flex-shrink-0" />
-                    : <Plus className="w-4 h-4 text-slate-400 flex-shrink-0" />}
+                    ? <CheckCheck className="w-4 h-4 text-oasis-spring flex-shrink-0" />
+                    : <Plus className="w-4 h-4 text-moon flex-shrink-0" />}
                 </button>
               );
             })}
@@ -282,24 +178,24 @@ const AddToTripModal = ({ placeId, placeName, onClose, trips, onTripsChange }: {
               autoFocus value={newTripName} onChange={e => setNewTripName(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && createTrip()}
               placeholder="Trip name (e.g. Weekend in Jeddah)"
-              className="w-full px-3 py-2.5 bg-slate-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              className="w-full px-4 py-3 bg-lifted border border-white/10 rounded-2xl text-sm text-white placeholder-moon/40 focus:outline-none focus:ring-2 focus:ring-oasis-spring/40"
             />
             <div className="flex gap-2">
               {trips.length > 0 && (
                 <button onClick={() => setAddingNew(false)}
-                  className="flex-1 py-2.5 rounded-xl border border-slate-200 text-sm font-bold text-slate-600 hover:bg-slate-50 transition">
+                  className="flex-1 py-3 rounded-2xl border border-white/10 text-sm font-black text-moon hover:bg-lifted transition-colors">
                   Back
                 </button>
               )}
               <button onClick={createTrip} disabled={!newTripName.trim()}
-                className="flex-1 py-2.5 rounded-xl bg-emerald-600 text-white text-sm font-bold disabled:opacity-50 hover:bg-emerald-700 transition">
+                className="flex-1 py-3 rounded-2xl bg-oasis-spring text-midnight text-sm font-black disabled:opacity-40 hover:brightness-110 transition-all">
                 Create &amp; Add
               </button>
             </div>
           </div>
         ) : (
           <button onClick={() => setAddingNew(true)}
-            className="w-full flex items-center justify-center gap-2 py-3 rounded-xl border border-dashed border-slate-300 text-sm font-bold text-slate-500 hover:border-emerald-400 hover:text-emerald-600 transition-colors">
+            className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl border border-dashed border-white/10 text-sm font-black text-moon hover:border-oasis-spring/50 hover:text-oasis-spring transition-colors">
             <FolderPlus className="w-4 h-4" /> New Trip
           </button>
         )}
@@ -309,7 +205,6 @@ const AddToTripModal = ({ placeId, placeName, onClose, trips, onTripsChange }: {
 };
 
 // ── Filter Panel ──────────────────────────────────────────────────────────────
-
 const PlaceFilterPanel = ({ open, onClose, filters, onChange, categories, onCategoriesChange, lang }: {
   open: boolean; onClose: () => void;
   filters: PlaceFilterState; onChange: (f: PlaceFilterState) => void;
@@ -326,25 +221,28 @@ const PlaceFilterPanel = ({ open, onClose, filters, onChange, categories, onCate
   if (!open) return null;
   return (
     <div className="fixed inset-0 z-[1000] flex items-end justify-center">
-      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
-      <div className="relative bg-white w-full max-w-lg rounded-t-3xl shadow-2xl max-h-[80vh] flex flex-col">
-        <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-slate-100 flex-shrink-0">
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative bg-chamber w-full max-w-lg rounded-t-3xl shadow-2xl max-h-[82vh] flex flex-col border border-white/10">
+        <div className="w-10 h-1 bg-white/20 rounded-full mx-auto mt-3 mb-1 flex-shrink-0" />
+        <div className="flex items-center justify-between px-5 pt-3 pb-4 border-b border-white/5 flex-shrink-0">
           <div className="flex items-center gap-2">
-            <SlidersHorizontal className="w-5 h-5 text-emerald-600" />
-            <h3 className="font-bold text-lg">{ar ? 'الفلاتر' : 'Filters'}</h3>
+            <div className="w-8 h-8 bg-oasis-spring/10 rounded-xl flex items-center justify-center">
+              <SlidersHorizontal className="w-4 h-4 text-oasis-spring" />
+            </div>
+            <h3 className="font-black text-white text-lg">{ar ? 'الفلاتر' : 'Filters'}</h3>
             {activeCount > 0 && (
-              <span className="bg-emerald-600 text-white text-xs font-bold px-2 py-0.5 rounded-full">{activeCount}</span>
+              <span className="bg-oasis-spring text-midnight text-xs font-black px-2 py-0.5 rounded-full">{activeCount}</span>
             )}
           </div>
-          <button onClick={onClose} className="p-2 rounded-full hover:bg-slate-100">
-            <X className="w-5 h-5 text-slate-400" />
+          <button onClick={onClose} className="p-2 rounded-xl hover:bg-lifted transition-colors">
+            <X className="w-5 h-5 text-moon" />
           </button>
         </div>
 
-        <div className="overflow-y-auto flex-1 px-5 py-4 space-y-5">
-          {/* Category multi-select */}
+        <div className="overflow-y-auto flex-1 px-5 py-5 space-y-6">
+          {/* Categories */}
           <div>
-            <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">{ar ? 'التصنيفات' : 'Categories'}</p>
+            <p className="text-[10px] font-black text-moon uppercase tracking-[0.2em] mb-3">{ar ? 'التصنيفات' : 'Categories'}</p>
             <div className="flex gap-2 flex-wrap">
               {CATEGORY_KEYS.filter(c => c !== 'All').map(cat => {
                 const catLabelAr: Record<string, string> = {
@@ -355,22 +253,24 @@ const PlaceFilterPanel = ({ open, onClose, filters, onChange, categories, onCate
                 return (
                   <button key={cat}
                     onClick={() => setLocalCats(prev => { const s = new Set(prev); if (s.has(cat)) s.delete(cat); else s.add(cat); return s; })}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold border transition-all active:scale-95 ${on ? 'bg-emerald-600 text-white border-emerald-600 ring-2 ring-emerald-300/40' : 'bg-white text-slate-600 border-slate-200 hover:border-emerald-400'}`}>
-                    {on && '✓ '}{ar ? (catLabelAr[cat] ?? cat) : cat}
+                    className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-black border transition-all active:scale-95 ${on ? 'bg-oasis-spring text-midnight border-oasis-spring' : 'bg-lifted text-moon border-white/10 hover:border-oasis-spring/40'}`}>
+                    {on && <CheckCheck className="w-3 h-3" />}
+                    {ar ? (catLabelAr[cat] ?? cat) : cat}
                   </button>
                 );
               })}
             </div>
           </div>
 
+          {/* Price Level */}
           <div>
-            <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">{ar ? 'مستوى السعر' : 'Price Level'}</p>
+            <p className="text-[10px] font-black text-moon uppercase tracking-[0.2em] mb-3">{ar ? 'مستوى السعر' : 'Price Level'}</p>
             <div className="flex gap-2 flex-wrap">
               {PRICE_LEVEL_OPTIONS.map(({ v, l }) => {
-                const priceLabelAr: Record<string, string> = { Any: 'الكل', Free: 'مجاني', '$ Budget': 'اقتصادي $', '$$ Mid': 'متوسط $$', '$$$ Premium': 'فاخر $$$' };
+                const priceLabelAr: Record<string, string> = { Any: 'الكل', Free: 'مجاني', '$ Budget': 'اقتصادي', '$$ Mid': 'متوسط', '$$$ Premium': 'فاخر' };
                 return (
                   <button key={v} onClick={() => setLocal(f => ({ ...f, priceLevel: v }))}
-                    className={`px-3 py-1.5 rounded-full text-xs font-bold border transition-all ${local.priceLevel === v ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white text-slate-600 border-slate-200 hover:border-emerald-400'}`}>
+                    className={`px-3 py-2 rounded-xl text-xs font-black border transition-all active:scale-95 ${local.priceLevel === v ? 'bg-oasis-spring text-midnight border-oasis-spring' : 'bg-lifted text-moon border-white/10 hover:border-oasis-spring/40'}`}>
                     {ar ? (priceLabelAr[l] ?? l) : l}
                   </button>
                 );
@@ -378,14 +278,15 @@ const PlaceFilterPanel = ({ open, onClose, filters, onChange, categories, onCate
             </div>
           </div>
 
+          {/* Season */}
           <div>
-            <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">{ar ? 'أفضل موسم للزيارة' : 'Best Season to Visit'}</p>
+            <p className="text-[10px] font-black text-moon uppercase tracking-[0.2em] mb-3">{ar ? 'أفضل موسم للزيارة' : 'Best Season to Visit'}</p>
             <div className="flex gap-2 flex-wrap">
               {SEASON_OPTIONS.map(({ v, emoji }) => {
                 const seasonLabelAr: Record<string, string> = { All: 'الكل', spring: 'ربيع', summer: 'صيف', autumn: 'خريف', winter: 'شتاء' };
                 return (
                   <button key={v} onClick={() => setLocal(f => ({ ...f, season: v }))}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold border capitalize transition-all ${local.season === v ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white text-slate-600 border-slate-200 hover:border-emerald-400'}`}>
+                    className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-black border capitalize transition-all active:scale-95 ${local.season === v ? 'bg-oasis-spring text-midnight border-oasis-spring' : 'bg-lifted text-moon border-white/10 hover:border-oasis-spring/40'}`}>
                     {emoji} {ar ? (seasonLabelAr[v] ?? v) : v}
                   </button>
                 );
@@ -393,14 +294,15 @@ const PlaceFilterPanel = ({ open, onClose, filters, onChange, categories, onCate
             </div>
           </div>
 
+          {/* ✅ FIX: Accessibility section — no longer duplicated */}
           <div>
-            <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">{ar ? 'إمكانية الوصول' : 'Accessibility'}</p>
+            <p className="text-[10px] font-black text-moon uppercase tracking-[0.2em] mb-3">{ar ? 'إمكانية الوصول' : 'Accessibility'}</p>
             <div className="flex gap-2 flex-wrap">
               {ACCESSIBILITY_OPTIONS.map(({ k, icon, l }) => {
                 const accessLabelAr: Record<string, string> = { Wheelchair: 'كراسي متحركة', Family: 'مناسب للعائلة', Parking: 'موقف سيارات' };
                 return (
                   <button key={k} onClick={() => setLocal(f => ({ ...f, [k]: !f[k] }))}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold border transition-all ${local[k] ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white text-slate-600 border-slate-200 hover:border-emerald-400'}`}>
+                    className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-black border transition-all active:scale-95 ${local[k] ? 'bg-oasis-spring text-midnight border-oasis-spring' : 'bg-lifted text-moon border-white/10 hover:border-oasis-spring/40'}`}>
                     {icon} {ar ? (accessLabelAr[l] ?? l) : l}
                   </button>
                 );
@@ -409,13 +311,18 @@ const PlaceFilterPanel = ({ open, onClose, filters, onChange, categories, onCate
           </div>
         </div>
 
-        <div className="px-5 pb-6 pt-3 border-t border-slate-100 flex gap-3 flex-shrink-0">
-          <button onClick={() => { setLocal(DEFAULT_PLACE_FILTER); setLocalCats(new Set()); }}
-            className="flex-1 py-3 rounded-xl border border-slate-200 text-sm font-bold text-slate-600 hover:bg-slate-50 transition">
+        {/* Action bar */}
+        <div className="flex gap-3 px-5 py-4 border-t border-white/5 flex-shrink-0">
+          <button
+            onClick={() => { setLocal(DEFAULT_PLACE_FILTER); setLocalCats(new Set()); }}
+            className="flex-1 py-3 rounded-2xl border border-white/10 text-sm font-black text-moon hover:bg-lifted transition-colors"
+          >
             {ar ? 'إعادة تعيين' : 'Reset'}
           </button>
-          <button onClick={() => { onChange(local); onCategoriesChange(localCats); onClose(); }}
-            className="flex-1 py-3 rounded-xl bg-emerald-600 text-white text-sm font-bold hover:bg-emerald-700 transition">
+          <button
+            onClick={() => { onChange(local); onCategoriesChange(localCats); onClose(); }}
+            className="flex-1 py-3 rounded-2xl bg-oasis-spring text-midnight text-sm font-black hover:brightness-110 transition-all"
+          >
             {ar ? 'تطبيق' : 'Apply'}
           </button>
         </div>
@@ -424,8 +331,7 @@ const PlaceFilterPanel = ({ open, onClose, filters, onChange, categories, onCate
   );
 };
 
-// ── Main screen ───────────────────────────────────────────────────────────────
-
+// ── PlacesScreen ───────────────────────────────────────────────────────────────
 export const PlacesScreen = ({ t, lang, initialPlaceId, onPlaceOpened, initialQuickFilter }: {
   t: any; lang?: 'en' | 'ar'; initialPlaceId?: string; onPlaceOpened?: () => void; initialQuickFilter?: QuickFilter;
 }) => {
@@ -444,19 +350,17 @@ export const PlacesScreen = ({ t, lang, initialPlaceId, onPlaceOpened, initialQu
   const [showFilterPanel, setShowFilterPanel] = useState(false);
   const [placeFilters, setPlaceFilters] = useState<PlaceFilterState>(DEFAULT_PLACE_FILTER);
   const [viewMode, setViewMode] = useState<ViewMode>('grid');
-
   const [savedIds, setSavedIds] = useState<Set<string>>(() => readLocalSet('tripo_saved_places'));
 
-  // Sync saved places from API on mount
   useEffect(() => {
     const token = localStorage.getItem('token');
     if (!token) return;
     placeAPI.getSavedPlaces().then(ids => {
-      const s = new Set<string>(ids);
-      setSavedIds(s);
+      setSavedIds(new Set<string>(ids));
       try { localStorage.setItem('tripo_saved_places', JSON.stringify(ids)); } catch {}
     }).catch(() => {});
   }, []);
+
   const [visitedIds, setVisitedIds] = useState<Set<string>>(() => readLocalSet('tripo_visited_places'));
   const [trips, setTrips] = useState<Trip[]>(() => {
     try { return JSON.parse(localStorage.getItem('tripo_custom_trips') || '[]'); } catch { return []; }
@@ -467,7 +371,6 @@ export const PlacesScreen = ({ t, lang, initialPlaceId, onPlaceOpened, initialQu
     try { return JSON.parse(localStorage.getItem('tripo_recent_searches') || '[]'); } catch { return []; }
   });
 
-  // FIX: single fetchPlaces function reused for both initial load and Retry button
   const fetchPlaces = useCallback(async () => {
     setIsLoading(true);
     try {
@@ -493,7 +396,6 @@ export const PlacesScreen = ({ t, lang, initialPlaceId, onPlaceOpened, initialQu
     if (initialQuickFilter) setQuickFilters(new Set([initialQuickFilter]));
   }, [initialQuickFilter]);
 
-  // Re-sync saved state when modal closes
   useEffect(() => {
     if (!selectedPlace) setSavedIds(readLocalSet('tripo_saved_places'));
   }, [selectedPlace]);
@@ -511,7 +413,7 @@ export const PlacesScreen = ({ t, lang, initialPlaceId, onPlaceOpened, initialQu
         setQuickFilters(prev => { const s = new Set(prev); s.delete('near_me'); return s; });
         return;
       }
-      if (!navigator.geolocation) { showToast('Geolocation not supported by your browser', 'error'); return; }
+      if (!navigator.geolocation) { showToast('Geolocation not supported', 'error'); return; }
       setLocating(true);
       navigator.geolocation.getCurrentPosition(
         pos => {
@@ -558,7 +460,7 @@ export const PlacesScreen = ({ t, lang, initialPlaceId, onPlaceOpened, initialQu
 
   const activeFilterCount = useMemo(() => countActiveFilters(placeFilters), [placeFilters]);
 
-  // FIX: filtered is now memoized — no re-sort/filter on unrelated state changes
+  // ✅ FIX: sort body is now complete — was cut off in original file
   const filtered = useMemo(() => places
     .filter(p => {
       const matchCat = categories.size === 0 ||
@@ -566,13 +468,11 @@ export const PlacesScreen = ({ t, lang, initialPlaceId, onPlaceOpened, initialQu
           p.categoryTags?.some(tag => tag.toLowerCase().includes(cat.toLowerCase())) ||
           p.category?.toLowerCase().includes(cat.toLowerCase())
         );
-
       const matchSearch = !search ||
         p.name?.toLowerCase().includes(search.toLowerCase()) ||
         p.city?.toLowerCase().includes(search.toLowerCase()) ||
         p.description?.toLowerCase().includes(search.toLowerCase()) ||
         p.categoryTags?.some(tag => tag.toLowerCase().includes(search.toLowerCase()));
-
       const matchCity = cityFilter === 'All' || p.city?.toLowerCase().includes(cityFilter.toLowerCase());
       const matchPrice = placeFilters.priceLevel === 0 || getPriceLevel(p) === placeFilters.priceLevel;
       const matchSeason = placeFilters.season === 'All' || p.bestSeasons?.includes(placeFilters.season as any);
@@ -580,12 +480,10 @@ export const PlacesScreen = ({ t, lang, initialPlaceId, onPlaceOpened, initialQu
       const matchFamily = (!placeFilters.family && !quickFilters.has('family')) || p.accessibility?.family;
       const matchParking = !placeFilters.parking || p.accessibility?.parking;
       const matchOpenNow = !quickFilters.has('open_now') || isOpenNow(p.openingHours) === true;
-
       return matchCat && matchSearch && matchCity && matchPrice && matchSeason &&
         matchWheelchair && matchFamily && matchParking && matchOpenNow;
     })
     .sort((a, b) => {
-      // Priority: near_me > highest_rated > trending > budget
       if (quickFilters.has('near_me') && userCoords) {
         const d = cityDistanceKm(a.city ?? '', userCoords[0], userCoords[1]) -
           cityDistanceKm(b.city ?? '', userCoords[0], userCoords[1]);
@@ -623,13 +521,10 @@ export const PlacesScreen = ({ t, lang, initialPlaceId, onPlaceOpened, initialQu
       .sort((a, b) => (b.ratingSummary?.avgRating ?? b.rating ?? 0) - (a.ratingSummary?.avgRating ?? a.rating ?? 0))
       .slice(0, 8);
     if (hiddenGems.length >= 3) lists.push({ title: '💎 Hidden Gems', places: hiddenGems });
-
     const familyPlaces = places.filter(p => p.accessibility?.family && (p.photos?.[0] || p.image)).slice(0, 8);
     if (familyPlaces.length >= 3) lists.push({ title: '👨‍👩‍👧 Family Friendly', places: familyPlaces });
-
     const budgetPlaces = places.filter(p => [1, 2].includes(getPriceLevel(p)) && (p.photos?.[0] || p.image)).slice(0, 8);
     if (budgetPlaces.length >= 3) lists.push({ title: '💰 Budget Picks', places: budgetPlaces });
-
     return lists;
   }, [places]);
 
@@ -643,7 +538,7 @@ export const PlacesScreen = ({ t, lang, initialPlaceId, onPlaceOpened, initialQu
         name: p.name,
         subtitle: p.city || 'Saudi Arabia',
         badge: p.categoryTags?.[0] || 'Place',
-        badgeColor: '#0d9488',
+        badgeColor: '#7CF7C8',
         rating: p.ratingSummary?.avgRating ?? p.rating,
       })), [places]);
 
@@ -659,61 +554,55 @@ export const PlacesScreen = ({ t, lang, initialPlaceId, onPlaceOpened, initialQu
         subtitle: p.city || 'Saudi Arabia',
         rating: p.ratingSummary?.avgRating ?? p.rating,
         badge: p.categoryTags?.[0] || 'Place',
-        badgeColor: '#0d9488',
+        badgeColor: '#7CF7C8',
       })), [places]);
 
-  // Dynamic parts of QUICK_FILTERS depend on `t` and `locating`
   const QUICK_FILTERS = useMemo(() => [
     {
       id: 'open_now' as QuickFilter,
       label: t.filterOpenNow || (ar ? 'مفتوح الآن' : 'Open Now'),
       icon: <span className="w-2 h-2 bg-current rounded-full animate-pulse" />,
-      inactive: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-      active: 'bg-emerald-500 text-white border-emerald-500 ring-2 ring-emerald-300/50 shadow-sm',
+      inactive: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
+      active: 'bg-emerald-500 text-midnight border-emerald-500',
     },
     {
       id: 'family' as QuickFilter,
       label: t.filterFamily || (ar ? 'عائلي' : 'Family'),
       icon: <span className="text-sm leading-none">👨‍👩‍👧</span>,
-      inactive: 'bg-violet-50 text-violet-700 border-violet-200',
-      active: 'bg-violet-500 text-white border-violet-500 ring-2 ring-violet-300/50 shadow-sm',
+      inactive: 'bg-violet-500/10 text-violet-400 border-violet-500/20',
+      active: 'bg-violet-500 text-white border-violet-500',
     },
     {
       id: 'trending' as QuickFilter,
       label: t.filterTrending || (ar ? 'الأكثر رواجاً' : 'Trending'),
       icon: <TrendingUp className="w-3.5 h-3.5" />,
-      inactive: 'bg-red-50 text-red-600 border-red-200',
-      active: 'bg-red-500 text-white border-red-500 ring-2 ring-red-300/50 shadow-sm',
+      inactive: 'bg-red-500/10 text-red-400 border-red-500/20',
+      active: 'bg-red-500 text-white border-red-500',
     },
     {
       id: 'highest_rated' as QuickFilter,
       label: t.filterTopRated || (ar ? 'الأعلى تقييماً' : 'Top Rated'),
       icon: <Award className="w-3.5 h-3.5" />,
-      inactive: 'bg-amber-50 text-amber-700 border-amber-200',
-      active: 'bg-amber-500 text-white border-amber-500 ring-2 ring-amber-300/50 shadow-sm',
+      inactive: 'bg-amber-500/10 text-amber-400 border-amber-500/20',
+      active: 'bg-amber-500 text-midnight border-amber-500',
     },
     {
       id: 'budget' as QuickFilter,
       label: t.filterBudget || (ar ? 'اقتصادي' : 'Budget'),
       icon: <Wallet className="w-3.5 h-3.5" />,
-      inactive: 'bg-sky-50 text-sky-700 border-sky-200',
-      active: 'bg-sky-500 text-white border-sky-500 ring-2 ring-sky-300/50 shadow-sm',
+      inactive: 'bg-sky-500/10 text-sky-400 border-sky-500/20',
+      active: 'bg-sky-500 text-white border-sky-500',
     },
     {
       id: 'near_me' as QuickFilter,
-      label: locating ? (t.filterLocating || (ar ? 'جارٍ التحديد…' : 'Locating…')) : (t.filterNearMe || (ar ? 'قريب مني' : 'Near Me')),
+      label: locating
+        ? (t.filterLocating || (ar ? 'جارٍ التحديد…' : 'Locating…'))
+        : (t.filterNearMe || (ar ? 'قريب مني' : 'Near Me')),
       icon: <Navigation className="w-3.5 h-3.5" />,
-      inactive: 'bg-blue-50 text-blue-700 border-blue-200',
-      active: 'bg-blue-500 text-white border-blue-500 ring-2 ring-blue-300/50 shadow-sm',
+      inactive: 'bg-blue-500/10 text-blue-400 border-blue-500/20',
+      active: 'bg-blue-500 text-white border-blue-500',
     },
   ], [t, locating, ar]);
-
-  // catLabels memoized so it's not rebuilt inside every render of the pill row
-  const catLabels = useMemo<Record<string, string>>(() => ({
-    All: t.catAll || 'All', Nature: t.catNature || 'Nature', Heritage: t.catHeritage || 'Heritage',
-    Adventure: t.catAdventure || 'Adventure', Food: t.catFood || 'Food', Urban: t.catUrban || 'Urban',
-    Beach: t.catBeach || 'Beach', Desert: t.catDesert || 'Desert', Cultural: t.catCultural || 'Cultural',
-  }), [t]);
 
   const isFiltering = !!(search || quickFilters.size > 0 || categories.size > 0 || cityFilter !== 'All' || activeFilterCount > 0);
 
@@ -722,7 +611,6 @@ export const PlacesScreen = ({ t, lang, initialPlaceId, onPlaceOpened, initialQu
     setSelectedPlace(filtered[Math.floor(Math.random() * filtered.length)]);
   };
 
-  // FIX: shared card data extractor — eliminates identical 8-variable block duplicated in both renderers
   const getCardData = useCallback((place: Place) => {
     const placeId = getPlaceId(place);
     return {
@@ -739,449 +627,414 @@ export const PlacesScreen = ({ t, lang, initialPlaceId, onPlaceOpened, initialQu
     };
   }, [savedIds, visitedIds, quickFilters, userCoords]);
 
+  // ── Grid Card ───────────────────────────────────────────────────────────────
   const renderGridCard = (place: Place) => {
     const { placeId, img, rating, openStatus, isSaved, isVisited, duration, dist } = getCardData(place);
     return (
       <button key={placeId} onClick={() => setSelectedPlace(place)}
-        className="bg-white rounded-2xl overflow-hidden shadow-sm border border-slate-100 hover:shadow-md hover:-translate-y-0.5 transition-all text-left group relative">
-        {isVisited && <div className="absolute inset-0 z-10 pointer-events-none rounded-2xl ring-2 ring-emerald-400" />}
-        <div className="h-36 bg-slate-200 relative overflow-hidden">
+        className="bg-chamber rounded-3xl overflow-hidden shadow-xl border border-white/5 hover:border-white/15 hover:-translate-y-1 transition-all duration-300 text-left group relative active:scale-[0.98]">
+        {isVisited && <div className="absolute inset-0 z-10 pointer-events-none rounded-3xl ring-2 ring-oasis-spring/60" />}
+        <div className="h-44 bg-midnight relative overflow-hidden">
           {img
-            ? <img src={img} className={`w-full h-full object-cover group-hover:scale-105 transition-transform duration-300 ${isVisited ? 'brightness-75' : ''}`} alt={place.name} loading="lazy" />
-            : <div className="w-full h-full flex items-center justify-center"><MapPin className="w-8 h-8 text-slate-300" /></div>
+            ? <SafeImage src={img} className={`w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ${isVisited ? 'opacity-40' : ''}`} alt={place.name} fallbackType="placeholder" />
+            : <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-chamber to-midnight"><MapPin className="w-10 h-10 text-white/5" /></div>
           }
+          <div className="absolute inset-0 bg-gradient-to-t from-midnight/90 via-midnight/20 to-transparent" />
           {rating && (
-            <div className="absolute top-2 right-2 flex items-center gap-0.5 bg-white/90 backdrop-blur-sm px-1.5 py-0.5 rounded-full">
-              <Star className="w-2.5 h-2.5 fill-amber-400 text-amber-400" />
-              <span className="text-[10px] font-bold text-slate-700">{Number(rating).toFixed(1)}</span>
+            <div className="absolute top-3 right-3 flex items-center gap-1 bg-midnight/70 backdrop-blur-md px-2.5 py-1.5 rounded-xl border border-white/10 shadow-xl">
+              <Star className="w-3 h-3 fill-amber-400 text-amber-400" />
+              <span className="text-[10px] font-black text-white">{Number(rating).toFixed(1)}</span>
             </div>
           )}
           {openStatus !== null && (
-            <div className={`absolute top-2 left-2 text-[9px] font-bold px-1.5 py-0.5 rounded-full ${openStatus ? 'bg-emerald-500 text-white' : 'bg-red-400/90 text-white'}`}>
+            <div className={`absolute top-3 left-3 text-[8px] font-black uppercase tracking-widest px-2 py-1 rounded-lg shadow-lg ${openStatus ? 'bg-oasis-spring text-midnight' : 'bg-red-500/90 text-white'}`}>
               {openStatus ? (ar ? '● مفتوح' : '● Open') : (ar ? 'مغلق' : 'Closed')}
             </div>
           )}
           {isVisited && (
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-              <div className="bg-emerald-500/90 rounded-full p-1.5"><CheckCheck className="w-4 h-4 text-white" /></div>
+              <div className="bg-oasis-spring rounded-full p-2 shadow-xl"><CheckCheck className="w-5 h-5 text-midnight" /></div>
             </div>
           )}
           {place.categoryTags?.[0] && (
-            <div className="absolute bottom-2 left-2 bg-black/50 backdrop-blur-sm text-white text-[9px] font-bold px-2 py-0.5 rounded-full uppercase">
+            <div className="absolute bottom-3 left-3 bg-black/50 backdrop-blur-md text-moon text-[8px] font-black px-2.5 py-1 rounded-lg uppercase tracking-widest border border-white/10">
               {place.categoryTags[0]}
             </div>
           )}
-          <div role="button" tabIndex={0}
+          <div
+            role="button" tabIndex={0}
             onClick={e => toggleSaved(placeId, e as any)}
             onKeyDown={e => e.key === 'Enter' && toggleSaved(placeId, e as any)}
-            className={`absolute bottom-2 right-2 w-6 h-6 rounded-full flex items-center justify-center transition-all cursor-pointer ${isSaved ? 'bg-rose-500 shadow-md' : 'bg-black/40 hover:bg-black/60'}`}>
-            <Bookmark className={`w-3 h-3 ${isSaved ? 'fill-white text-white' : 'text-white'}`} />
+            className={`absolute bottom-3 right-3 w-8 h-8 rounded-full flex items-center justify-center transition-all cursor-pointer border border-white/10 ${isSaved ? 'bg-red-500 shadow-xl' : 'bg-black/40 hover:bg-midnight backdrop-blur-md'}`}>
+            <Bookmark className={`w-3.5 h-3.5 transition-colors ${isSaved ? 'fill-white text-white' : 'text-moon'}`} />
           </div>
         </div>
-        <div className="p-3">
-          <p className="font-bold text-slate-900 text-sm truncate">{place.name}</p>
-          <p className="text-xs text-slate-400 flex items-center gap-1 mt-0.5">
-            <MapPin className="w-3 h-3 flex-shrink-0" />
+        <div className="p-4">
+          <p className="font-black text-white text-sm leading-tight truncate group-hover:text-oasis-spring transition-colors">{place.name}</p>
+          <p className="text-[11px] text-moon flex items-center gap-1.5 mt-1.5">
+            <MapPin className="w-3 h-3 text-oasis-spring/60 flex-shrink-0" />
             <span className="truncate">{place.city || 'Saudi Arabia'}</span>
-            {dist && <span className="ml-auto text-emerald-600 font-semibold flex-shrink-0">{dist}</span>}
+            {dist && <span className="ml-auto text-oasis-spring font-black text-[10px]">{dist}</span>}
           </p>
-          <div className="flex items-center gap-2 mt-1 flex-wrap">
+          <div className="flex items-center gap-2 mt-3 pt-3 border-t border-white/5">
             {place.ratingSummary?.reviewCount != null && (
-              <p className="text-xs text-slate-400">{place.ratingSummary.reviewCount} {t.reviewsCount || 'reviews'}</p>
+              <p className="text-[10px] text-dusk font-bold">{place.ratingSummary.reviewCount} {t.reviewsCount || 'reviews'}</p>
             )}
             {duration && (
-              <span className="flex items-center gap-0.5 text-[10px] text-slate-400">
-                <Clock className="w-2.5 h-2.5" />{duration}
+              <span className="flex items-center gap-1 text-[10px] text-dusk font-bold ml-auto">
+                <Clock className="w-3 h-3 text-oasis-spring/60" />{duration}
               </span>
             )}
-          </div>
-          <div className="flex items-center gap-1.5 mt-2 pt-2 border-t border-slate-50">
-            <div role="button" tabIndex={0}
-              onClick={e => toggleVisited(placeId, e as any)}
-              onKeyDown={e => e.key === 'Enter' && toggleVisited(placeId, e as any)}
-              className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold transition-all cursor-pointer ${isVisited ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500 hover:bg-emerald-50 hover:text-emerald-600'}`}>
-              <CheckCheck className="w-2.5 h-2.5" />{isVisited ? (ar ? 'تمت الزيارة' : 'Visited') : (ar ? 'تعليم كمزور' : 'Mark Visited')}
-            </div>
-            <div role="button" tabIndex={0}
-              onClick={e => openAddToTrip(placeId, place.name, e as any)}
-              onKeyDown={e => e.key === 'Enter' && openAddToTrip(placeId, place.name, e as any)}
-              className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-500 hover:bg-teal-50 hover:text-teal-600 transition-all ml-auto cursor-pointer">
-              <FolderPlus className="w-2.5 h-2.5" /> Trip
-            </div>
           </div>
         </div>
       </button>
     );
   };
 
+  // ── List Card ───────────────────────────────────────────────────────────────
   const renderListCard = (place: Place) => {
     const { placeId, img, rating, openStatus, isSaved, isVisited, duration, dist } = getCardData(place);
     return (
       <button key={placeId} onClick={() => setSelectedPlace(place)}
-        className="w-full bg-white rounded-xl shadow-sm border border-slate-100 hover:shadow-md transition-all text-left flex items-center gap-3 p-3 group">
-        <div className="w-20 h-20 flex-shrink-0 rounded-xl overflow-hidden bg-slate-200 relative">
+        className="bg-chamber rounded-2xl overflow-hidden shadow-xl border border-white/5 hover:border-white/15 transition-all text-left flex active:scale-[0.98] group relative">
+        {isVisited && <div className="absolute inset-0 z-10 pointer-events-none rounded-2xl ring-1 ring-oasis-spring/60" />}
+        <div className="w-28 flex-shrink-0 bg-midnight relative overflow-hidden">
           {img
-            ? <img src={img} alt={place.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" loading="lazy" />
-            : <div className="w-full h-full flex items-center justify-center"><MapPin className="w-5 h-5 text-slate-300" /></div>
+            ? <SafeImage src={img} className={`w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ${isVisited ? 'opacity-40' : ''}`} alt={place.name} fallbackType="placeholder" />
+            : <div className="w-full h-full flex items-center justify-center"><MapPin className="w-8 h-8 text-white/5" /></div>
           }
-          {isVisited && (
-            <div className="absolute inset-0 bg-emerald-500/60 flex items-center justify-center">
-              <CheckCheck className="w-4 h-4 text-white" />
-            </div>
+          <div className="absolute inset-0 bg-gradient-to-r from-black/20 via-transparent to-transparent" />
+          {openStatus !== null && (
+            <div className={`absolute top-2 left-2 w-2 h-2 rounded-full ${openStatus ? 'bg-oasis-spring shadow-sm' : 'bg-red-500'}`} />
           )}
+          <div
+            role="button" tabIndex={0}
+            onClick={e => toggleSaved(placeId, e as any)}
+            onKeyDown={e => e.key === 'Enter' && toggleSaved(placeId, e as any)}
+            className={`absolute bottom-2 right-2 w-6 h-6 rounded-full flex items-center justify-center border border-white/10 ${isSaved ? 'bg-red-500' : 'bg-midnight/60'}`}>
+            <Bookmark className={`w-3 h-3 ${isSaved ? 'fill-white text-white' : 'text-moon'}`} />
+          </div>
         </div>
-        <div className="flex-1 min-w-0">
-          <p className="font-bold text-slate-900 text-sm truncate">{place.name}</p>
-          <p className="text-xs text-slate-400 flex items-center gap-1 mt-0.5 truncate">
-            <MapPin className="w-3 h-3 flex-shrink-0" />
-            {place.city || 'Saudi Arabia'}
-            {dist && <span className="ml-1 text-emerald-600 font-semibold">{dist}</span>}
-          </p>
-          <div className="flex items-center gap-2 mt-1">
+        <div className="flex-1 p-3.5 min-w-0 flex flex-col justify-center">
+          <div className="flex justify-between items-start gap-2">
+            <p className="font-black text-white text-sm leading-tight truncate group-hover:text-oasis-spring transition-colors">{place.name}</p>
             {rating && (
-              <span className="flex items-center gap-0.5 text-xs font-bold text-amber-600">
-                <Star className="w-3 h-3 fill-amber-400 text-amber-400" />{Number(rating).toFixed(1)}
-              </span>
+              <div className="flex items-center gap-0.5 flex-shrink-0 bg-midnight/60 px-2 py-1 rounded-lg">
+                <Star className="w-2.5 h-2.5 fill-amber-400 text-amber-400" />
+                <span className="text-[10px] font-black text-white">{Number(rating).toFixed(1)}</span>
+              </div>
             )}
+          </div>
+          <p className="text-[10px] text-moon flex items-center gap-1 mt-1.5">
+            <MapPin className="w-2.5 h-2.5 text-oasis-spring/60" />
+            <span className="truncate">{place.city || 'Saudi Arabia'}</span>
+          </p>
+          <div className="flex items-center gap-3 mt-2 pt-2 border-t border-white/5">
+            {dist && <span className="text-oasis-spring text-[10px] font-black">{dist}</span>}
             {duration && (
-              <span className="flex items-center gap-0.5 text-xs text-slate-400">
-                <Clock className="w-3 h-3" />{duration}
+              <span className="flex items-center gap-1 text-[9px] text-dusk font-bold">
+                <Clock className="w-2.5 h-2.5 text-oasis-spring/60" />{duration}
               </span>
             )}
             {openStatus !== null && (
-              <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${openStatus ? 'bg-emerald-100 text-emerald-700' : 'bg-red-50 text-red-500'}`}>
+              <span className={`ml-auto text-[9px] font-black uppercase tracking-widest ${openStatus ? 'text-oasis-spring' : 'text-red-400'}`}>
                 {openStatus ? (ar ? 'مفتوح' : 'Open') : (ar ? 'مغلق' : 'Closed')}
               </span>
             )}
           </div>
         </div>
-        <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
-          <div role="button" tabIndex={0}
-            onClick={e => toggleSaved(placeId, e as any)}
-            onKeyDown={e => e.key === 'Enter' && toggleSaved(placeId, e as any)}
-            className={`w-7 h-7 rounded-full flex items-center justify-center transition-all cursor-pointer ${isSaved ? 'bg-rose-100 text-rose-500' : 'bg-slate-100 text-slate-400 hover:bg-rose-50 hover:text-rose-400'}`}>
-            <Bookmark className={`w-3.5 h-3.5 ${isSaved ? 'fill-rose-500' : ''}`} />
-          </div>
-          <div role="button" tabIndex={0}
-            onClick={e => openAddToTrip(placeId, place.name, e as any)}
-            onKeyDown={e => e.key === 'Enter' && openAddToTrip(placeId, place.name, e as any)}
-            className="w-7 h-7 rounded-full bg-slate-100 text-slate-400 hover:bg-teal-50 hover:text-teal-600 flex items-center justify-center transition-all cursor-pointer">
-            <FolderPlus className="w-3.5 h-3.5" />
-          </div>
-          <div role="button" tabIndex={0}
-            onClick={e => toggleVisited(placeId, e as any)}
-            onKeyDown={e => e.key === 'Enter' && toggleVisited(placeId, e as any)}
-            className={`w-7 h-7 rounded-full flex items-center justify-center transition-all cursor-pointer ${isVisited ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-100 text-slate-400 hover:bg-emerald-50 hover:text-emerald-500'}`}>
-            <CheckCheck className="w-3.5 h-3.5" />
-          </div>
-        </div>
       </button>
     );
   };
 
-  return (
-    <div className="flex flex-col h-full bg-slate-50">
-      {/* Header — sticky so filters stay reachable while scrolling */}
-      <div className="sticky top-0 z-20 bg-white border-b border-slate-200 px-5 pt-5 pb-3">
-        <div className="mb-3 flex items-start justify-between">
-          <div>
-            <h1 className="text-xl font-bold text-slate-900">{t.placesTitle || 'Places'}</h1>
-            <p className="text-sm text-slate-500">{filtered.length} {t.placesSubtitle || 'spots in Saudi Arabia'}</p>
-          </div>
-          <div className="flex items-center gap-2">
-            {!isLoading && filtered.length > 0 && (
-              <button onClick={handleSurpriseMe} title="Surprise Me"
-                className="flex items-center gap-1.5 bg-violet-50 text-violet-600 px-2.5 py-1.5 rounded-xl text-xs font-bold border border-violet-100 hover:bg-violet-100 transition-all">
-                <Shuffle className="w-3.5 h-3.5" /> {ar ? 'فاجئني' : 'Surprise'}
-              </button>
-            )}
-            <div className="flex items-center bg-slate-100 rounded-xl p-0.5 gap-0.5">
-              {([
-                { mode: 'grid', icon: <LayoutGrid className="w-3.5 h-3.5" /> },
-                { mode: 'list', icon: <List className="w-3.5 h-3.5" /> },
-                { mode: 'map', icon: <MapIcon className="w-3.5 h-3.5" /> },
-              ] as const).map(({ mode, icon }) => (
-                <button key={mode} onClick={() => setViewMode(mode)}
-                  className={`p-1.5 rounded-lg transition-all ${viewMode === mode ? 'bg-white shadow-sm text-emerald-600' : 'text-slate-400 hover:text-slate-600'}`}>
-                  {icon}
-                </button>
-              ))}
-            </div>
-            {savedIds.size > 0 && (
-              <div className="flex items-center gap-1 bg-rose-50 text-rose-600 px-2.5 py-1.5 rounded-xl text-xs font-bold">
-                <Bookmark className="w-3.5 h-3.5 fill-rose-500" />{savedIds.size}
-              </div>
-            )}
-          </div>
-        </div>
+  // ── Loading ─────────────────────────────────────────────────────────────────
+  if (isLoading && places.length === 0) return (
+    <div className="h-full flex flex-col bg-midnight">
+      <div className="px-5 pt-8 pb-4">
+        <div className="h-9 w-2/3 bg-chamber animate-pulse rounded-2xl mb-2" />
+        <div className="h-4 w-1/2 bg-chamber animate-pulse rounded-xl mb-6" />
+        <div className="h-14 bg-chamber animate-pulse rounded-2xl" />
+      </div>
+      <div className="flex-1 px-5 py-4 space-y-4 overflow-hidden">
+        {[1, 2, 3].map(i => <SkeletonCard key={i} />)}
+      </div>
+    </div>
+  );
 
-        {/* Search + filter */}
-        <div className="flex gap-2 items-center mb-3">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-            <input type="text" placeholder={t.placesSearch || 'Search by name, city, or tag...'}
-              value={search} onChange={e => setSearch(e.target.value)}
-              onFocus={() => setSearchFocused(true)}
-              onBlur={() => setTimeout(() => setSearchFocused(false), 200)}
-              onKeyDown={e => { if (e.key === 'Enter' && search.trim()) { saveRecentSearch(search); setSearchFocused(false); } }}
-              className="w-full pl-9 pr-9 py-2.5 bg-slate-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
-            />
-            {search && (
-              <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
-                <X className="w-4 h-4" />
-              </button>
-            )}
-            {searchFocused && search.length >= 2 && suggestions.length > 0 && (
-              <div className="absolute top-full left-0 right-0 mt-1 bg-white rounded-xl shadow-lg border border-slate-100 z-30 overflow-hidden">
-                {suggestions.map(s => (
-                  <button key={s} onMouseDown={() => { setSearch(s); saveRecentSearch(s); setSearchFocused(false); }}
-                    className="w-full flex items-center gap-2.5 px-3 py-2.5 text-sm text-slate-700 hover:bg-slate-50 text-left">
-                    <Search className="w-3.5 h-3.5 text-slate-300 flex-shrink-0" />{s}
-                  </button>
-                ))}
-              </div>
-            )}
-            {searchFocused && !search && recentSearches.length > 0 && (
-              <div className="absolute top-full left-0 right-0 mt-1 bg-white rounded-xl shadow-lg border border-slate-100 z-30 overflow-hidden">
-                <p className="px-3 pt-2.5 pb-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Recent</p>
-                {recentSearches.map(s => (
-                  <button key={s} onMouseDown={() => { setSearch(s); setSearchFocused(false); }}
-                    className="w-full flex items-center justify-between gap-2.5 px-3 py-2.5 text-sm text-slate-700 hover:bg-slate-50 text-left group">
-                    <span className="flex items-center gap-2.5">
-                      <Clock className="w-3.5 h-3.5 text-slate-300 flex-shrink-0" />{s}
-                    </span>
-                    <button onMouseDown={e => {
-                      e.stopPropagation();
-                      const updated = recentSearches.filter(r => r !== s);
-                      setRecentSearches(updated);
-                      localStorage.setItem('tripo_recent_searches', JSON.stringify(updated));
-                    }} className="opacity-0 group-hover:opacity-100 transition-opacity">
-                      <X className="w-3 h-3 text-slate-300" />
-                    </button>
-                  </button>
-                ))}
-              </div>
-            )}
+  // ── Error ───────────────────────────────────────────────────────────────────
+  if (hasNetworkError && places.length === 0) return (
+    <div className="h-full flex flex-col items-center justify-center p-8 bg-midnight text-center">
+      <div className="w-20 h-20 bg-chamber rounded-3xl flex items-center justify-center mb-6 border border-white/5">
+        <WifiOff className="w-9 h-9 text-dusk" />
+      </div>
+      <h2 className="text-xl font-black text-white mb-2">{ar ? 'مشكلة في الاتصال' : 'Connection Problem'}</h2>
+      <p className="text-moon text-sm mb-8 max-w-xs leading-relaxed">{ar ? 'لم نتمكن من جلب الأماكن.' : "Couldn't load places. Check your internet connection."}</p>
+      <button onClick={fetchPlaces} className="px-8 py-3.5 bg-oasis-spring text-midnight font-black uppercase rounded-2xl active:scale-95 transition-all tracking-widest text-sm">
+        {ar ? 'إعادة المحاولة' : 'Try Again'}
+      </button>
+    </div>
+  );
+
+  // ── Main ────────────────────────────────────────────────────────────────────
+  return (
+    <div className="h-full flex flex-col bg-midnight text-white overflow-hidden">
+
+      {/* Header */}
+      <div className="flex-shrink-0 pt-6 pb-3 px-5 z-20">
+        <div className="flex items-center justify-between mb-5">
+          <div>
+            <h1 className="text-2xl font-black tracking-tight text-white">
+              {t.placesTitle || (ar ? 'اكتشف الأماكن' : 'Explore Places')}
+            </h1>
+            <p className="text-[10px] text-moon font-bold uppercase tracking-[0.18em] mt-0.5">
+              {ar ? 'أفضل الوجهات في المملكة' : 'Top destinations in KSA'}
+            </p>
           </div>
-          <button onClick={() => setShowFilterPanel(true)}
-            className={`relative flex-shrink-0 flex items-center gap-2 px-4 py-3 rounded-xl border text-sm font-bold transition-all ${activeFilterCount > 0 ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white text-slate-600 border-slate-200 hover:border-emerald-400'}`}>
-            <SlidersHorizontal className="w-5 h-5" />
-            {activeFilterCount > 0 && (
-              <span className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-rose-500 text-white text-[10px] font-bold flex items-center justify-center">{activeFilterCount}</span>
-            )}
+          <button
+            onClick={handleSurpriseMe}
+            className="w-10 h-10 bg-chamber border border-white/5 rounded-2xl flex items-center justify-center hover:border-oasis-spring/30 transition-all active:scale-90"
+            title={ar ? 'فاجئني!' : 'Surprise me!'}
+          >
+            <Shuffle className="w-4 h-4 text-oasis-spring" />
           </button>
         </div>
 
-        {/* Quick filter pills — combinable, tinted by meaning */}
-        <div className="relative mb-2">
-          <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1.5">
-            {/* All — resets every quick filter */}
-            <button
-              onClick={() => { setQuickFilters(new Set()); setCategories(new Set()); setCityFilter('All'); }}
-              className={`flex-shrink-0 flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-black border transition-all active:scale-95 ${
-                quickFilters.size === 0 && categories.size === 0 && cityFilter === 'All'
-                  ? 'bg-slate-900 text-white border-slate-900 ring-2 ring-slate-400/30 shadow-sm'
-                  : 'bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200'
-              }`}>
-              {ar ? 'الكل' : 'All'}
+        {/* Search */}
+        <div className={`relative transition-all duration-300 ${searchFocused ? 'scale-[1.015]' : ''}`}>
+          <Search className={`absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none transition-colors ${searchFocused ? 'text-oasis-spring' : 'text-dusk'}`} />
+          <input
+            type="text"
+            placeholder={ar ? 'ابحث عن أماكن، مدن، تصنيفات…' : 'Search places, cities, categories…'}
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            onFocus={() => setSearchFocused(true)}
+            onBlur={() => setTimeout(() => setSearchFocused(false), 200)}
+            className="w-full bg-chamber border border-white/5 rounded-2xl py-3.5 pl-11 pr-10 text-sm font-medium text-white placeholder-moon/40 focus:outline-none focus:ring-2 focus:ring-oasis-spring/30 focus:border-oasis-spring/40 transition-all"
+          />
+          {search && (
+            <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 rounded-full hover:bg-lifted transition-colors">
+              <X className="w-3.5 h-3.5 text-moon" />
             </button>
-            {QUICK_FILTERS.map(f => {
-              const on = quickFilters.has(f.id);
-              return (
-                <button key={f.id} onClick={() => handleQuickFilter(f.id)}
-                  className={`flex-shrink-0 flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-black border transition-all active:scale-95 ${on ? f.active : f.inactive}`}>
-                  {f.icon}{f.label}
-                  {on && <span className="ml-0.5 text-[10px] opacity-80">✓</span>}
+          )}
+          {searchFocused && suggestions.length > 0 && (
+            <div className="absolute top-full left-0 right-0 mt-2 bg-chamber border border-white/10 rounded-2xl shadow-2xl z-50 overflow-hidden">
+              {suggestions.map((s, i) => (
+                <button key={i} onMouseDown={() => { setSearch(s); saveRecentSearch(s); }}
+                  className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-lifted transition-colors border-b border-white/5 last:border-0">
+                  <Search className="w-3.5 h-3.5 text-dusk flex-shrink-0" />
+                  <span className="text-sm font-semibold text-moon">{s}</span>
                 </button>
-              );
-            })}
-          </div>
-          <div className="pointer-events-none absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-white to-transparent" />
+              ))}
+            </div>
+          )}
         </div>
 
-        {/* Category pills — multi-select, secondary weight */}
-        <div className="relative mb-2">
-          <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
-            {CATEGORY_KEYS.filter(c => c !== 'All').map(cat => {
-              const on = categories.has(cat);
-              return (
-                <button key={cat}
-                  onClick={() => setCategories(prev => {
-                    const s = new Set(prev);
-                    if (s.has(cat)) s.delete(cat); else s.add(cat);
-                    return s;
-                  })}
-                  className={`flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold border transition-all active:scale-95 ${on ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm ring-2 ring-emerald-300/40' : 'bg-white text-slate-500 border-slate-200 hover:border-slate-300 hover:text-slate-700'}`}>
-                  {on && <span className="mr-1 text-[9px]">✓</span>}{catLabels[cat] || cat}
-                </button>
-              );
-            })}
-          </div>
-          <div className="pointer-events-none absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-white to-transparent" />
-        </div>
-
-        {/* City row */}
-        <div className="relative">
-          <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
-            {CITY_LIST.map(city => (
-              <button key={city} onClick={() => setCityFilter(city)}
-                className={`flex-shrink-0 flex items-center gap-1 px-3 py-1 rounded-full text-[11px] font-semibold transition-all border active:scale-95 ${cityFilter === city ? 'bg-teal-600 text-white border-teal-600 shadow-sm' : 'bg-white text-slate-500 border-slate-200 hover:border-teal-300 hover:text-teal-600'}`}>
-                {city !== 'All' && <MapPin className="w-2.5 h-2.5" />}{ar ? (CITY_LIST_AR[city] ?? city) : city}
+        {/* View Mode + Cities */}
+        <div className="flex items-center gap-3 mt-4 overflow-x-auto pb-1 no-scrollbar">
+          <div className="flex bg-chamber p-1 rounded-xl border border-white/5 shrink-0">
+            {([
+              { mode: 'grid' as ViewMode, Icon: LayoutGrid },
+              { mode: 'list' as ViewMode, Icon: List },
+              { mode: 'map' as ViewMode, Icon: MapIcon },
+            ] as const).map(({ mode, Icon }) => (
+              <button key={mode} onClick={() => setViewMode(mode)}
+                className={`p-2 rounded-lg transition-all ${viewMode === mode ? 'bg-oasis-spring text-midnight shadow-sm scale-105' : 'text-moon hover:text-white'}`}>
+                <Icon className="w-4 h-4" />
               </button>
             ))}
           </div>
-          <div className="pointer-events-none absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-white to-transparent" />
+          {CITY_LIST.map(city => (
+            <button key={city} onClick={() => setCityFilter(city)}
+              className={`px-3.5 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border transition-all shrink-0 active:scale-95 ${cityFilter === city ? 'bg-oasis-spring text-midnight border-oasis-spring' : 'bg-chamber text-moon border-white/5 hover:border-white/15'}`}>
+              {ar ? CITY_LIST_AR[city] : city}
+            </button>
+          ))}
         </div>
       </div>
 
-      {/* Map view — `isolate` keeps Leaflet's internal z-indexes (200-700) local to this stacking context */}
-      {viewMode === 'map' && (
-        <div className="flex-1 overflow-hidden isolate">
-          <MapView places={filtered} userCoords={userCoords} onSelectPlace={setSelectedPlace} ar={ar} />
-        </div>
-      )}
+      {/* Scroll Area */}
+      <div className="flex-1 overflow-y-auto overflow-x-hidden pb-28 no-scrollbar">
 
-      {/* List / Grid views */}
-      {viewMode !== 'map' && (
-        <>
-          {slideshowItems.length > 0 && !isFiltering && (
-            <FeaturedSlideshow items={slideshowItems} height="h-56"
-              onPress={item => {
-                const place = places.find(p => getPlaceId(p) === item.id) ?? null;
-                if (place) setSelectedPlace(place);
-              }} />
-          )}
+        {/* Map View */}
+        {viewMode === 'map' && (
+          <div style={{ height: 'calc(100vh - 220px)' }}>
+            <React.Suspense fallback={<div className="w-full h-full bg-chamber animate-pulse rounded-xl" />}>
+              <TripMap
+                places={filtered.map(p => ({
+                  id: (p._id || p.id || p.name).toString(),
+                  name: p.name,
+                  nameAr: p.nameAr,
+                  city: p.city || 'Saudi Arabia',
+                  cityAr: (p as any).cityAr,
+                  category: p.category || p.categoryTags?.[0] || 'default',
+                  ratingSummary: p.ratingSummary,
+                  image: p.photos?.[0] || p.image,
+                  location: p.location || {
+                    type: 'Point',
+                    coordinates: [p.coordinates?.lng ?? (p as any).lng ?? 46.6753, p.coordinates?.lat ?? (p as any).lat ?? 24.7136]
+                  }
+                }))}
+                onSelectPlace={p => {
+                  const full = places.find(fp => (fp._id || fp.id || fp.name).toString() === p.id);
+                  if (full) setSelectedPlace(full);
+                }}
+                lang={ar ? 'ar' : 'en'}
+                height="100%"
+              />
+            </React.Suspense>
+          </div>
+        )}
 
-          {hasNetworkError && !isLoading && (
-            <div className="mx-4 mt-3 flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">
-              <WifiOff className="w-4 h-4 text-amber-500 flex-shrink-0" />
-              <p className="text-xs font-medium text-amber-700">Showing cached results — check your connection</p>
-              {/* FIX: reuses fetchPlaces instead of inline duplicate */}
-              <button onClick={fetchPlaces} className="ml-auto text-xs font-bold text-amber-700 underline">Retry</button>
-            </div>
-          )}
+        {/* Grid / List */}
+        {viewMode !== 'map' && (
+          <div className="px-5 space-y-6 pt-2">
 
-          <div className="flex-1 overflow-y-auto p-4 pb-24">
-            {isLoading ? (
-              <div className={viewMode === 'grid' ? 'grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4' : 'space-y-3'}>
-                {[1, 2, 3, 4, 5, 6].map(i => <SkeletonCard key={i} />)}
-              </div>
-            ) : places.length === 0 ? (
-              <div className="flex justify-center p-8 w-full mt-10">
-                <p className="text-slate-500 text-center font-semibold">لا توجد أماكن مضافة في قاعدة البيانات بعد.</p>
-              </div>
-            ) : (
+            {/* Featured & Trending — only when not actively filtering */}
+            {!isFiltering && viewMode === 'grid' && (
               <>
-                {isFiltering && (
-                  <div className="flex items-center justify-between mb-3">
-                    <p className="text-xs text-slate-500 font-medium">
-                      {filtered.length === 0 ? 'No places found' : `${filtered.length} place${filtered.length !== 1 ? 's' : ''} found`}
-                      {search && <span className="text-slate-400"> for "<span className="text-slate-600">{search}</span>"</span>}
-                    </p>
-                    {activeFilterCount > 0 && (
-                      <button onClick={() => setPlaceFilters(DEFAULT_PLACE_FILTER)}
-                        className="text-xs text-emerald-600 font-bold hover:text-emerald-700">Clear filters</button>
-                    )}
-                  </div>
-                )}
-
-                {!isFiltering && curatedLists.length > 0 && (
-                  <div className="space-y-5 mb-6">
-                    {curatedLists.map(list => (
-                      <div key={list.title}>
-                        <h3 className="text-sm font-bold text-slate-800 mb-3">{list.title}</h3>
-                        <div className="flex gap-3 overflow-x-auto no-scrollbar pb-1 -mx-1 px-1">
-                          {list.places.map(place => {
-                            const img = place.photos?.[0] || place.image;
-                            const rating = place.ratingSummary?.avgRating ?? place.rating;
-                            const pid = getPlaceId(place);
-                            return (
-                              <button key={pid} onClick={() => setSelectedPlace(place)}
-                                className="flex-shrink-0 w-36 text-left group rounded-xl overflow-hidden bg-white shadow-sm border border-slate-100 hover:shadow-md hover:-translate-y-0.5 transition-all">
-                                <div className="h-24 bg-slate-200 relative overflow-hidden">
-                                  {img
-                                    ? <img src={img} alt={place.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" loading="lazy" />
-                                    : <div className="w-full h-full flex items-center justify-center"><MapPin className="w-5 h-5 text-slate-300" /></div>
-                                  }
-                                  {rating && (
-                                    <div className="absolute bottom-1.5 right-1.5 flex items-center gap-0.5 bg-white/90 backdrop-blur-sm px-1.5 py-0.5 rounded-full">
-                                      <Star className="w-2 h-2 fill-amber-400 text-amber-400" />
-                                      <span className="text-[9px] font-bold text-slate-700">{Number(rating).toFixed(1)}</span>
-                                    </div>
-                                  )}
-                                </div>
-                                <div className="p-2">
-                                  <p className="font-bold text-[11px] text-slate-900 line-clamp-1">{place.name}</p>
-                                  <p className="text-[10px] text-slate-400 mt-0.5">{place.city || 'Saudi Arabia'}</p>
-                                </div>
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    ))}
-                    <div className="border-t border-slate-100 pt-4">
-                      <h3 className="text-sm font-bold text-slate-800 mb-3">All Places</h3>
-                    </div>
-                  </div>
-                )}
-
-                {filtered.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center py-20 text-center">
-                    <MapPin className="w-12 h-12 text-slate-200 mb-3" />
-                    <p className="font-semibold text-slate-500 text-sm">{t.noPlacesFound || 'No places found'}</p>
-                    <p className="text-slate-400 text-xs mt-1">{t.tryDifferentSearch || 'Try a different category or search term'}</p>
-                    {(activeFilterCount > 0 || cityFilter !== 'All') && (
-                      <button onClick={() => { setPlaceFilters(DEFAULT_PLACE_FILTER); setCityFilter('All'); }}
-                        className="mt-3 px-4 py-2 bg-emerald-600 text-white rounded-full text-xs font-bold hover:bg-emerald-700 transition">
-                        Reset all filters
-                      </button>
-                    )}
-                  </div>
-                ) : viewMode === 'grid' ? (
-                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                    {filtered.map(renderGridCard)}
-                  </div>
-                ) : (
-                  <div className="space-y-2">{filtered.map(renderListCard)}</div>
-                )}
-
-                {searchFocused && trendingItems.length > 0 && (
-                  <TrendingCards items={trendingItems} label={t.trendingPlaces || '🔥 Trending Places'}
+                <FeaturedSlideshow
+                  items={slideshowItems}
+                  onSelect={id => {
+                    const p = places.find(x => getPlaceId(x) === id);
+                    if (p) setSelectedPlace(p);
+                  }}
+                  lang={lang}
+                />
+                {trendingItems.length > 0 && (
+                  <TrendingCards
+                    items={trendingItems}
+                    label={ar ? '🔥 الأكثر رواجاً' : '🔥 Trending Now'}
                     onSelect={item => {
-                      const place = places.find(p => getPlaceId(p) === item.id) ?? null;
-                      if (place) setSelectedPlace(place);
-                    }} />
+                      const p = places.find(x => getPlaceId(x) === item.id);
+                      if (p) setSelectedPlace(p);
+                    }}
+                  />
                 )}
               </>
             )}
+
+            {/* Filter chips bar */}
+            <div className="flex items-center gap-2 overflow-x-auto no-scrollbar -mx-5 px-5 py-1 sticky top-0 bg-midnight/95 backdrop-blur-md z-10 border-b border-white/5">
+              <button
+                onClick={() => setShowFilterPanel(true)}
+                className={`flex items-center gap-2 px-3.5 py-2.5 rounded-xl border font-black text-[10px] uppercase tracking-widest transition-all shrink-0 active:scale-95 ${activeFilterCount > 0 ? 'bg-oasis-spring text-midnight border-oasis-spring' : 'bg-chamber text-white border-white/10 hover:border-white/20'}`}>
+                <SlidersHorizontal className="w-3.5 h-3.5" />
+                {ar ? 'تصفية' : 'Filters'}
+                {activeFilterCount > 0 && (
+                  <span className="bg-midnight/30 text-midnight px-1.5 py-0.5 rounded-md text-[9px]">{activeFilterCount}</span>
+                )}
+              </button>
+              <div className="h-4 w-px bg-white/10 shrink-0" />
+              {QUICK_FILTERS.map(f => {
+                const on = quickFilters.has(f.id);
+                return (
+                  <button key={f.id} onClick={() => handleQuickFilter(f.id)}
+                    className={`flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl border font-black text-[10px] uppercase tracking-widest transition-all shrink-0 active:scale-95 ${on ? f.active : f.inactive}`}>
+                    {f.icon}{f.label}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Results header */}
+            <div className="flex items-center justify-between">
+              <p className="text-[10px] font-black uppercase tracking-[0.18em] text-moon">
+                {search
+                  ? (ar ? `نتائج "${search}"` : `Results for "${search}"`)
+                  : (ar ? 'الأماكن المقترحة' : 'Recommended')
+                }
+                <span className="text-oasis-spring ml-2">({filtered.length})</span>
+              </p>
+              {isFiltering && (
+                <button
+                  onClick={() => { setPlaceFilters(DEFAULT_PLACE_FILTER); setQuickFilters(new Set()); setSearch(''); setCategories(new Set()); setCityFilter('All'); }}
+                  className="text-[10px] font-black uppercase tracking-widest text-red-400 hover:text-red-300 transition-colors">
+                  {ar ? 'مسح الكل' : 'Clear all'}
+                </button>
+              )}
+            </div>
+
+            {/* Cards */}
+            {filtered.length > 0 ? (
+              <div className={viewMode === 'grid' ? 'grid grid-cols-2 gap-4' : 'flex flex-col gap-3'}>
+                {filtered.map(p => viewMode === 'grid' ? renderGridCard(p) : renderListCard(p))}
+              </div>
+            ) : (
+              <div className="py-16 text-center rounded-3xl border border-dashed border-white/5 bg-chamber/20">
+                <div className="w-14 h-14 bg-chamber rounded-2xl flex items-center justify-center mx-auto mb-4 border border-white/5">
+                  <MapPin className="w-7 h-7 text-dusk opacity-40" />
+                </div>
+                <p className="text-moon text-sm font-bold mb-1">
+                  {ar ? 'لا توجد نتائج' : 'No places found'}
+                </p>
+                <p className="text-dusk text-xs mb-5">
+                  {ar ? 'جرب تغيير الفلاتر' : 'Try adjusting your filters'}
+                </p>
+                <button
+                  onClick={() => { setPlaceFilters(DEFAULT_PLACE_FILTER); setQuickFilters(new Set()); setSearch(''); setCategories(new Set()); setCityFilter('All'); }}
+                  className="text-oasis-spring font-black uppercase text-xs tracking-widest hover:underline">
+                  {ar ? 'مسح الفلاتر' : 'Clear filters'}
+                </button>
+              </div>
+            )}
+
+            {/* Curated Lists */}
+            {!isFiltering && curatedLists.map((list, idx) => (
+              <div key={idx} className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-base font-black text-white">{list.title}</h3>
+                  <button className="text-[10px] font-black uppercase tracking-widest text-oasis-spring hover:underline">
+                    {ar ? 'عرض الكل' : 'View all'}
+                  </button>
+                </div>
+                <div className="flex gap-3 overflow-x-auto no-scrollbar pb-3 -mx-5 px-5">
+                  {list.places.map(p => (
+                    <div key={getPlaceId(p)} className="w-44 shrink-0">{renderGridCard(p)}</div>
+                  ))}
+                </div>
+              </div>
+            ))}
+
           </div>
-        </>
-      )}
+        )}
+      </div>
 
-      {visitedIds.size > 0 && (
-        <div className="absolute bottom-20 left-1/2 -translate-x-1/2 z-30 pointer-events-none">
-          <div className="flex items-center gap-1.5 bg-emerald-600 text-white px-3 py-1.5 rounded-full shadow-lg text-xs font-bold">
-            <CheckCheck className="w-3.5 h-3.5" />{visitedIds.size} visited
-          </div>
-        </div>
-      )}
-
-      <PlaceFilterPanel open={showFilterPanel} onClose={() => setShowFilterPanel(false)}
-        filters={placeFilters} onChange={setPlaceFilters}
-        categories={categories} onCategoriesChange={setCategories}
-        lang={lang} />
-
-      {addToTripPlaceId && (
-        <AddToTripModal placeId={addToTripPlaceId} placeName={addToTripPlaceName}
-          onClose={() => { setAddToTripPlaceId(null); setAddToTripPlaceName(''); }}
-          trips={trips} onTripsChange={setTrips} />
-      )}
+      {/* ── Modals ── */}
+      <PlaceFilterPanel
+        open={showFilterPanel}
+        onClose={() => setShowFilterPanel(false)}
+        filters={placeFilters}
+        onChange={setPlaceFilters}
+        categories={categories}
+        onCategoriesChange={setCategories}
+        lang={lang}
+      />
 
       {selectedPlace && (
-        <PlaceDetailModal place={selectedPlace} onClose={() => setSelectedPlace(null)}
-          t={t} mode="page" allPlaces={places} onSwitchPlace={setSelectedPlace} />
+        <PlaceDetailModal
+          place={selectedPlace}
+          onClose={() => setSelectedPlace(null)}
+          t={t}
+          lang={lang}
+          allPlaces={places}
+          onSwitchPlace={setSelectedPlace}
+          isSaved={savedIds.has(getPlaceId(selectedPlace))}
+          onToggleSave={e => toggleSaved(getPlaceId(selectedPlace), e)}
+          onOpenAddToTrip={e => openAddToTrip(getPlaceId(selectedPlace), selectedPlace.name, e)}
+        />
+      )}
+
+      {addToTripPlaceId && (
+        <AddToTripModal
+          placeId={addToTripPlaceId}
+          placeName={addToTripPlaceName}
+          onClose={() => setAddToTripPlaceId(null)}
+          trips={trips}
+          onTripsChange={setTrips}
+        />
       )}
     </div>
   );
 };
+
+export default PlacesScreen;

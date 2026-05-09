@@ -8,7 +8,7 @@ import {
 import { Tour, Itinerary, GroupTrip } from '../types';
 import { tourAPI } from '../services/api';
 import { showToast } from '../components/Toast';
-import { SkeletonCard } from '../components/ui';
+import { SkeletonCard, SafeImage } from '../components/ui';
 import { TourDetailScreen } from './TourDetailScreen';
 import { BookingModal } from '../components/BookingModal';
 import { TrendingCards, TrendingItem } from '../components/TrendingSlideshow';
@@ -62,9 +62,9 @@ function departureCityDistance(location: string, userLat: number, userLon: numbe
 }
 
 const DIFFICULTY_COLORS: Record<string, string> = {
-  easy: 'bg-emerald-600 text-white',
-  moderate: 'bg-amber-500 text-white',
-  challenging: 'bg-red-600 text-white',
+  easy: 'bg-oasis-spring/10 text-oasis-spring border-oasis-spring/20',
+  moderate: 'bg-karam/10 text-karam border-karam/20',
+  challenging: 'bg-red-500/10 text-red-400 border-red-500/20',
 };
 
 // ==========================================
@@ -92,61 +92,64 @@ const FilterPanel: React.FC<FilterPanelProps> = ({ filter, onChange, onClose, la
     }));
 
   const diffBtnClass = (d: string, active: boolean) => {
-    if (!active) return 'bg-white text-slate-600 border-slate-200 hover:border-slate-400';
-    if (d === 'easy') return 'bg-emerald-600 text-white border-emerald-600';
-    if (d === 'moderate') return 'bg-amber-500 text-white border-amber-500';
-    return 'bg-red-600 text-white border-red-600';
+    if (!active) return 'bg-slate-100 dark:bg-navy-800 text-slate-500 dark:text-slate-500 border-slate-200 dark:border-white/5 hover:border-slate-300 dark:hover:border-white/20';
+    if (d === 'easy') return 'bg-oasis-spring text-midnight border-oasis-spring shadow-mint-glow';
+    if (d === 'moderate') return 'bg-karam text-midnight border-karam';
+    return 'bg-red-500 text-white border-red-500';
   };
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col justify-end animate-in fade-in">
-      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => { onChange(local); onClose(); }} />
-      <div className="relative bg-white rounded-t-3xl px-5 pt-5 pb-8 shadow-2xl max-h-[80vh] overflow-y-auto animate-in slide-in-from-bottom-8">
+      <div className="absolute inset-0 bg-slate-900/60 dark:bg-black/60 backdrop-blur-md" onClick={() => { onChange(local); onClose(); }} />
+      <div className="relative bg-white dark:bg-navy-950 border-t border-slate-100 dark:border-white/10 rounded-t-3xl px-6 pt-6 pb-10 shadow-2xl max-h-[85vh] overflow-y-auto animate-in slide-in-from-bottom-10">
         {/* Header */}
-        <div className="flex items-center justify-between mb-5">
-          <h2 className="font-extrabold text-slate-900 text-base">{ar ? 'تصفية الجولات' : 'Filter Tours'}</h2>
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h2 className="font-black text-slate-900 dark:text-white text-lg">{ar ? 'تصفية الجولات' : 'Filter Tours'}</h2>
+            <p className="text-xs text-slate-500 dark:text-slate-500">{ar ? 'خصص نتائج بحثك' : 'Customize your search'}</p>
+          </div>
           <button
             onClick={() => { onChange(local); onClose(); }}
-            className="w-8 h-8 bg-slate-100 hover:bg-slate-200 rounded-full flex items-center justify-center transition-colors"
+            className="w-10 h-10 bg-slate-50 dark:bg-navy-900 hover:bg-slate-100 dark:hover:bg-navy-800 border border-slate-100 dark:border-white/5 rounded-full flex items-center justify-center transition-all active:scale-90"
           >
-            <X className="w-4 h-4 text-slate-600" />
+            <X className="w-5 h-5 text-slate-500 dark:text-slate-500" />
           </button>
         </div>
 
         {/* Price Range */}
-        <div className="mb-6">
-          <p className="text-sm font-bold text-slate-800 mb-3">{ar ? 'نطاق السعر (ريال)' : 'Price Range (SAR)'}</p>
+        <div className="mb-8">
+          <p className="text-sm font-black text-slate-900 dark:text-white mb-4 uppercase tracking-widest">{ar ? 'نطاق السعر (ريال)' : 'Price Range (SAR)'}</p>
           <div className="flex items-end gap-3">
             <div className="flex-1">
-              <label className="text-xs text-slate-500 mb-1 block">{ar ? 'الحد الأدنى' : 'Min'}</label>
+              <label className="text-[10px] font-bold text-slate-500 dark:text-slate-500 uppercase mb-2 block">{ar ? 'الحد الأدنى' : 'Min'}</label>
               <input
                 type="number"
                 min={0}
                 max={local.priceMax}
                 value={local.priceMin}
                 onChange={e => setLocal(prev => ({ ...prev, priceMin: Math.min(Number(e.target.value), prev.priceMax) }))}
-                className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400"
+                className="w-full px-4 py-3 bg-slate-50 dark:bg-navy-900 border border-slate-200 dark:border-white/10 rounded-2xl text-sm font-bold text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-oasis-spring transition-all"
               />
             </div>
-            <span className="text-slate-400 pb-2">—</span>
+            <span className="text-slate-200 dark:text-white/10 pb-3 font-black">—</span>
             <div className="flex-1">
-              <label className="text-xs text-slate-500 mb-1 block">{ar ? 'الحد الأقصى' : 'Max'}</label>
+              <label className="text-[10px] font-bold text-slate-500 dark:text-slate-500 uppercase mb-2 block">{ar ? 'الحد الأقصى' : 'Max'}</label>
               <input
                 type="number"
                 min={local.priceMin}
                 max={5000}
                 value={local.priceMax}
                 onChange={e => setLocal(prev => ({ ...prev, priceMax: Math.max(Number(e.target.value), prev.priceMin) }))}
-                className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400"
+                className="w-full px-4 py-3 bg-slate-50 dark:bg-navy-900 border border-slate-200 dark:border-white/10 rounded-2xl text-sm font-bold text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-oasis-spring transition-all"
               />
             </div>
           </div>
         </div>
 
         {/* Difficulty */}
-        <div className="mb-6">
-          <p className="text-sm font-bold text-slate-800 mb-3">{ar ? 'مستوى الصعوبة' : 'Difficulty'}</p>
-          <div className="flex gap-2 flex-wrap">
+        <div className="mb-8">
+          <p className="text-sm font-black text-slate-900 dark:text-white mb-4 uppercase tracking-widest">{ar ? 'مستوى الصعوبة' : 'Difficulty'}</p>
+          <div className="flex gap-3 flex-wrap">
             {(['easy', 'moderate', 'challenging'] as const).map(d => {
               const diffLabelMap: Record<string, string> = ar
                 ? { easy: 'سهل', moderate: 'متوسط', challenging: 'صعب' }
@@ -155,7 +158,7 @@ const FilterPanel: React.FC<FilterPanelProps> = ({ filter, onChange, onClose, la
                 <button
                   key={d}
                   onClick={() => toggleDifficulty(d)}
-                  className={`px-4 py-2 rounded-full text-sm font-bold capitalize transition-colors border ${diffBtnClass(d, local.difficulties.includes(d))}`}
+                  className={`px-5 py-2.5 rounded-2xl text-sm font-black transition-all active:scale-95 border ${diffBtnClass(d, local.difficulties.includes(d))}`}
                 >
                   {diffLabelMap[d]}
                 </button>
@@ -165,17 +168,14 @@ const FilterPanel: React.FC<FilterPanelProps> = ({ filter, onChange, onClose, la
         </div>
 
         {/* Max Duration */}
-        <div className="mb-8">
-          <p className="text-sm font-bold text-slate-800 mb-3">{ar ? 'أقصى مدة' : 'Max Duration'}</p>
-          <div className="flex gap-2 flex-wrap">
+        <div className="mb-10">
+          <p className="text-sm font-black text-slate-900 dark:text-white mb-4 uppercase tracking-widest">{ar ? 'أقصى مدة' : 'Max Duration'}</p>
+          <div className="flex gap-3 flex-wrap">
             {[{ labelEn: 'Any', labelAr: 'أي مدة', val: 0 }, { labelEn: '≤3h', labelAr: '≤3 س', val: 3 }, { labelEn: '≤6h', labelAr: '≤6 س', val: 6 }, { labelEn: '≤12h', labelAr: '≤12 س', val: 12 }].map(opt => (
               <button
                 key={opt.val}
                 onClick={() => setLocal(prev => ({ ...prev, maxDuration: opt.val }))}
-                className={`px-4 py-2 rounded-full text-sm font-bold transition-colors border ${local.maxDuration === opt.val
-                    ? 'bg-emerald-600 text-white border-emerald-600'
-                    : 'bg-white text-slate-600 border-slate-200 hover:border-slate-400'
-                  }`}
+                className={`px-5 py-2.5 rounded-2xl text-sm font-black transition-all active:scale-95 border ${local.maxDuration === opt.val ? 'bg-oasis-spring text-midnight border-oasis-spring shadow-mint-glow' : 'bg-slate-100 dark:bg-navy-800 text-slate-500 dark:text-slate-500 border-slate-200 dark:border-white/5 hover:border-slate-300 dark:hover:border-white/20' }`}
               >
                 {ar ? opt.labelAr : opt.labelEn}
               </button>
@@ -184,16 +184,16 @@ const FilterPanel: React.FC<FilterPanelProps> = ({ filter, onChange, onClose, la
         </div>
 
         {/* Footer */}
-        <div className="flex gap-3">
+        <div className="flex gap-4">
           <button
             onClick={() => setLocal(DEFAULT_FILTER)}
-            className="flex-1 py-3 border border-slate-300 rounded-2xl font-bold text-slate-600 text-sm hover:bg-slate-50 transition"
+            className="flex-1 py-4 bg-slate-100 dark:bg-navy-800 text-slate-500 dark:text-slate-500 border border-slate-200 dark:border-white/5 rounded-2xl font-black text-sm active:scale-95 transition-all"
           >
             {ar ? 'مسح الكل' : 'Clear All'}
           </button>
           <button
             onClick={() => { onChange(local); onClose(); }}
-            className="flex-1 py-3 bg-emerald-600 text-white rounded-2xl font-bold text-sm hover:bg-emerald-700 transition"
+            className="flex-1 py-4 bg-oasis-spring text-midnight rounded-2xl font-black text-sm shadow-mint-glow active:scale-95 transition-all"
           >
             {ar ? 'تطبيق الفلاتر' : 'Apply Filters'}
           </button>
@@ -475,6 +475,7 @@ export const ToursScreen: React.FC<ToursScreenProps> = ({ t, lang, onBookingComp
             onClose={() => setBookingTour(null)}
             onConfirm={handleBook}
             isBooking={isBooking}
+            lang={lang}
           />
         )}
       </div>
@@ -482,7 +483,7 @@ export const ToursScreen: React.FC<ToursScreenProps> = ({ t, lang, onBookingComp
   }
 
   return (
-    <div className="min-h-full bg-slate-50">
+    <div className="min-h-full bg-white dark:bg-navy-950 transition-colors duration-300">
       {showFilterPanel && (
         <FilterPanel
           filter={filterState}
@@ -493,54 +494,53 @@ export const ToursScreen: React.FC<ToursScreenProps> = ({ t, lang, onBookingComp
       )}
 
       {/* Hero Section */}
-      <div className="relative bg-gradient-to-br from-emerald-700 via-teal-600 to-emerald-800 px-6 pt-10 pb-16 overflow-hidden">
-        <div className="absolute -top-10 -right-10 w-48 h-48 bg-white/5 rounded-full" />
-        <div className="absolute top-12 right-4 w-24 h-24 bg-white/5 rounded-full" />
-        <div className="absolute -bottom-6 -left-6 w-32 h-32 bg-white/5 rounded-full" />
-        <div className="relative">
-          <div className="flex items-center gap-2 mb-3">
-            <Compass className="w-6 h-6 text-emerald-200" />
-            <span className="text-emerald-200 text-sm font-bold uppercase tracking-widest">{ar ? 'اكتشف المملكة العربية السعودية' : 'Discover Saudi Arabia'}</span>
+      <div className="relative bg-gradient-to-br from-slate-50 via-white to-slate-100 dark:from-navy-900 dark:via-midnight dark:to-navy-950 px-6 pt-12 pb-20 overflow-hidden border-b border-slate-100 dark:border-white/5">
+        <div className="absolute -top-10 -right-10 w-64 h-64 bg-oasis-spring/5 rounded-full blur-3xl" />
+        <div className="absolute -bottom-10 -left-10 w-48 h-48 bg-karam/5 rounded-full blur-3xl" />
+        <div className="relative max-w-4xl mx-auto">
+          <div className="flex items-center gap-2 mb-4">
+            <Compass className="w-5 h-5 text-oasis-spring animate-pulse-soft" />
+            <span className="text-slate-500 dark:text-moon text-[10px] font-black uppercase tracking-[0.2em]">{ar ? 'اكتشف المملكة العربية السعودية' : 'Discover Saudi Arabia'}</span>
           </div>
-          <h1 className="text-3xl font-extrabold text-white mb-2 leading-tight">{ar ? 'مغامرات مع مرشدين' : 'Guided Adventures'}</h1>
-          <p className="text-emerald-100 text-sm leading-relaxed max-w-xs">
+          <h1 className="text-4xl font-black text-slate-900 dark:text-white mb-4 leading-tight tracking-tight">
+            {ar ? 'مغامرات مع مرشدين' : 'Guided Adventures'}
+            <span className="block text-oasis-spring">{ar ? 'بعيون محلية' : 'through local eyes'}</span>
+          </h1>
+          <p className="text-slate-500 dark:text-moon text-sm leading-relaxed max-w-md mb-8">
             {ar ? 'جولات بإشراف خبراء عبر المملكة — احجز مقعدك وانضم إلى دردشة جماعية مع المسافرين.' : 'Expert-led tours across the Kingdom — book your spot and join a group chat with fellow travellers.'}
           </p>
-          <div className="flex items-center gap-5 mt-5">
+          
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-6 mb-10">
             <div>
-              <p className="text-xl font-extrabold text-white">50+</p>
-              <p className="text-xs text-emerald-200">{ar ? 'جولة متاحة' : 'Tours available'}</p>
+              <p className="text-2xl font-black text-slate-900 dark:text-white">50+</p>
+              <p className="text-[10px] text-slate-400 dark:text-dusk font-bold uppercase tracking-wider">{ar ? 'جولة متاحة' : 'Tours available'}</p>
             </div>
-            <div className="w-px h-8 bg-white/20" />
             <div>
-              <p className="text-xl font-extrabold text-white">4.8★</p>
-              <p className="text-xs text-emerald-200">{ar ? 'متوسط التقييم' : 'Avg. rating'}</p>
+              <p className="text-2xl font-black text-karam">4.8★</p>
+              <p className="text-[10px] text-slate-400 dark:text-dusk font-bold uppercase tracking-wider">{ar ? 'متوسط التقييم' : 'Avg. rating'}</p>
             </div>
-            <div className="w-px h-8 bg-white/20" />
             <div>
-              <p className="text-xl font-extrabold text-white">1200+</p>
-              <p className="text-xs text-emerald-200">{ar ? 'مسافر سعيد' : 'Happy travellers'}</p>
+              <p className="text-2xl font-black text-slate-900 dark:text-white">1.2k</p>
+              <p className="text-[10px] text-slate-400 dark:text-dusk font-bold uppercase tracking-wider">{ar ? 'مسافر سعيد' : 'Happy travellers'}</p>
             </div>
             {savedIds.size > 0 && (
-              <>
-                <div className="w-px h-8 bg-white/20" />
-                <div>
-                  <p className="text-xl font-extrabold text-white">{savedIds.size}</p>
-                  <p className="text-xs text-emerald-200">{ar ? 'محفوظة' : 'Saved'}</p>
-                </div>
-              </>
+              <div>
+                <p className="text-2xl font-black text-oasis-spring">{savedIds.size}</p>
+                <p className="text-[10px] text-slate-400 dark:text-dusk font-bold uppercase tracking-wider">{ar ? 'محفوظة' : 'Saved'}</p>
+              </div>
             )}
           </div>
-          <div className="flex gap-2 mt-5">
+
+          <div className="flex flex-wrap gap-4">
             <button
               onClick={() => document.getElementById('tours-list')?.scrollIntoView({ behavior: 'smooth' })}
-              className="px-5 py-2.5 bg-white text-emerald-700 font-black text-sm rounded-2xl active:scale-95 transition-transform shadow-lg"
+              className="px-8 py-4 bg-oasis-spring text-midnight font-black text-sm rounded-2xl active:scale-95 transition-all shadow-mint-glow"
             >
               {ar ? 'تصفح الجولات ←' : 'Browse Tours →'}
             </button>
             <button
               onClick={() => window.dispatchEvent(new CustomEvent('tripo:navigate', { detail: 'ai_planner' }))}
-              className="px-5 py-2.5 bg-white/20 text-white font-black text-sm rounded-2xl active:scale-95 transition-transform border border-white/30"
+              className="px-8 py-4 bg-slate-50 dark:bg-navy-900 text-slate-900 dark:text-white font-black text-sm rounded-2xl active:scale-95 transition-all border border-slate-200 dark:border-white/5 hover:bg-slate-100 dark:hover:bg-navy-800"
             >
               ✨ {ar ? 'المخطط الذكي' : 'AI Planner'}
             </button>
@@ -553,38 +553,46 @@ export const ToursScreen: React.FC<ToursScreenProps> = ({ t, lang, onBookingComp
         <FeaturedSlideshow
           items={slideshowItems}
           height="h-56"
-          onPress={item => {
-            const tour = tours.find(t => (t.id || (t as any)._id) === item.id) ?? null;
+          onSelect={id => {
+            const tour = tours.find(t => (t.id || (t as any)._id) === id) ?? null;
             if (tour) setSelectedTour(tour);
           }}
+          lang={lang}
         />
       )}
 
-      {/* Recently Added — user-published tours */}
+      {/* Recently Added */}
       {recentlyAddedTours.length > 0 && (
-        <div className="bg-white pt-4 pb-2">
-          <div className="flex items-center justify-between px-4 mb-2.5">
+        <div className="bg-white dark:bg-navy-950 pt-6 pb-4">
+          <div className="flex items-center justify-between px-6 mb-4">
             <div>
-              <h2 className="font-black text-base text-slate-900">✨ {ar ? 'أُضيفت مؤخراً' : 'Recently Added'}</h2>
-              <p className="text-xs text-slate-400">{ar ? 'جولات جديدة من مرشدين محليين' : 'New tours by local hosts'}</p>
+              <h2 className="font-black text-lg text-slate-900 dark:text-white">✨ {ar ? 'أُضيفت مؤخراً' : 'Recently Added'}</h2>
+              <p className="text-xs text-slate-500 dark:text-slate-500">{ar ? 'جولات جديدة من مرشدين محليين' : 'New tours by local hosts'}</p>
             </div>
           </div>
-          <div className="flex gap-3 overflow-x-auto no-scrollbar px-4 pb-1">
+          <div className="flex gap-4 overflow-x-auto no-scrollbar px-6 pb-2">
             {recentlyAddedTours.map(tour => {
               const tourId = tour.id || (tour as any)._id || '';
               return (
                 <button
                   key={tourId}
                   onClick={() => setSelectedTour(tour)}
-                  className="flex-shrink-0 w-40 rounded-2xl overflow-hidden border border-slate-100 shadow-sm hover:shadow-md transition-shadow bg-white active:scale-95"
+                  className="flex-shrink-0 w-48 rounded-2xl overflow-hidden border border-slate-100 dark:border-white/5 shadow-xl bg-slate-50 dark:bg-navy-900 active:scale-95 transition-all"
                 >
-                  <div className="relative h-24">
-                    <img src={tour.heroImage} alt={tour.title} className="w-full h-full object-cover" />
-                    <span className="absolute top-1.5 left-1.5 bg-emerald-500 text-white text-[9px] font-black px-1.5 py-0.5 rounded-full">NEW</span>
+                  <div className="relative h-28">
+                    <SafeImage src={tour.heroImage} alt={tour.title} className="w-full h-full object-cover" fallbackType="placeholder" seed={tour.title} />
+                    <div className="absolute inset-0 bg-gradient-to-t from-white/80 dark:from-midnight/80 to-transparent" />
+                    <span className="absolute top-2 left-2 bg-oasis-spring text-midnight text-[8px] font-black px-2 py-0.5 rounded-full shadow-mint-glow">NEW</span>
                   </div>
-                  <div className="p-2 text-left">
-                    <p className="text-xs font-black text-slate-900 line-clamp-2 leading-tight mb-1">{tour.title}</p>
-                    <p className="text-[11px] font-bold text-emerald-600">SAR {tour.pricePerPerson}/person</p>
+                  <div className="p-3 text-left">
+                    <p className="text-xs font-black text-slate-900 dark:text-white line-clamp-2 leading-tight mb-2">{tour.title}</p>
+                    <div className="flex items-center justify-between">
+                      <p className="text-[10px] font-bold text-oasis-spring uppercase">SAR {tour.pricePerPerson}</p>
+                      <div className="flex items-center gap-0.5 text-[10px] text-karam">
+                        <Star className="w-2.5 h-2.5 fill-karam" />
+                        <span>{tour.rating || 'New'}</span>
+                      </div>
+                    </div>
                   </div>
                 </button>
               );
@@ -594,9 +602,9 @@ export const ToursScreen: React.FC<ToursScreenProps> = ({ t, lang, onBookingComp
       )}
 
       {/* Search bar */}
-      <div id="tours-list" className="bg-white px-4 pt-3 pb-2 border-b border-slate-100">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+      <div id="tours-list" className="bg-white dark:bg-navy-950 px-6 pt-6 pb-2 border-b border-slate-100 dark:border-white/5 sticky top-0 z-30">
+        <div className="relative group max-w-4xl mx-auto">
+          <Search className={`absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 transition-colors duration-300 ${searchFocused ? 'text-oasis-spring' : 'text-slate-400 dark:text-moon/40'}`} />
           <input
             type="text"
             placeholder={ar ? 'ابحث عن جولات، مرشدين، معالم…' : 'Search tours, guides, highlights…'}
@@ -604,10 +612,10 @@ export const ToursScreen: React.FC<ToursScreenProps> = ({ t, lang, onBookingComp
             onChange={e => setSearch(e.target.value)}
             onFocus={() => setSearchFocused(true)}
             onBlur={() => setTimeout(() => setSearchFocused(false), 150)}
-            className="w-full pl-9 pr-9 py-2.5 bg-slate-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+            className="w-full pl-11 pr-11 py-4 bg-slate-50 dark:bg-navy-900 border border-slate-200 dark:border-white/5 rounded-2xl text-sm font-bold text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-moon/30 outline-none focus:ring-1 focus:ring-oasis-spring/30 focus:bg-white dark:focus:bg-lifted transition-all"
           />
           {search && (
-            <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors">
+            <button onClick={() => setSearch('')} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 dark:text-moon/40 hover:text-slate-900 dark:hover:text-white transition-colors">
               <X className="w-4 h-4" />
             </button>
           )}
@@ -615,53 +623,47 @@ export const ToursScreen: React.FC<ToursScreenProps> = ({ t, lang, onBookingComp
       </div>
 
       {/* Toolbar: filter + saved count + view toggle */}
-      <div className="bg-white px-4 py-2 border-b border-slate-100 flex items-center gap-2">
+      <div className="bg-white dark:bg-navy-950 px-6 py-4 border-b border-slate-100 dark:border-white/5 flex items-center gap-3">
         <button
           onClick={() => setShowFilterPanel(true)}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-bold transition-colors flex-shrink-0 ${isFilterActive
-              ? 'bg-emerald-600 text-white border-emerald-600'
-              : 'bg-white text-slate-600 border-slate-200 hover:border-emerald-300'
-            }`}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl border text-[10px] font-black uppercase tracking-widest transition-all ${isFilterActive ? 'bg-oasis-spring text-midnight border-oasis-spring shadow-mint-glow' : 'bg-slate-50 dark:bg-navy-900 text-slate-500 dark:text-moon border-slate-200 dark:border-white/5 hover:bg-slate-100 dark:hover:bg-lifted hover:text-slate-900 dark:hover:text-white' }`}
         >
-          <SlidersHorizontal className="w-3.5 h-3.5" />
+          <SlidersHorizontal className="w-3 h-3" />
           {ar ? 'فلتر' : 'Filter'}
-          {isFilterActive && <span className="w-1.5 h-1.5 rounded-full bg-white" />}
+          {isFilterActive && <span className="w-1.5 h-1.5 rounded-full bg-midnight" />}
         </button>
 
         {savedIds.size > 0 && (
-          <div className="flex items-center gap-1 px-2.5 py-1.5 bg-rose-50 text-rose-600 rounded-full text-xs font-bold flex-shrink-0 animate-in fade-in">
-            <Bookmark className="w-3 h-3 fill-rose-500" />
-            {savedIds.size} saved
+          <div className="flex items-center gap-1.5 px-3 py-2 bg-red-500/10 text-red-400 border border-red-500/20 rounded-xl text-[10px] font-black uppercase tracking-wider animate-in fade-in">
+            <Bookmark className="w-2.5 h-2.5 fill-red-400" />
+            {savedIds.size} {ar ? 'محفوظة' : 'saved'}
           </div>
         )}
 
-        <div className="flex items-center gap-1 ml-auto">
+        <div className="flex items-center gap-1 ml-auto bg-slate-100 dark:bg-navy-800 p-1 rounded-xl border border-slate-200 dark:border-white/5">
           <button
             onClick={() => setViewMode('grid')}
-            className={`p-1.5 rounded-lg transition-colors ${viewMode === 'grid' ? 'bg-emerald-100 text-emerald-700' : 'text-slate-400 hover:bg-slate-50'}`}
+            className={`p-1.5 rounded-lg transition-all ${viewMode === 'grid' ? 'bg-oasis-spring text-midnight shadow-sm dark:shadow-black/30' : 'text-slate-400 dark:text-moon/40 hover:text-slate-600 dark:hover:text-moon'}`}
           >
-            <LayoutGrid className="w-4 h-4" />
+            <LayoutGrid className="w-3.5 h-3.5" />
           </button>
           <button
             onClick={() => setViewMode('list')}
-            className={`p-1.5 rounded-lg transition-colors ${viewMode === 'list' ? 'bg-emerald-100 text-emerald-700' : 'text-slate-400 hover:bg-slate-50'}`}
+            className={`p-1.5 rounded-lg transition-all ${viewMode === 'list' ? 'bg-oasis-spring text-midnight shadow-sm dark:shadow-black/30' : 'text-slate-400 dark:text-moon/40 hover:text-slate-600 dark:hover:text-moon'}`}
           >
-            <LayoutList className="w-4 h-4" />
+            <LayoutList className="w-3.5 h-3.5" />
           </button>
         </div>
       </div>
 
       {/* City pills */}
-      <div className="bg-white px-4 py-2 border-b border-slate-100">
+      <div className="bg-white dark:bg-navy-950 px-6 py-2 border-b border-slate-100 dark:border-white/5">
         <div className="flex gap-2 overflow-x-auto no-scrollbar">
           {TOUR_CITY_PILLS.map(city => (
             <button
               key={city.en}
               onClick={() => setCityFilter(city.en)}
-              className={`flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-bold transition-colors ${cityFilter === city.en
-                  ? 'bg-teal-600 text-white shadow-sm'
-                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                }`}
+              className={`flex-shrink-0 px-4 py-2 rounded-xl text-xs font-black transition-all active:scale-95 ${cityFilter === city.en ? 'bg-oasis-spring text-midnight shadow-mint-glow' : 'bg-slate-50 dark:bg-navy-900 text-slate-500 dark:text-moon border border-slate-200 dark:border-white/5 hover:border-slate-300 dark:border-white/10' }`}
             >
               {ar ? city.ar : city.en}
             </button>
@@ -670,56 +672,48 @@ export const ToursScreen: React.FC<ToursScreenProps> = ({ t, lang, onBookingComp
       </div>
 
       {/* Category pills + quick filters */}
-      <div className="sticky top-0 z-20 bg-white border-b border-slate-100 shadow-sm">
-        <div className="relative px-4 pt-3 pb-2">
-          <div className="flex gap-2 overflow-x-auto no-scrollbar">
+      <div className="sticky top-[73px] z-20 bg-white/80 dark:bg-midnight/80 backdrop-blur-md border-b border-slate-100 dark:border-white/5 shadow-xl">
+        <div className="relative px-6 pt-4 pb-2">
+          <div className="flex gap-3 overflow-x-auto no-scrollbar">
             {CATEGORIES.map((cat) => (
               <button
                 key={cat.id}
                 onClick={() => setCategory(cat.id)}
-                className={`flex-shrink-0 px-4 py-2 rounded-full text-sm font-bold transition-colors ${category === cat.id
-                    ? 'bg-emerald-600 text-white shadow-md shadow-emerald-200'
-                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                  }`}
+                className={`flex-shrink-0 px-5 py-2.5 rounded-2xl text-sm font-black transition-all active:scale-95 ${category === cat.id ? 'bg-oasis-spring text-midnight shadow-mint-glow' : 'bg-slate-50 dark:bg-navy-900 text-slate-500 dark:text-moon border border-slate-200 dark:border-white/5 hover:bg-slate-100 dark:hover:bg-lifted' }`}
               >
                 {cat.label}
               </button>
             ))}
           </div>
-          <div className="pointer-events-none absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-white to-transparent" />
         </div>
-        <div className="relative px-4 pb-3">
+        <div className="relative px-6 pb-4">
           <div className="flex gap-2 overflow-x-auto no-scrollbar">
             {QUICK_FILTERS.map(f => (
               <button
                 key={f.id}
                 onClick={() => handleQuickFilter(f.id)}
-                className={`flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold border transition-colors ${quickFilter === f.id
-                    ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
-                    : 'bg-white text-slate-600 border-slate-200 hover:border-emerald-300 hover:text-emerald-700'
-                  }`}
+                className={`flex-shrink-0 flex items-center gap-2 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border transition-all active:scale-95 ${quickFilter === f.id ? 'bg-oasis-spring text-midnight border-oasis-spring shadow-mint-glow' : 'bg-slate-50 dark:bg-navy-900 text-slate-500 dark:text-moon border-slate-200 dark:border-white/5 hover:bg-slate-100 dark:hover:bg-lifted hover:text-slate-900 dark:hover:text-white' }`}
               >
                 {f.icon}
                 {f.id === 'near_me' && locating ? (ar ? 'جارٍ التحديد…' : 'Locating…') : f.label}
               </button>
             ))}
           </div>
-          <div className="pointer-events-none absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-white to-transparent" />
         </div>
       </div>
 
       {/* Offline banner */}
       {hasNetworkError && !isLoading && (
-        <div className="mx-4 mt-3 flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2 animate-in fade-in">
-          <WifiOff className="w-4 h-4 text-amber-500 flex-shrink-0" />
-          <p className="text-xs font-medium text-amber-700">Check your connection</p>
+        <div className="mx-4 mt-3 flex items-center gap-2 bg-amber-500/10 border border-amber-500/20 rounded-xl px-3 py-2 animate-in fade-in">
+          <WifiOff className="w-4 h-4 text-amber-400 flex-shrink-0" />
+          <p className="text-xs font-bold text-amber-200">Check your connection</p>
           <button
             onClick={() => {
               setHasNetworkError(false);
               setIsLoading(true);
               tourAPI.getTours().then(d => setTours(d)).catch(() => setHasNetworkError(true)).finally(() => setIsLoading(false));
             }}
-            className="ml-auto text-xs font-bold text-amber-700 hover:underline"
+            className="ml-auto text-xs font-black text-amber-400 hover:underline"
           >
             Retry
           </button>
@@ -735,19 +729,19 @@ export const ToursScreen: React.FC<ToursScreenProps> = ({ t, lang, onBookingComp
         ) : (
           <>
             {(search || quickFilter || category !== 'all' || cityFilter !== 'All Cities' || isFilterActive) && (
-              <p className="text-xs text-slate-500 mb-3 font-medium">
+              <p className="text-[10px] text-moon font-black uppercase tracking-widest mb-3">
                 {displayedTours.length === 0 ? 'No tours found' : `${displayedTours.length} tour${displayedTours.length !== 1 ? 's' : ''} found`}
-                {search && <span className="text-slate-400"> for "<span className="text-slate-600">{search}</span>"</span>}
+                {search && <span className="text-moon/40 lowercase tracking-normal"> for "<span className="text-oasis-spring">{search}</span>"</span>}
               </p>
             )}
             {displayedTours.length === 0 ? (
-              <div className="text-center py-16 animate-in fade-in">
-                <Compass className="w-12 h-12 text-slate-200 mx-auto mb-3" />
-                <h3 className="font-bold text-slate-700 text-lg mb-1">No tours found</h3>
-                <p className="text-slate-400 text-sm">Try a different category or adjust your filters.</p>
+              <div className="text-center py-16 animate-in fade-in bg-slate-50 dark:bg-chamber/20 rounded-3xl border border-dashed border-slate-200 dark:border-white/5">
+                <Compass className="w-12 h-12 text-slate-300 dark:text-moon/20 mx-auto mb-3" />
+                <h3 className="font-black text-slate-900 dark:text-white text-lg mb-1">No tours found</h3>
+                <p className="text-slate-500 dark:text-moon/40 text-sm">Try a different category or adjust your filters.</p>
                 <button
                   onClick={() => { setCategory('all'); setCityFilter('All Cities'); setFilterState(DEFAULT_FILTER); setSearch(''); setQuickFilter(null); }}
-                  className="mt-4 px-5 py-2.5 bg-emerald-600 text-white rounded-xl font-bold text-sm hover:bg-emerald-700 transition-colors"
+                  className="mt-4 px-6 py-3 bg-slate-100 dark:bg-lifted text-slate-900 dark:text-white border border-slate-200 dark:border-white/10 rounded-xl font-black text-sm hover:bg-white dark:hover:bg-navy-900 hover:text-midnight transition-all active:scale-95"
                 >
                   Clear All Filters
                 </button>
@@ -768,10 +762,10 @@ export const ToursScreen: React.FC<ToursScreenProps> = ({ t, lang, onBookingComp
                   ))}
                 </div>
                 {visibleCount < displayedTours.length && (
-                  <div className="mt-6 text-center">
+                  <div className="mt-10 text-center">
                     <button
                       onClick={() => setVisibleCount(prev => prev + 6)}
-                      className="px-6 py-2.5 bg-white border border-emerald-200 text-emerald-700 font-bold text-sm rounded-2xl hover:bg-emerald-50 transition-colors shadow-sm"
+                    className="px-8 py-4 bg-slate-50 dark:bg-chamber border border-slate-100 dark:border-white/10 text-slate-500 dark:text-moon font-black text-sm rounded-2xl hover:bg-slate-100 dark:hover:bg-lifted hover:text-slate-900 dark:hover:text-white transition-all shadow-xl active:scale-95"
                     >
                       Load more ({displayedTours.length - visibleCount} remaining)
                     </button>
@@ -799,6 +793,7 @@ export const ToursScreen: React.FC<ToursScreenProps> = ({ t, lang, onBookingComp
           onClose={() => setBookingTour(null)}
           onConfirm={handleBook}
           isBooking={isBooking}
+          lang={lang}
         />
       )}
     </div>
@@ -833,76 +828,57 @@ const TourCard: React.FC<TourCardProps> = ({ tour, onSelect, saved, onToggleSave
   if (viewMode === 'list') {
     return (
       <div
-        className="bg-white rounded-2xl overflow-hidden shadow-sm border border-slate-100 hover:shadow-md transition-all cursor-pointer flex active:scale-[0.99]"
+        className="bg-slate-50 dark:bg-chamber rounded-3xl overflow-hidden shadow-2xl border border-slate-100 dark:border-white/5 hover:border-slate-200 dark:hover:border-white/10 transition-all cursor-pointer flex active:scale-[0.98] group"
         onClick={() => onSelect(tour)}
       >
-        <div className="relative w-28 flex-shrink-0 overflow-hidden bg-slate-100">
-          {tour.heroImage ? (
-            <img
-              src={tour.heroImage}
-              alt={tour.title}
-              className="w-full h-full object-cover"
-              onError={(e) => { (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1509316785289-025f5b846b35?w=800&q=80'; }}
-              loading="lazy"
-            />
-          ) : (
-            <div className="w-full h-full flex items-center justify-center">
-              <Compass className="w-8 h-8 text-slate-300" />
-            </div>
-          )}
-          <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent" />
-          <span className={`absolute top-2 left-1.5 px-1.5 py-0.5 rounded-full text-[9px] font-extrabold uppercase tracking-wide ${diffColor}`}>
+        <div className="relative w-36 flex-shrink-0 overflow-hidden bg-slate-100 dark:bg-midnight">
+          <SafeImage
+            src={tour.heroImage}
+            alt={tour.title}
+            className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+            fallbackType="placeholder"
+            seed={tour.title}
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-slate-100 dark:from-midnight to-transparent opacity-60" />
+          <span className={`absolute top-3 left-2 px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-widest ${diffColor}`}>
             {diffLabel}
           </span>
-          {tour.spotsRemaining != null && tour.spotsRemaining <= 4 && (
-            <span className="absolute bottom-1.5 left-1.5 px-1.5 py-0.5 bg-red-500/90 text-white text-[8px] font-extrabold rounded-full">
-              {tour.spotsRemaining} left
-            </span>
-          )}
         </div>
-        <div className="flex-1 p-3 min-w-0 flex flex-col justify-between">
+        <div className="flex-1 p-4 min-w-0 flex flex-col justify-between">
           <div>
-            <div className="flex items-start justify-between gap-1">
+            <div className="flex items-start justify-between gap-2">
               <div className="min-w-0">
-                <span className="text-[9px] font-bold uppercase tracking-widest text-emerald-600">{tour.category}</span>
-                <h3 className="font-bold text-slate-900 text-sm leading-tight line-clamp-2">{tour.title}</h3>
+                <span className="text-[9px] font-black uppercase tracking-[0.2em] text-oasis-spring mb-1 block">{tour.category}</span>
+                <h3 className="font-black text-slate-900 dark:text-white text-sm leading-tight line-clamp-2">{tour.title}</h3>
               </div>
               <button
                 onClick={e => { e.stopPropagation(); onToggleSave(tourId); }}
-                className="w-7 h-7 bg-slate-50 hover:bg-slate-100 rounded-full flex items-center justify-center flex-shrink-0 active:scale-90 transition-colors"
+                className="w-8 h-8 bg-slate-100/40 dark:bg-midnight/40 hover:bg-slate-200 dark:hover:bg-midnight rounded-full flex items-center justify-center flex-shrink-0 active:scale-90 transition-all border border-slate-200/5 dark:border-white/5"
               >
-                <Bookmark className={`w-3.5 h-3.5 ${saved ? 'text-rose-500 fill-rose-500' : 'text-slate-400'}`} />
+                <Bookmark className={`w-3.5 h-3.5 transition-colors ${saved ? 'text-waypoint fill-waypoint' : 'text-slate-400 dark:text-moon'}`} />
               </button>
             </div>
-            {tour.tags && tour.tags.length > 0 && (
-              <div className="flex gap-1 mt-1 flex-wrap">
-                {tour.tags.slice(0, 2).map(tag => (
-                  <span key={tag} className="px-1.5 py-0.5 bg-emerald-50 text-emerald-700 text-[9px] font-bold rounded-full">
-                    {tag}
-                  </span>
-                ))}
-              </div>
-            )}
-            <div className="flex items-center gap-2 text-[10px] text-slate-400 mt-1 flex-wrap">
-              <span className="flex items-center gap-0.5"><Clock className="w-2.5 h-2.5" />{tour.totalDuration}h</span>
-              <span className="flex items-center gap-0.5"><MapPin className="w-2.5 h-2.5" />{tour.departureLocation?.split(',')[0]}</span>
+            
+            <div className="flex items-center gap-3 text-[10px] text-slate-500 dark:text-moon mt-2 flex-wrap">
+              <span className="flex items-center gap-1"><Clock className="w-3 h-3 text-oasis-spring/60" />{tour.totalDuration}h</span>
+              <span className="flex items-center gap-1"><MapPin className="w-3 h-3 text-oasis-spring/60" />{tour.departureLocation?.split(',')[0]}</span>
               {tour.rating != null && (
-                <span className="flex items-center gap-0.5 text-amber-500 font-bold">
-                  <Star className="w-2.5 h-2.5 fill-amber-400" />{tour.rating.toFixed(1)}
+                <span className="flex items-center gap-1 text-karam font-black">
+                  <Star className="w-3 h-3 fill-karam" />{tour.rating.toFixed(1)}
                 </span>
               )}
             </div>
           </div>
-          <div className="flex items-center justify-between mt-2">
+          <div className="flex items-center justify-between mt-3 pt-3 border-t border-slate-100 dark:border-white/5">
             <div>
-              <span className="text-emerald-700 font-extrabold text-sm">{tour.pricePerPerson === 0 ? 'مجاني' : tour.pricePerPerson.toLocaleString()}</span>
-              {tour.pricePerPerson > 0 && <span className="text-[10px] text-slate-400 ml-0.5">SAR</span>}
+              <span className="text-slate-900 dark:text-white font-black text-base">{tour.pricePerPerson === 0 ? 'Free' : tour.pricePerPerson.toLocaleString()}</span>
+              {tour.pricePerPerson > 0 && <span className="text-[10px] text-slate-500 dark:text-moon ml-1 uppercase font-bold tracking-tighter">SAR</span>}
             </div>
             <button
               onClick={e => { e.stopPropagation(); onSelect(tour); }}
-              className="flex items-center gap-0.5 px-2.5 py-1 bg-emerald-600 text-white text-[10px] font-bold rounded-lg hover:bg-emerald-700 transition-colors active:scale-95"
+              className="flex items-center gap-1 px-4 py-2 bg-oasis-spring text-midnight text-[10px] font-black uppercase rounded-xl hover:shadow-mint-glow transition-all active:scale-95"
             >
-              View <ChevronRight className="w-3 h-3" />
+              Details <ChevronRight className="w-3 h-3" />
             </button>
           </div>
         </div>
@@ -912,170 +888,100 @@ const TourCard: React.FC<TourCardProps> = ({ tour, onSelect, saved, onToggleSave
 
   return (
     <div
-      className="bg-white rounded-2xl overflow-hidden shadow-sm border border-slate-100 hover:shadow-md hover:-translate-y-0.5 transition-all cursor-pointer active:scale-[0.99]"
+      className="bg-slate-50 dark:bg-chamber rounded-3xl overflow-hidden shadow-2xl border border-slate-100 dark:border-white/5 hover:border-slate-200 dark:hover:border-white/10 hover:-translate-y-1 transition-all cursor-pointer active:scale-[0.98] group"
       onClick={() => onSelect(tour)}
     >
-      <div className="relative h-48 overflow-hidden bg-slate-100">
-        {tour.heroImage ? (
-          <img
-            src={tour.heroImage}
-            alt={tour.title}
-            className="w-full h-full object-cover"
-            onError={(e) => {
-              (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1509316785289-025f5b846b35?w=800&q=80';
-            }}
-            loading="lazy"
-          />
-        ) : (
-          <div className="w-full h-full flex items-center justify-center">
-            <Compass className="w-12 h-12 text-slate-300" />
-          </div>
-        )}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
+      <div className="relative h-56 overflow-hidden bg-slate-100 dark:bg-midnight">
+        <SafeImage
+          src={tour.heroImage}
+          alt={tour.title}
+          className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
+          fallbackType="placeholder"
+          seed={tour.title}
+        />
+        <div className="absolute inset-0 bg-gradient-to-t from-white dark:from-midnight via-transparent to-transparent opacity-80" />
 
-        <span className={`absolute top-3 left-3 px-2.5 py-1 rounded-full text-[11px] font-extrabold uppercase tracking-wide ${diffColor}`}>
+        <span className={`absolute top-4 left-4 px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest ${diffColor}`}>
           {diffLabel}
         </span>
 
         <button
           onClick={e => { e.stopPropagation(); onToggleSave(tourId); }}
-          className="absolute top-3 right-3 w-8 h-8 bg-white/90 backdrop-blur-sm hover:bg-white rounded-full flex items-center justify-center shadow-sm z-10 active:scale-90 transition-all"
+          className="absolute top-4 right-4 w-10 h-10 bg-white/40 dark:bg-midnight/40 backdrop-blur-md hover:bg-white dark:hover:bg-midnight rounded-full flex items-center justify-center shadow-2xl z-10 active:scale-90 transition-all border border-slate-200/20 dark:border-white/10"
         >
-          <Bookmark className={`w-4 h-4 ${saved ? 'text-rose-500 fill-rose-500' : 'text-slate-600'}`} />
+          <Bookmark className={`w-4 h-4 transition-colors ${saved ? 'text-waypoint fill-waypoint' : 'text-slate-600 dark:text-moon'}`} />
         </button>
 
-        <div className="absolute bottom-3 left-3 flex flex-col gap-1">
+        <div className="absolute bottom-4 left-4 flex flex-col gap-2">
           {tour.isCommunityOuting && (
-            <span className="px-2 py-0.5 bg-blue-500/90 text-white text-[9px] font-extrabold rounded-full flex items-center gap-1 drop-shadow-sm">
-              👥 تجمع مجتمعي
+            <span className="px-3 py-1 bg-blue-500 text-white text-[8px] font-black uppercase rounded-lg flex items-center gap-1.5 shadow-xl">
+              👥 Community
             </span>
           )}
           {tour.organizerType === 'organized_tour' && (
-            <span className="px-2 py-0.5 bg-purple-500/90 text-white text-[9px] font-extrabold rounded-full drop-shadow-sm">
-              🏢 رحلة منظمة
-            </span>
-          )}
-          {tour.organizerType === 'guide_led' && (
-            <span className="px-2 py-0.5 bg-teal-500/90 text-white text-[9px] font-extrabold rounded-full drop-shadow-sm">
-              🧭 مرشد سياحي
-            </span>
-          )}
-          {tour.hasAppDiscount && tour.appPrice && (
-            <span className="px-2 py-0.5 bg-emerald-500/90 text-white text-[9px] font-extrabold rounded-full drop-shadow-sm">
-              🏷️ سعر التطبيق أوفر!
+            <span className="px-3 py-1 bg-purple-500 text-white text-[8px] font-black uppercase rounded-lg shadow-xl">
+              🏢 Organized
             </span>
           )}
         </div>
 
         {tour.rating !== undefined && (
-          <span className="absolute bottom-3 right-3 flex items-center gap-1 px-2.5 py-1 bg-white/95 rounded-full text-xs font-bold text-slate-800 shadow">
-            <Star className="w-3 h-3 text-amber-400 fill-amber-400" />
+          <span className="absolute bottom-4 right-4 flex items-center gap-1.5 px-3 py-1.5 bg-white/80 dark:bg-midnight/80 backdrop-blur-md border border-slate-100 dark:border-white/10 rounded-xl text-xs font-black text-karam shadow-2xl">
+            <Star className="w-3.5 h-3.5 fill-karam" />
             {tour.rating.toFixed(1)}
           </span>
         )}
 
         {tour.spotsRemaining != null && tour.spotsRemaining <= 4 && (
-          <span className="absolute bottom-3 left-3 px-2.5 py-1 bg-red-500/90 backdrop-blur-sm text-white text-[10px] font-extrabold rounded-full shadow">
-            Only {tour.spotsRemaining} spot{tour.spotsRemaining !== 1 ? 's' : ''} left!
-          </span>
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+             <span className="px-4 py-2 bg-red-500 text-white text-[10px] font-black uppercase tracking-tighter rounded-xl shadow-2xl animate-bounce">
+              Only {tour.spotsRemaining} spots left!
+            </span>
+          </div>
         )}
       </div>
 
-      <div className="p-4">
-        <div className="flex items-center justify-between mb-0.5">
-          <span className="text-[10px] font-bold uppercase tracking-widest text-emerald-600">{tour.category}</span>
+      <div className="p-5">
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-[10px] font-black uppercase tracking-[0.2em] text-oasis-spring">{tour.category}</span>
           {langShort && (
-            <span className="flex items-center gap-1 text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">
-              <Globe className="w-2.5 h-2.5" />
+            <span className="flex items-center gap-1.5 text-[9px] font-black text-slate-500 dark:text-moon bg-slate-100 dark:bg-midnight px-2.5 py-1 rounded-lg border border-slate-200 dark:border-white/5 uppercase tracking-wider">
+              <Globe className="w-3 h-3" />
               {langShort}
             </span>
           )}
         </div>
 
-        <h3 className="font-extrabold text-slate-900 text-base leading-tight mt-0.5 mb-2">{tour.title}</h3>
+        <h3 className="font-black text-slate-900 dark:text-white text-lg leading-tight mb-4 group-hover:text-oasis-spring transition-colors">{tour.title}</h3>
 
-        {tour.tags && tour.tags.length > 0 && (
-          <div className="flex gap-1.5 mb-2 flex-wrap">
-            {tour.tags.slice(0, 3).map(tag => (
-              <span key={tag} className="px-2 py-0.5 bg-emerald-50 text-emerald-700 text-[10px] font-bold rounded-full">
-                {tag}
-              </span>
-            ))}
-          </div>
-        )}
-
-        <div className="flex items-center gap-3 text-xs text-slate-500 mb-3">
-          <span className="flex items-center gap-1">
-            <Clock className="w-3.5 h-3.5 text-slate-400" />
+        <div className="flex items-center gap-4 text-xs text-slate-500 dark:text-moon mb-6 pb-6 border-b border-slate-100 dark:border-white/5">
+          <span className="flex items-center gap-1.5">
+            <Clock className="w-4 h-4 text-oasis-spring/60" />
             {tour.totalDuration}h
           </span>
-          <span className="flex items-center gap-1">
-            <Users className="w-3.5 h-3.5 text-slate-400" />
+          <span className="flex items-center gap-1.5">
+            <Users className="w-4 h-4 text-oasis-spring/60" />
             Max {tour.maxGroupSize}
           </span>
-          <span className="flex items-center gap-1">
-            <MapPin className="w-3.5 h-3.5 text-slate-400" />
+          <span className="flex items-center gap-1.5">
+            <MapPin className="w-4 h-4 text-oasis-spring/60" />
             {tour.departureLocation?.split(',')[0]}
           </span>
         </div>
 
-        {tour.organizer && (
-          <div className="flex items-center gap-2 mb-3 px-3 py-2 bg-slate-50 rounded-xl border border-slate-100">
-            <div className="flex-1 min-w-0">
-              <p className="text-[10px] font-black text-slate-700 flex items-center gap-1 truncate">
-                {tour.organizer.name}
-                {tour.organizer.isVerified && (
-                  <span className="inline-flex items-center gap-0.5 text-[9px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded-full font-black shrink-0">
-                    ✓ موثّق
-                  </span>
-                )}
-                {tour.organizer.isAccredited && (
-                  <span className="inline-flex items-center gap-0.5 text-[9px] bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded-full font-black shrink-0">
-                    🏅 معتمد
-                  </span>
-                )}
-              </p>
-              {tour.organizer.tripsCount && (
-                <p className="text-[9px] text-slate-400">{tour.organizer.tripsCount}+ رحلة</p>
-              )}
-            </div>
-          </div>
-        )}
-
-        {tour.isCommunityOuting && tour.currentParticipants != null && (
-          <div className="mb-3 px-3 py-2 bg-blue-50 rounded-xl border border-blue-100 flex items-center justify-between">
-            <p className="text-[10px] text-blue-700 font-black">
-              👥 {tour.currentParticipants} انضموا بالفعل
-            </p>
-            {tour.spotsRemaining != null && (
-              <p className="text-[9px] text-blue-500">{tour.spotsRemaining} مقعد متبقٍّ</p>
-            )}
-          </div>
-        )}
-
         <div className="flex items-center justify-between">
           <div className="flex flex-col">
             <div className="flex items-baseline gap-1">
-              {tour.hasAppDiscount && tour.appPrice ? (
-                <>
-                  <span className="text-2xl font-extrabold text-emerald-700">{tour.appPrice.toLocaleString()}</span>
-                  <span className="text-xs text-slate-400 line-through ml-1">{tour.pricePerPerson.toLocaleString()}</span>
-                  <span className="text-xs text-slate-400 font-medium">SAR</span>
-                </>
-              ) : (
-                <>
-                  <span className="text-2xl font-extrabold text-emerald-700">{tour.pricePerPerson === 0 ? 'مجاني' : tour.pricePerPerson.toLocaleString()}</span>
-                  {tour.pricePerPerson > 0 && <span className="text-xs text-slate-400 font-medium">SAR</span>}
-                </>
-              )}
+              <span className="text-2xl font-black text-slate-900 dark:text-white">{tour.pricePerPerson === 0 ? 'Free' : tour.pricePerPerson.toLocaleString()}</span>
+              {tour.pricePerPerson > 0 && <span className="text-[10px] text-slate-500 dark:text-moon font-bold uppercase tracking-tighter">SAR</span>}
             </div>
-            {tour.pricePerPerson > 0 && <span className="text-[10px] text-slate-400">per person</span>}
+            <span className="text-[9px] text-slate-400 dark:text-dusk font-bold uppercase tracking-widest mt-0.5">per person</span>
           </div>
           <button
             onClick={(e) => { e.stopPropagation(); onSelect(tour); }}
-            className="flex items-center gap-1 px-4 py-2 bg-emerald-600 text-white text-sm font-bold rounded-xl hover:bg-emerald-700 transition-colors active:scale-95"
+            className="flex items-center gap-2 px-6 py-3 bg-oasis-spring text-midnight text-xs font-black uppercase rounded-2xl hover:shadow-mint-glow transition-all active:scale-95"
           >
-            View Trip
+            Explore
             <ChevronRight className="w-4 h-4" />
           </button>
         </div>

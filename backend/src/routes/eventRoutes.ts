@@ -20,7 +20,7 @@ router.get('/', getAllEvents);
 router.get('/:eventId', getEvent);
 
 // Auth-required
-router.post('/', authenticate, validate(createEventSchema), createEvent);
-router.post('/:eventId/join', authenticate, toggleEventMembership);
+router.post('/', authenticate, createEvent);
+router.post('/:id/toggle-join', authenticate, toggleEventMembership);
 
 export default router;

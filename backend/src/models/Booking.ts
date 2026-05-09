@@ -11,6 +11,7 @@ export interface IBooking extends Document {
   providerSessionId?: string;
   paymentId?: Types.ObjectId;
   bookingDetails: any;
+  rating?: number;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -58,6 +59,11 @@ const bookingSchema = new Schema({
   bookingDetails: {
     type: Schema.Types.Mixed,
     required: true
+  },
+  rating: {
+    type: Number,
+    min: 1,
+    max: 5,
   }
 }, {
   timestamps: true

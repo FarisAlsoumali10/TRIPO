@@ -4,6 +4,8 @@ import { placeAPI, tourAPI, rentalAPI } from '../services/api';
 import { Place, Tour, Rental } from '../types/index';
 import { showToast } from '../components/Toast';
 
+import { SafeImage } from '../components/ui';
+
 export type DiscoverMode = 'trending' | 'near' | 'family';
 
 interface Props {
@@ -49,21 +51,21 @@ function cityKm(cityName: string, userLat: number, userLon: number): number {
 
 const MiniCard: React.FC<{ img?: string; name: string; sub?: string; rating?: number; onClick: () => void }> = ({ img, name, sub, rating, onClick }) => (
   <button onClick={onClick}
-    className="flex-shrink-0 w-40 bg-white rounded-2xl overflow-hidden shadow-sm border border-slate-100 active:scale-[0.97] transition-transform text-left">
-    <div className="h-28 bg-slate-200 relative overflow-hidden">
+    className="flex-shrink-0 w-40 bg-white dark:bg-navy-900 rounded-2xl overflow-hidden shadow-sm dark:shadow-black/30 border border-slate-100 dark:border-white/8 active:scale-[0.97] transition-transform text-left">
+    <div className="h-28 bg-slate-200 dark:bg-white/10 relative overflow-hidden">
       {img
-        ? <img src={img} alt={name} className="w-full h-full object-cover" loading="lazy" />
+        ? <SafeImage src={img} alt={name} className="w-full h-full object-cover" fallbackType="placeholder" seed={name} />
         : <div className="w-full h-full flex items-center justify-center"><MapPin className="w-6 h-6 text-slate-300" /></div>
       }
       {rating != null && (
-        <div className="absolute top-2 right-2 flex items-center gap-0.5 bg-white/90 backdrop-blur-sm px-1.5 py-0.5 rounded-full">
+        <div className="absolute top-2 right-2 flex items-center gap-0.5 bg-white dark:bg-navy-900/90 backdrop-blur-sm px-1.5 py-0.5 rounded-full">
           <Star className="w-2.5 h-2.5 fill-amber-400 text-amber-400" />
-          <span className="text-[10px] font-bold text-slate-700">{Number(rating).toFixed(1)}</span>
+          <span className="text-[10px] font-bold text-slate-700 dark:text-slate-300">{Number(rating).toFixed(1)}</span>
         </div>
       )}
     </div>
     <div className="p-2.5">
-      <p className="font-bold text-slate-900 text-xs truncate">{name}</p>
+      <p className="font-bold text-slate-900 dark:text-white text-xs truncate">{name}</p>
       {sub && <p className="text-[10px] text-slate-400 truncate mt-0.5">{sub}</p>}
     </div>
   </button>
@@ -76,8 +78,8 @@ const Section = ({ title, onSeeAll, children }: {
 }) => (
   <section className="mb-8">
     <div className="flex items-center justify-between mb-3 px-5">
-      <h2 className="font-black text-slate-900 text-base">{title}</h2>
-      <button onClick={onSeeAll} className="flex items-center gap-1 text-xs font-bold text-emerald-600">
+      <h2 className="font-black text-slate-900 dark:text-white text-base">{title}</h2>
+      <button onClick={onSeeAll} className="flex items-center gap-1 text-xs font-black text-oasis-spring uppercase tracking-widest">
         See all <ArrowRight className="w-3.5 h-3.5" />
       </button>
     </div>
@@ -160,21 +162,21 @@ export const DiscoverScreen: React.FC<Props> = ({
   const Skeleton = () => (
     <div className="flex gap-3 px-5">
       {[1, 2, 3].map(i => (
-        <div key={i} className="flex-shrink-0 w-40 h-44 bg-slate-200 rounded-2xl animate-pulse" />
+        <div key={i} className="flex-shrink-0 w-40 h-44 bg-slate-200 dark:bg-white/10 rounded-2xl animate-pulse" />
       ))}
     </div>
   );
 
   return (
-    <div className="flex flex-col h-full bg-slate-50">
+    <div className="flex flex-col h-full bg-slate-50 dark:bg-navy-950">
       {/* Header */}
-      <div className="bg-white border-b border-slate-100 px-5 pt-5 pb-4">
+      <div className="bg-white dark:bg-navy-900 border-b border-slate-100 dark:border-white/8 px-5 pt-5 pb-4">
         <div className="flex items-center gap-3 mb-1">
-          <button onClick={onBack} className="w-9 h-9 flex items-center justify-center rounded-xl bg-slate-100 hover:bg-slate-200 transition-colors">
-            <ChevronLeft className="w-5 h-5 text-slate-700" />
+          <button onClick={onBack} className="w-9 h-9 flex items-center justify-center rounded-xl bg-slate-100 dark:bg-navy-800 hover:bg-slate-200 dark:bg-white/10 transition-colors">
+            <ChevronLeft className="w-5 h-5 text-slate-700 dark:text-slate-300" />
           </button>
           <div>
-            <h1 className="text-xl font-black text-slate-900">{meta.emoji} {meta.label}</h1>
+            <h1 className="text-xl font-black text-slate-900 dark:text-white">{meta.emoji} {meta.label}</h1>
             <p className="text-xs text-slate-400 mt-0.5">
               {mode === 'near' && locating ? 'Finding your location…' : 'Places · Tours · Stays'}
             </p>
@@ -185,9 +187,9 @@ export const DiscoverScreen: React.FC<Props> = ({
       {/* Content */}
       <div className="flex-1 overflow-y-auto pt-6 pb-24">
         {mode === 'near' && !userCoords && !locating && (
-          <div className="mx-5 mb-6 flex items-center gap-3 bg-blue-50 border border-blue-100 rounded-2xl px-4 py-3">
+          <div className="mx-5 mb-6 flex items-center gap-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800/30 rounded-2xl px-4 py-3">
             <Navigation className="w-5 h-5 text-blue-500 flex-shrink-0" />
-            <p className="text-sm font-medium text-blue-700">Enable location to sort by distance</p>
+            <p className="text-sm font-medium text-blue-700 dark:text-blue-300">Enable location to sort by distance</p>
           </div>
         )}
 
@@ -242,7 +244,7 @@ export const DiscoverScreen: React.FC<Props> = ({
         {!loading && filteredPlaces.length === 0 && filteredTours.length === 0 && filteredRentals.length === 0 && (
           <div className="flex flex-col items-center justify-center pt-24 px-8 text-center">
             <p className="text-4xl mb-3">{meta.emoji}</p>
-            <p className="font-bold text-slate-700">No results found</p>
+            <p className="font-bold text-slate-700 dark:text-slate-300">No results found</p>
             <p className="text-sm text-slate-400 mt-1">Try a different filter</p>
           </div>
         )}

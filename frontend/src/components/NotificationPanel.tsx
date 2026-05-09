@@ -160,44 +160,44 @@ export const NotificationPanel = ({ lang = 'ar' }: { lang?: 'en' | 'ar' }) => {
   return (
     <div className="relative" id="notification-panel">
       <button onClick={handleOpen}
-        className="relative p-2 rounded-full hover:bg-slate-100 transition-colors text-slate-500"
+        className="relative p-2 rounded-full hover:bg-slate-100 dark:hover:bg-white/10 transition-colors text-slate-500 dark:text-slate-400"
         aria-label="Notifications">
         <Bell className="w-5 h-5" />
         {unreadCount > 0 && (
-          <span className="absolute top-1 right-1 w-4 h-4 bg-rose-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center">
+          <span className="absolute top-1 right-1 w-4 h-4 bg-rose-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center border-2 border-white dark:border-navy-950">
             {unreadCount > 9 ? '9+' : unreadCount}
           </span>
         )}
       </button>
 
       {isOpen && (
-        <div className="absolute right-0 top-full mt-2 w-80 bg-white rounded-2xl shadow-2xl border border-slate-100 z-[200] overflow-hidden">
-          <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100">
-            <h3 className="font-bold text-slate-900 text-sm">{lang === 'ar' ? 'الإشعارات' : 'Notifications'}</h3>
-            <button onClick={() => setIsOpen(false)} className="p-1 rounded-full hover:bg-slate-100 transition" aria-label="Close">
-              <X className="w-4 h-4 text-slate-400" />
+        <div className="absolute right-0 top-full mt-2 w-80 bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-100 dark:border-white/10 z-[200] overflow-hidden">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100 dark:border-white/10">
+            <h3 className="font-bold text-slate-900 dark:text-white text-sm">{lang === 'ar' ? 'الإشعارات' : 'Notifications'}</h3>
+            <button onClick={() => setIsOpen(false)} className="p-1 rounded-full hover:bg-slate-100 dark:hover:bg-white/10 transition" aria-label="Close">
+              <X className="w-4 h-4 text-slate-400 dark:text-slate-500" />
             </button>
           </div>
 
           <div className="max-h-80 overflow-y-auto divide-y divide-slate-50">
             {notifications.length === 0 ? (
               <div className="py-10 text-center">
-                <Bell className="w-8 h-8 mx-auto text-slate-200 mb-2" />
-                <p className="text-sm text-slate-400 font-medium">{lang === 'ar' ? 'لا توجد إشعارات بعد' : 'No notifications yet'}</p>
+                <Bell className="w-8 h-8 mx-auto text-slate-200 dark:text-slate-700 mb-2" />
+                <p className="text-sm text-slate-400 dark:text-slate-500 font-medium">{lang === 'ar' ? 'لا توجد إشعارات بعد' : 'No notifications yet'}</p>
               </div>
             ) : (
               notifications.map(n => (
-                <div key={n.id} className={`flex items-start gap-3 px-4 py-3 ${!n.read ? 'bg-emerald-50/50' : ''}`}>
-                  <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center flex-shrink-0 mt-0.5">
-                    {ICON_MAP[n.type] ?? <Bell className="w-4 h-4 text-slate-400" />}
+                <div key={n.id} className={`flex items-start gap-3 px-4 py-3 ${!n.read ? 'bg-emerald-50/50 dark:bg-emerald-500/10' : ''}`}>
+                  <div className="w-8 h-8 rounded-full bg-slate-100 dark:bg-white/5 flex items-center justify-center flex-shrink-0 mt-0.5">
+                    {ICON_MAP[n.type] ?? <Bell className="w-4 h-4 text-slate-400 dark:text-slate-500" />}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm text-slate-800 leading-snug">{labelForNotif(n, lang)}</p>
-                    <p className="text-xs text-slate-400 mt-0.5">
+                    <p className="text-sm text-slate-800 dark:text-slate-200 leading-snug">{labelForNotif(n, lang)}</p>
+                    <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">
                       {new Date(n.timestamp ?? 0).toLocaleDateString()}
                     </p>
                   </div>
-                  <button onClick={() => dismiss(n.id)} className="text-slate-300 hover:text-slate-500 transition flex-shrink-0" aria-label="Dismiss">
+                  <button onClick={() => dismiss(n.id)} className="text-slate-300 dark:text-slate-600 hover:text-slate-500 dark:hover:text-slate-400 transition flex-shrink-0" aria-label="Dismiss">
                     <X className="w-3.5 h-3.5" />
                   </button>
                 </div>

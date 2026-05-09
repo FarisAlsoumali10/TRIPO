@@ -8,6 +8,21 @@ import {
   Store, Tent, Compass, Lock, LayoutGrid, Camera, Sun, Moon, Bell,
   BookOpen, Map as MapIcon, Layers,
 } from 'lucide-react';
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
+import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png';
+import markerIcon from 'leaflet/dist/images/marker-icon.png';
+import markerShadow from 'leaflet/dist/images/marker-shadow.png';
+
+// Fix Leaflet default icon for Vite
+// @ts-ignore
+delete L.Icon.Default.prototype._getIconUrl;
+L.Icon.Default.mergeOptions({
+  iconUrl: markerIcon,
+  iconRetinaUrl: markerIcon2x,
+  shadowUrl: markerShadow,
+});
+
 import { User, Itinerary, GroupTrip, PrivateTrip } from './src/types/index';
 import { TRANSLATIONS } from './translations';
 import { authAPI, itineraryAPI, groupTripAPI, walletAPI, paymentAPI } from './src/services/api';
@@ -28,6 +43,9 @@ import { WalletScreen } from './src/screens/WalletScreen';
 import { SettingsScreen } from './src/screens/SettingsScreen';
 import { NotificationsScreen } from './src/screens/NotificationsScreen';
 import { BookingHistoryScreen } from './src/screens/BookingHistoryScreen';
+import { BookingsScreen } from './src/screens/BookingsScreen';
+import { MyBookingsScreen } from './src/screens/MyBookingsScreen';
+import { PaymentSuccess } from './src/screens/PaymentSuccess';
 
 // ── Lazily-loaded heavy screens ─────────────────────────────────────────────
 const YourMoodScreen = lazy(() => import('./src/screens/YourMoodScreen').then(m => ({ default: m.YourMoodScreen })));
@@ -44,6 +62,7 @@ const HostDashboardScreen = lazy(() => import('./src/screens/HostDashboardScreen
 const PersonalListsScreen = lazy(() => import('./src/screens/PersonalListsScreen').then(m => ({ default: m.default || m.PersonalListsScreen })));
 
 import { WishListModal } from './src/components/WishListModal';
+import { BottomNavigation } from './src/components/BottomNavigation';
 import { NotificationPanel } from './src/components/NotificationPanel';
 import { ToastContainer } from './src/components/Toast';
 import { GlobalSearch } from './src/components/GlobalSearch';
@@ -72,17 +91,17 @@ const GRID_COLS_CLASS: Record<number, string> = {
 
 // ─── Pure helpers (defined once, module scope — never recreated) ──────────────
 const getKaramLevel = (points: number, t?: any): string => {
-  if (points >= 1000) return t?.karamLegend || 'Legend';
-  if (points >= 500) return t?.karamPathfinder || 'Pathfinder';
-  if (points >= 200) return t?.karamAdventurer || 'Adventurer';
-  return t?.karamExplorer || 'Explorer';
+  if (points >= 1000) return t?.karam?.legend || 'Legend';
+  if (points >= 500)  return t?.karam?.pathfinder || 'Pathfinder';
+  if (points >= 200)  return t?.karam?.adventurer || 'Adventurer';
+  return t?.karam?.explorer || 'Explorer';
 };
 
 const getContributionTier = (count: number, t?: any) => {
-  if (count >= 50) return { label: t?.tierExpert || 'Expert Explorer', color: 'text-purple-700', bg: 'bg-purple-50', icon: '💎' };
-  if (count >= 20) return { label: t?.tierGuide || 'Trusted Guide', color: 'text-blue-700', bg: 'bg-blue-50', icon: '🥇' };
-  if (count >= 5) return { label: t?.tierActive || 'Active Traveller', color: 'text-emerald-700', bg: 'bg-emerald-50', icon: '🌟' };
-  return { label: t?.tierNew || 'New Explorer', color: 'text-slate-600', bg: 'bg-slate-50', icon: '🌱' };
+  if (count >= 50) return { label: t?.karam?.tierExpert || 'Expert Explorer', color: 'text-purple-700', bg: 'bg-purple-50', icon: '💎' };
+  if (count >= 20) return { label: t?.karam?.tierGuide || 'Trusted Guide', color: 'text-blue-700', bg: 'bg-blue-50', icon: '🥇' };
+  if (count >= 5)  return { label: t?.karam?.tierActive || 'Active Traveller', color: 'text-emerald-700', bg: 'bg-emerald-50', icon: '🌟' };
+  return { label: t?.karam?.tierNew || 'New Explorer', color: 'text-slate-600', bg: 'bg-slate-50', icon: '🌱' };
 };
 
 const parseLocalJSON = <T,>(key: string, fallback: T): T => {
@@ -139,12 +158,12 @@ class AuthErrorBoundary extends (React.Component as any) {
     const { error } = (this as any).state as { error: Error | null };
     const { children, onReset } = (this as any).props as { children: React.ReactNode; onReset: () => void };
     if (error) return (
-      <div className="h-[100dvh] flex flex-col items-center justify-center bg-slate-50 p-8 text-center">
-        <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mb-4">
-          <span className="text-red-500 text-xl font-bold" aria-hidden="true">!</span>
+      <div className="h-[100dvh] flex flex-col items-center justify-center bg-slate-50 dark:bg-navy-950 p-8 text-center">
+        <div className="w-12 h-12 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center mb-4">
+          <span className="text-red-500 dark:text-red-400 text-xl font-bold" aria-hidden="true">!</span>
         </div>
-        <h2 className="text-lg font-bold text-slate-800 mb-2">Something went wrong</h2>
-        <p className="text-sm text-slate-500 mb-6">{error.message}</p>
+        <h2 className="text-lg font-bold text-slate-800 dark:text-white mb-2">Something went wrong</h2>
+        <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">{error.message}</p>
         <button
           onClick={() => { (this as any).setState({ error: null }); onReset(); }}
           className="px-6 py-2.5 bg-emerald-600 text-white rounded-xl font-semibold text-sm hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-500"
@@ -156,22 +175,13 @@ class AuthErrorBoundary extends (React.Component as any) {
 }
 
 const AppWrapper = ({ children }: { children: React.ReactNode }) => (
-  <div className="h-[100dvh] w-full bg-slate-50 dark:bg-navy-950 font-sans overflow-hidden transition-colors duration-300">{children}</div>
+  <div className="min-h-screen w-full bg-slate-50 dark:bg-navy-950 font-sans transition-colors duration-300">{children}</div>
 );
 const ModalWrapper = ({ children }: { children: React.ReactNode }) => (
-  <div className="h-[100dvh] w-full max-w-2xl mx-auto bg-white dark:bg-navy-900 shadow-2xl relative overflow-hidden flex flex-col transition-colors duration-300">{children}</div>
+  <div className="min-h-screen w-full max-w-2xl mx-auto bg-white dark:bg-navy-900 shadow-2xl relative overflow-hidden flex flex-col transition-colors duration-300">{children}</div>
 );
 
-// ─── Bottom nav — static constant, defined outside component ──────────────────
-const BOTTOM_NAV_LEFT = [
-  { id: 'home', icon: Home, labelEn: 'Explore', labelAr: 'استكشف منطقتك' },
-  { id: 'explore', icon: MapPin, labelEn: 'Destinations', labelAr: 'الوجهات' },
-] as const;
-
-const BOTTOM_NAV_RIGHT = [
-  { id: 'communities', icon: Users, labelEn: 'Find a Community', labelAr: 'ابحث عن مجتمع' },
-  { id: 'profile', icon: UserIcon, labelEn: 'Profile', labelAr: 'حسابي' },
-] as const;
+// ─── Bottom nav — now exported in BottomNavigation ──────────────────────────────
 
 const MORE_TABS = new Set([
   'places', 'tours', 'ar', 'your_mood', 'ai_planner',
@@ -182,7 +192,7 @@ const MORE_TABS = new Set([
 // ══════════════════════════════════════════════════════════════════════════════
 export const App = () => {
   // ── View / Navigation ─────────────────────────────────────────────────────
-  const [view, setView] = useState<'welcome' | 'auth' | 'main' | 'itinerary' | 'group' | 'loading' | 'privateTrip'>('loading');
+  const [view, setView] = useState<'welcome' | 'auth' | 'main' | 'itinerary' | 'group' | 'loading' | 'privateTrip' | 'payment_success'>('loading');
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
   const [activeTab, setActiveTab] = useState('home');
 
@@ -258,7 +268,7 @@ export const App = () => {
   const hasHostingActivity = useMemo(() => {
     try {
       const claimed = JSON.parse(localStorage.getItem('tripo_claimed_places') || '[]');
-      const listed  = localStorage.getItem('tripo_has_listed_rental') === '1';
+      const listed = localStorage.getItem('tripo_has_listed_rental') === '1';
       return (Array.isArray(claimed) && claimed.length > 0) || listed || tourPublished;
     } catch { return false; }
   }, [user?.id, tourPublished]);
@@ -338,18 +348,19 @@ export const App = () => {
   // Detect payment provider redirect back to /payment-success or /payment-cancelled
   useEffect(() => {
     const path = window.location.pathname;
-    const sessionId = new URLSearchParams(window.location.search).get('session_id');
+    const search = new URLSearchParams(window.location.search);
+    const paymentId = search.get('id');
+    const tab = search.get('tab');
+
     if (path === '/payment-success') {
-      setPaymentResult('success');
-      window.history.replaceState({}, '', '/');
-      if (sessionId) {
-        paymentAPI.verifySession(sessionId)
-          .then(r => { if (r.paid && r.booking) setPaymentBooking(r.booking); })
-          .catch(() => {});
-      }
+      setView('payment_success');
     } else if (path === '/payment-cancelled') {
       setPaymentResult('cancelled');
       window.history.replaceState({}, '', '/');
+    }
+
+    if (tab && MORE_TABS.has(tab)) {
+      switchTab(tab);
     }
   }, []);
 
@@ -359,14 +370,17 @@ export const App = () => {
       const token = localStorage.getItem('token');
       const storedUser = localStorage.getItem('user');
 
-      if (!token) { setView('welcome'); return; }
+      if (!token) { 
+        setView(prev => prev === 'payment_success' ? prev : 'welcome'); 
+        return; 
+      }
 
       try {
         const profile = await authAPI.getProfile();
-        profileFetchedOnInit.current = true; // ← skip getMe() in the next effect
+        profileFetchedOnInit.current = true;
         setUser(profile as AppUser);
         localStorage.setItem('user', JSON.stringify(profile));
-        setView('main');
+        setView(prev => prev === 'payment_success' ? prev : 'main');
         restoreActiveTrip();
       } catch (e) {
         console.warn('Fresh profile fetch failed, falling back to localStorage', e);
@@ -374,7 +388,7 @@ export const App = () => {
           try {
             profileFetchedOnInit.current = true;
             setUser(JSON.parse(storedUser) as AppUser);
-            setView('main');
+            setView(prev => prev === 'payment_success' ? prev : 'main');
             restoreActiveTrip();
           } catch { handleLogout(); }
         } else { handleLogout(); }
@@ -481,10 +495,7 @@ export const App = () => {
     } catch { setView('auth'); }
   }, [restoreActiveTrip]);
 
-  const handleGuestLogin = useCallback(() => {
-    setUser({ id: 'guest', name: 'Guest', email: '' } as AppUser);
-    setView('main');
-  }, []);
+
 
   const handleLogout = useCallback(() => {
     localStorage.removeItem('token');
@@ -615,69 +626,73 @@ export const App = () => {
 
   // ── Sidebar nav items (memoized) ──────────────────────────────────────────
   const sidebarNavItems = useMemo(() => [
-    { id: 'home', icon: Home, label: (t as any).sidebarExploreArea || 'Explore Your Area' },
-    { id: 'explore', icon: MapPin, label: (t as any).sidebarDestinations || 'Destinations' },
-    { id: 'places', icon: Layers, label: (t as any).sidebarDiscoverPlaces || 'Discover New Places' },
-    { id: 'tours', icon: Compass, label: (t as any).sidebarBookTour || 'Book Your Tour' },
-    { id: 'my_trips', icon: Lock, label: (t as any).tabMyTrips || 'My Private Trips' },
-    { id: 'personal_lists', icon: LayoutGrid, label: (t as any).sidebarMyLists || 'My Lists' },
-    { id: 'create', icon: Plus, label: (t as any).sidebarAddTour || 'Add a New Tour' },
-    { id: 'communities', icon: Users, label: (t as any).sidebarFindCommunity || 'Find a Community' },
-    { id: 'your_mood', icon: Heart, label: (t as any).tabYourMood || 'Your Mood' },
-    { id: 'ar', icon: Camera, label: (t as any).sidebarARGuide || 'Use AR Guide' },
-    { id: 'ai_planner', icon: Sparkles, label: `✨ ${(t as any).tabAIPlanner || 'AI Planner'}` },
-    { id: 'events', icon: Calendar, label: (t as any).sidebarCheckEvents || 'Check Events Happening' },
-    { id: 'rentals', icon: Tent, label: (t as any).sidebarReservePlace || 'Reserve a Place' },
-    { id: 'profile', icon: UserIcon, label: t.tabProfile },
-    { id: 'wallet', icon: Star, label: (t as any).tabWallet || 'Wallet' },
-    { id: 'notifications', icon: Bell, label: (t as any).tabNotifs || 'Notifications' },
-    { id: 'booking_history', icon: BookOpen, label: (t as any).tabBookings || 'My Bookings' },
-    { id: 'settings', icon: Settings, label: t.settings },
-    ...(hasHostingActivity ? [{ id: 'host', icon: Store, label: (t as any).tabHost || 'Host Dashboard' }] : []),
+    { id: 'home', icon: Home, label: t.sidebar.exploreArea },
+    { id: 'explore', icon: MapPin, label: t.sidebar.destinations },
+    { id: 'places', icon: Layers, label: t.sidebar.discoverPlaces },
+    { id: 'tours', icon: Compass, label: t.sidebar.bookTour },
+    { id: 'my_trips', icon: Lock, label: t.nav.tabMyTrips },
+    { id: 'personal_lists', icon: LayoutGrid, label: t.sidebar.myLists },
+    { id: 'create', icon: Plus, label: t.sidebar.addTour },
+    { id: 'communities', icon: Users, label: t.sidebar.findCommunity },
+    { id: 'your_mood', icon: Heart, label: t.nav.tabYourMood },
+    { id: 'ar', icon: Camera, label: t.sidebar.arGuide },
+    { id: 'ai_planner', icon: Sparkles, label: `✨ ${t.nav.tabAIPlanner}` },
+    { id: 'events', icon: Calendar, label: t.sidebar.checkEvents },
+    { id: 'rentals', icon: Tent, label: t.sidebar.reservePlace },
+    { id: 'profile', icon: UserIcon, label: t.nav.tabProfile },
+    { id: 'wallet', icon: Star, label: t.nav.tabWallet },
+    { id: 'notifications', icon: Bell, label: t.nav.tabNotifs },
+    { id: 'booking_history', icon: BookOpen, label: t.nav.tabBookings },
+    { id: 'settings', icon: Settings, label: t.settings.label },
+    ...(hasHostingActivity ? [{ id: 'host', icon: Store, label: t.nav.tabHost }] : []),
   ], [t, hasHostingActivity]);
 
   // ── More sheet items (memoized) ───────────────────────────────────────────
   const moreSheetItems = useMemo(() => [
-    { id: 'my_trips', icon: Lock, label: (t as any).tabMyTrips || 'My Trips', lightColor: 'bg-emerald-50 text-emerald-600', darkColor: 'bg-emerald-900/50 text-emerald-400' },
-    { id: 'places', icon: MapPin, label: (t as any).sidebarDiscoverPlaces || 'Discover New Places', lightColor: 'bg-slate-100 text-slate-600', darkColor: 'bg-slate-800 text-slate-300' },
-    { id: 'tours', icon: Compass, label: (t as any).sidebarBookTour || 'Book Your Tour', lightColor: 'bg-teal-50 text-teal-600', darkColor: 'bg-teal-900/50 text-teal-400' },
-    { id: 'ar', icon: Camera, label: (t as any).sidebarARGuide || 'Use AR Guide', lightColor: 'bg-orange-50 text-orange-600', darkColor: 'bg-orange-900/50 text-orange-400' },
-    { id: 'ai_planner', icon: Sparkles, label: (t as any).moreAIPlanner || 'AI Planner', lightColor: 'bg-purple-50 text-purple-600', darkColor: 'bg-purple-900/50 text-purple-400' },
-    { id: 'events', icon: Calendar, label: (t as any).sidebarCheckEvents || 'Check Events Happening', lightColor: 'bg-blue-50 text-blue-600', darkColor: 'bg-blue-900/50 text-blue-400' },
-    { id: 'wallet', icon: Star, label: (t as any).tabWallet || 'Wallet', lightColor: 'bg-amber-50 text-amber-600', darkColor: 'bg-amber-900/50 text-amber-400' },
-    { id: 'notifications', icon: Bell, label: (t as any).tabNotifs || 'Notifications', lightColor: 'bg-purple-50 text-purple-600', darkColor: 'bg-purple-900/50 text-purple-400' },
-    { id: 'booking_history', icon: BookOpen, label: (t as any).tabBookings || 'My Bookings', lightColor: 'bg-teal-50 text-teal-600', darkColor: 'bg-teal-900/50 text-teal-400' },
-    { id: 'settings', icon: Settings, label: t.settings, lightColor: 'bg-slate-100 text-slate-600', darkColor: 'bg-slate-800 text-slate-300' },
-    { id: 'personal_lists', icon: LayoutGrid, label: (t as any).sidebarMyLists || 'My Lists', lightColor: 'bg-indigo-50 text-indigo-600', darkColor: 'bg-indigo-900/50 text-indigo-400' },
-    { id: 'rentals', icon: Tent, label: (t as any).sidebarReservePlace || 'Reserve a Place', lightColor: 'bg-sky-50 text-sky-600', darkColor: 'bg-sky-900/50 text-sky-400' },
-    ...(hasHostingActivity ? [{ id: 'host', icon: Store, label: (t as any).moreHost || 'Host', lightColor: 'bg-emerald-50 text-emerald-600', darkColor: 'bg-emerald-900/50 text-emerald-400' }] : []),
+    { id: 'my_trips', icon: Lock, label: t.more.myTrips, lightColor: 'bg-emerald-50 text-emerald-600', darkColor: 'bg-emerald-900/50 text-emerald-400' },
+    { id: 'places', icon: MapPin, label: t.more.discoverNewPlaces, lightColor: 'bg-slate-100 text-slate-600', darkColor: 'bg-slate-800 text-slate-300' },
+    { id: 'tours', icon: Compass, label: t.more.bookTour, lightColor: 'bg-teal-50 text-teal-600', darkColor: 'bg-teal-900/50 text-teal-400' },
+    { id: 'ar', icon: Camera, label: t.more.arGuide, lightColor: 'bg-orange-50 text-orange-600', darkColor: 'bg-orange-900/50 text-orange-400' },
+    { id: 'ai_planner', icon: Sparkles, label: t.more.aiPlanner, lightColor: 'bg-purple-50 text-purple-600', darkColor: 'bg-purple-900/50 text-purple-400' },
+    { id: 'events', icon: Calendar, label: t.more.checkEvents, lightColor: 'bg-blue-50 text-blue-600', darkColor: 'bg-blue-900/50 text-blue-400' },
+    { id: 'wallet', icon: Star, label: t.more.wallet, lightColor: 'bg-amber-50 text-amber-600', darkColor: 'bg-amber-900/50 text-amber-400' },
+    { id: 'notifications', icon: Bell, label: t.more.notifications, lightColor: 'bg-purple-50 text-purple-600', darkColor: 'bg-purple-900/50 text-purple-400' },
+    { id: 'booking_history', icon: BookOpen, label: t.more.bookings, lightColor: 'bg-teal-50 text-teal-600', darkColor: 'bg-teal-900/50 text-teal-400' },
+    { id: 'settings', icon: Settings, label: t.settings.label, lightColor: 'bg-slate-100 text-slate-600', darkColor: 'bg-slate-800 text-slate-300' },
+    { id: 'personal_lists', icon: LayoutGrid, label: t.more.myLists, lightColor: 'bg-indigo-50 text-indigo-600', darkColor: 'bg-indigo-900/50 text-indigo-400' },
+    { id: 'rentals', icon: Tent, label: t.more.reservePlace, lightColor: 'bg-sky-50 text-sky-600', darkColor: 'bg-sky-900/50 text-sky-400' },
+    ...(hasHostingActivity ? [{ id: 'host', icon: Store, label: t.more.host, lightColor: 'bg-emerald-50 text-emerald-600', darkColor: 'bg-emerald-900/50 text-emerald-400' }] : []),
   ], [t, hasHostingActivity]);
 
   // ── Early-return views ────────────────────────────────────────────────────
   if (view === 'loading') return (
-    <div className="h-[100dvh] w-full flex items-center justify-center bg-slate-50" role="status" aria-label="Loading">
+    <div className="h-[100dvh] w-full flex items-center justify-center bg-slate-50 dark:bg-navy-950 transition-colors duration-300" role="status" aria-label="Loading">
       <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-600" />
     </div>
   );
 
   if (view === 'welcome') return (
-    <WelcomeScreen
-      onGetStarted={() => { setAuthMode('register'); setView('auth'); }}
-      onSignIn={() => { setAuthMode('login'); setView('auth'); }}
-      t={t}
-      lang={lang}
-      onToggleLang={toggleLanguage}
-    />
+    <div className="h-[100dvh] w-full bg-slate-50 dark:bg-navy-950 transition-colors duration-300">
+      <WelcomeScreen
+        onGetStarted={() => { setAuthMode('register'); setView('auth'); }}
+        onSignIn={() => { setAuthMode('login'); setView('auth'); }}
+        t={t}
+        lang={lang}
+        onToggleLang={toggleLanguage}
+      />
+    </div>
   );
 
   if (view === 'auth') return (
-    <AuthErrorBoundary onReset={() => setView('welcome')}>
-      <AuthScreen
-        onLogin={handleLogin} onRegister={handleRegister}
-        onGuestLogin={handleGuestLogin} t={t} lang={lang}
-        onToggleLang={toggleLanguage} initialMode={authMode}
-      />
-    </AuthErrorBoundary>
+    <div className="h-[100dvh] w-full bg-slate-50 dark:bg-navy-950 transition-colors duration-300">
+      <AuthErrorBoundary onReset={() => setView('welcome')}>
+        <AuthScreen
+          onLogin={handleLogin} onRegister={handleRegister}
+          t={t} lang={lang}
+          onToggleLang={toggleLanguage} initialMode={authMode}
+        />
+      </AuthErrorBoundary>
+    </div>
   );
 
   if (view === 'itinerary' && selectedItinerary) return (
@@ -709,21 +724,27 @@ export const App = () => {
     </ModalWrapper></AppWrapper>
   );
 
+  if (view === 'payment_success') return (
+    <div className="h-[100dvh] w-full bg-slate-50 dark:bg-navy-950 transition-colors duration-300">
+      <PaymentSuccess t={t} lang={lang} onNavigate={navigate} />
+    </div>
+  );
+
   // ── Main shell ────────────────────────────────────────────────────────────
   return (
     <AppWrapper>
-      <div className="flex h-full relative">
+      <div className="flex h-screen relative overflow-hidden">
 
         {/* Sidebar — desktop only */}
         <nav
           id="main-sidebar"
           aria-label="Main navigation"
-          className="hidden lg:flex flex-col w-64 shrink-0 bg-white dark:bg-navy-900 border-r border-slate-200 dark:border-white/10 h-full"
+          className="hidden lg:flex flex-col w-64 shrink-0 bg-white dark:bg-navy-900 border-r border-slate-200 dark:border-white/10 h-screen"
         >
-          <div className="h-full flex flex-col pt-6 pb-4">
+          <div className="flex h-full min-h-0 flex-col pt-6 pb-4">
 
             {/* Logo */}
-            <div className="px-6 flex items-center justify-between mb-8">
+            <div className="px-6 flex items-center justify-between mb-8 flex-shrink-0">
               <div className="flex items-center gap-2">
                 <div className="w-8 h-8 bg-emerald-600 rounded-lg flex items-center justify-center shadow-md" aria-hidden="true">
                   <span className="text-white font-bold">T</span>
@@ -733,30 +754,46 @@ export const App = () => {
             </div>
 
             {/* Global search — FIX #5: uses navigate (which calls switchTab) */}
-            <div className="px-4 mb-4">
+            <div className="px-4 mb-4 flex-shrink-0">
               <GlobalSearch onNavigate={(tab, id) => { navigate(tab, id); }} lang={lang} />
             </div>
 
-            {/* Nav links */}
-            <ul className="flex-1 px-4 space-y-2 overflow-y-auto no-scrollbar list-none" role="list">
-              {sidebarNavItems.map(nav => (
-                <li key={nav.id}>
-                  <button
-                    onClick={() => { switchTab(nav.id); }}
-                    aria-current={activeTab === nav.id ? 'page' : undefined}
-                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${activeTab === nav.id ? 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 font-bold' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-white/5 hover:text-slate-900 dark:hover:text-white font-medium'}`}
-                  >
-                    <nav.icon className={`w-5 h-5 flex-shrink-0 ${activeTab === nav.id ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400 dark:text-slate-500'}`} aria-hidden="true" />
-                    {nav.label}
-                  </button>
-                </li>
-              ))}
-            </ul>
+            {/* Nav links area */}
+            <div className="flex-1 min-h-0 px-4">
+              <ul className="h-full overflow-y-auto no-scrollbar space-y-2 list-none pr-1" role="list">
+                {sidebarNavItems.map(nav => (
+                  <li key={nav.id}>
+                    <button
+                      onClick={() => { switchTab(nav.id); }}
+                      aria-current={activeTab === nav.id ? 'page' : undefined}
+                      className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${
+                        activeTab === nav.id
+                          ? 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 font-bold'
+                          : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-white/5 hover:text-slate-900 dark:hover:text-white font-medium'
+                      }`}
+                    >
+                      <nav.icon
+                        className={`w-5 h-5 flex-shrink-0 ${
+                          activeTab === nav.id
+                            ? 'text-emerald-600 dark:text-emerald-400'
+                            : 'text-slate-400 dark:text-slate-500'
+                        }`}
+                        aria-hidden="true"
+                      />
+                      <span className="truncate">{nav.label}</span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
 
             {/* Sidebar user footer */}
-            <div className="mt-auto px-4 pt-4 border-t border-slate-100 dark:border-white/8">
+            <div className="mt-4 px-4 pt-4 border-t border-slate-100 dark:border-white/8 flex-shrink-0">
               <div className="p-4 bg-slate-50 dark:bg-slate-800 rounded-2xl flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-emerald-100 dark:bg-emerald-900/50 border border-slate-200 dark:border-white/10 flex items-center justify-center text-emerald-700 dark:text-emerald-400 font-bold text-sm flex-shrink-0" aria-hidden="true">
+                <div
+                  className="w-10 h-10 rounded-full bg-emerald-100 dark:bg-emerald-900/50 border border-slate-200 dark:border-white/10 flex items-center justify-center text-emerald-700 dark:text-emerald-400 font-bold text-sm flex-shrink-0"
+                  aria-hidden="true"
+                >
                   {user?.name?.charAt(0).toUpperCase()}
                 </div>
                 <div className="flex-1 min-w-0">
@@ -769,7 +806,7 @@ export const App = () => {
         </nav>
 
         {/* Main content column */}
-        <div className="flex-1 flex flex-col h-full bg-slate-50 dark:bg-navy-950 overflow-hidden relative transition-colors duration-300">
+        <div className="flex-1 min-h-0 flex flex-col bg-slate-50 dark:bg-navy-950 overflow-hidden relative transition-colors duration-300">
 
           {/* Mobile header — hidden on home tab since HomeScreen renders its own */}
           <header className={`lg:hidden bg-white dark:bg-navy-900 px-4 py-3 border-b border-slate-200 dark:border-white/8 flex items-center justify-between sticky top-0 z-30 transition-colors duration-300 ${activeTab === 'home' ? 'hidden' : ''}`}>
@@ -803,8 +840,8 @@ export const App = () => {
           </div>
 
           {/* Scrollable content */}
-          <main ref={contentRef} className="flex-1 overflow-y-auto w-full" id="main-content">
-            <div className="max-w-7xl mx-auto h-full page-enter">
+          <main ref={contentRef} className={`flex-1 w-full ${activeTab === 'ai_planner' ? 'overflow-hidden flex flex-col' : 'overflow-y-auto'}`} id="main-content">
+            <div className={`max-w-7xl mx-auto w-full h-full page-enter ${activeTab === 'ai_planner' ? 'flex flex-col' : ''}`}>
 
               {/* HOME */}
               {activeTab === 'home' && user && (
@@ -875,6 +912,7 @@ export const App = () => {
               {activeTab === 'explore' && (
                 <ExploreScreen
                   t={t}
+                  lang={lang}
                   onOpenPlace={(p: any) => navigate('places', p?.id || p?._id)}
                   initialNearMe={exploreNearMe}
                   onNearMeHandled={() => setExploreNearMe(false)}
@@ -930,7 +968,7 @@ export const App = () => {
               {/* AI PLANNER */}
               {activeTab === 'ai_planner' && (
                 <Suspense fallback={<SpinnerFallback />}>
-                  <div className="flex flex-col" style={{ height: 'calc(100dvh - 120px)' }}>
+                  <div className="flex-1 flex flex-col min-h-0">
                     <AIPlannerScreen user={user} lang={lang} />
                   </div>
                 </Suspense>
@@ -984,7 +1022,14 @@ export const App = () => {
               {activeTab === 'notifications' && <NotificationsScreen t={t} lang={lang} />}
 
               {/* BOOKING HISTORY */}
-              {activeTab === 'booking_history' && <BookingHistoryScreen t={t} lang={lang} user={user} />}
+              {activeTab === 'booking_history' && (
+                <MyBookingsScreen 
+                  onNavigate={navigate} 
+                  onBack={() => setActiveTab('home')}
+                  t={t}
+                  lang={lang} 
+                />
+              )}
 
               {/* SETTINGS */}
               {activeTab === 'settings' && user && (
@@ -1092,11 +1137,11 @@ export const App = () => {
                             ? <p className="text-center text-xs text-slate-400 py-4">{(t as any).profileNoHistory || 'No history yet'}</p>
                             : karamHistory.slice(0, 10).map(h => (
                               <div key={h.id} className="flex items-center justify-between px-4 py-2.5">
-                                <div>
-                                  <p className="text-xs font-semibold text-slate-700 dark:text-slate-300">{h.label}</p>
-                                  <p className="text-xs text-slate-400">{new Date(h.timestamp).toLocaleDateString()}</p>
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-xs font-semibold text-slate-700 dark:text-slate-300 truncate">{h.label}</p>
+                                  <p className="text-[10px] text-slate-400 dark:text-slate-500">{new Date(h.timestamp).toLocaleDateString()}</p>
                                 </div>
-                                <span className="text-sm font-bold text-amber-600">+{h.points}</span>
+                                <span className="text-sm font-bold text-amber-600 dark:text-amber-500">+{h.points}</span>
                               </div>
                             ))
                           }
@@ -1132,11 +1177,11 @@ export const App = () => {
                             return (
                               <div key={itId} className="flex items-center gap-3 p-4 bg-white dark:bg-slate-900">
                                 <div className="w-10 h-10 bg-emerald-50 dark:bg-emerald-900/30 rounded-xl flex items-center justify-center flex-shrink-0" aria-hidden="true">
-                                  <MapPin className="w-5 h-5 text-emerald-600" />
+                                  <MapPin className="w-5 h-5 text-emerald-600 dark:text-emerald-500" />
                                 </div>
                                 <div className="flex-1 min-w-0">
                                   <p className="font-semibold text-slate-800 dark:text-slate-200 text-sm truncate">{it.title}</p>
-                                  <p className="text-xs text-slate-400">{it.places?.length ?? 0} {(t as any).stopsCountLabel || t.stops || 'stops'}</p>
+                                  <p className="text-xs text-slate-400 dark:text-slate-500">{it.places?.length ?? 0} {t.trips.stopsCountLabel || t.trips.stops || 'stops'}</p>
                                 </div>
                                 <button onClick={() => handleOpenOfflineItinerary(it)} className="px-3 py-1.5 bg-emerald-600 text-white text-xs font-bold rounded-xl hover:bg-emerald-700 transition flex-shrink-0">
                                   {(t as any).profileOpen || 'Open'}
@@ -1192,7 +1237,7 @@ export const App = () => {
                         <span className="text-sm font-bold text-emerald-600 dark:text-emerald-400">{lang === 'en' ? 'English' : 'العربية'}</span>
                       </button>
                       <button onClick={() => switchTab('settings')} className="flex items-center justify-between p-5 bg-slate-50 dark:bg-slate-800/50 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors rounded-2xl font-medium border border-slate-100 dark:border-white/8">
-                        <span className="flex items-center gap-3 text-slate-700 dark:text-slate-300 font-bold"><Settings className="w-5 h-5 text-emerald-600" aria-hidden="true" /> {t.settings}</span>
+                        <span className="flex items-center gap-3 text-slate-700 dark:text-slate-300 font-bold"><Settings className="w-5 h-5 text-emerald-600" aria-hidden="true" /> {t.settings.label}</span>
                         <ChevronLeft className={`w-4 h-4 text-slate-400 ${isRTL ? '' : 'rotate-180'}`} aria-hidden="true" />
                       </button>
                       <button onClick={() => setShowWishLists(true)} className="flex items-center justify-between p-5 bg-slate-50 dark:bg-slate-800/50 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors rounded-2xl font-medium border border-slate-100 dark:border-white/8">
@@ -1200,7 +1245,7 @@ export const App = () => {
                         <ChevronLeft className={`w-4 h-4 text-slate-400 ${isRTL ? '' : 'rotate-180'}`} aria-hidden="true" />
                       </button>
                       <button onClick={handleLogout} className="flex items-center justify-center p-5 bg-red-50 dark:bg-red-900/10 hover:bg-red-100 dark:hover:bg-red-900/20 transition-colors text-red-600 dark:text-red-400 rounded-2xl font-bold border border-red-100 dark:border-red-800/30 shadow-sm md:col-span-2">
-                        <span className="flex items-center gap-3"><LogOut className="w-5 h-5" aria-hidden="true" /> {t.logout}</span>
+                        <span className="flex items-center gap-3"><LogOut className="w-5 h-5" aria-hidden="true" /> {t.settings.logout}</span>
                       </button>
                     </div>
                   </div>
@@ -1211,8 +1256,8 @@ export const App = () => {
           </main>
         </div>
 
-        {/* Floating AI assistant */}
-        {user && (
+        {/* Floating AI assistant — hidden on AI Planner to avoid overlap */}
+        {user && activeTab !== 'ai_planner' && (
           <Suspense fallback={null}>
             <AIAssistantLazy user={user as any} t={t} lang={lang} onNavigate={navigate} />
           </Suspense>
@@ -1263,7 +1308,7 @@ export const App = () => {
                     onChange={e => setEditProfileAvatar(e.target.value)}
                   />
                   {avatarImgError && (
-                    <p className="text-xs text-red-500 mt-1">{(t as any).avatarLoadError || 'Could not load image'}</p>
+                    <p className="text-xs text-red-500 mt-1">{t.profile.avatarLoadError || 'Could not load image'}</p>
                   )}
                 </div>
               </div>
@@ -1271,12 +1316,12 @@ export const App = () => {
               {/* Name field */}
               <div>
                 <label htmlFor="profile-name" className="block text-xs font-black text-slate-500 dark:text-slate-400 mb-1.5">
-                  {(t as any).nameFieldLabel || 'Name'}
+                  {t.profile.nameFieldLabel || 'Name'}
                 </label>
                 <input
                   id="profile-name"
                   className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-white/10 rounded-2xl text-sm font-bold outline-none focus:ring-2 focus:ring-emerald-500 dark:text-white"
-                  placeholder={(t as any).fullNamePlaceholder || 'Full name'}
+                  placeholder={t.profile.fullNamePlaceholder || 'Full name'}
                   value={editProfileName}
                   onChange={e => setEditProfileName(e.target.value)}
                 />
@@ -1287,14 +1332,14 @@ export const App = () => {
                   onClick={() => setShowEditProfile(false)}
                   className="flex-1 py-3.5 bg-slate-100 dark:bg-white/10 text-slate-600 dark:text-slate-300 font-black text-sm rounded-2xl active:scale-95 transition-transform"
                 >
-                  {(t as any).cancelBtn || 'Cancel'}
+                  {t.settings.cancel || 'Cancel'}
                 </button>
                 <button
                   onClick={handleSaveProfile}
                   disabled={!editProfileName.trim()}
                   className="flex-1 py-3.5 bg-emerald-600 disabled:bg-emerald-300 text-white font-black text-sm rounded-2xl active:scale-95 transition-transform"
                 >
-                  {(t as any).saveChanges || 'Save Changes'}
+                  {t.profile.saveChanges || 'Save Changes'}
                 </button>
               </div>
             </div>
@@ -1304,56 +1349,8 @@ export const App = () => {
         {/* Wish lists modal */}
         {showWishLists && <WishListModal onClose={() => setShowWishLists(false)} />}
 
-        {/* Bottom nav (mobile) — 2 items | center FAB | 2 items */}
-        <nav
-          className="lg:hidden fixed bottom-0 left-0 right-0 bg-white/95 dark:bg-navy-900/90 backdrop-blur-xl border-t border-slate-200 dark:border-white/10 z-40 shadow-2xl transition-colors duration-300"
-          style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 8px)' }}
-          aria-label="Bottom navigation"
-        >
-          <div className="flex items-end justify-around px-2 pt-2">
-            {/* Left two items */}
-            {BOTTOM_NAV_LEFT.map(nav => (
-              <button
-                key={nav.id}
-                onClick={() => switchTab(nav.id)}
-                aria-label={isRTL ? nav.labelAr : nav.labelEn}
-                aria-current={activeTab === nav.id ? 'page' : undefined}
-                className={`flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-2xl transition-all min-w-0 flex-1 ${activeTab === nav.id ? 'text-emerald-600 dark:text-mint bg-emerald-50 dark:bg-mint/10' : 'text-slate-400 dark:text-ink-muted'}`}
-              >
-                <nav.icon className={`transition-transform ${activeTab === nav.id ? 'scale-110' : ''}`} style={{ width: 22, height: 22 }} aria-hidden="true" />
-                <span className="text-[10px] font-bold tracking-wide">{isRTL ? nav.labelAr : nav.labelEn}</span>
-              </button>
-            ))}
-
-            {/* Center FAB — elevated above nav bar */}
-            <div className="flex flex-col items-center flex-shrink-0 -mt-5">
-              <button
-                onClick={() => switchTab('create')}
-                aria-label={(t as any).addTourFAB || 'Add a Tour'}
-                className="w-14 h-14 rounded-full bg-gradient-to-tr from-emerald-500 to-teal-400 dark:from-mint dark:to-mint-600 text-white dark:text-navy-950 shadow-2xl shadow-emerald-900/40 dark:shadow-mint-glow active:scale-90 transition-transform hover:scale-105 flex items-center justify-center animate-pulse-soft border-4 border-white dark:border-navy-900"
-              >
-                <Plus className="w-6 h-6" aria-hidden="true" />
-              </button>
-              <span className="text-[9px] font-extrabold text-slate-500 dark:text-mint tracking-wide whitespace-nowrap mt-0.5">
-                {(t as any).addTourFAB || 'Add a Tour'}
-              </span>
-            </div>
-
-            {/* Right two items */}
-            {BOTTOM_NAV_RIGHT.map(nav => (
-              <button
-                key={nav.id}
-                onClick={() => switchTab(nav.id)}
-                aria-label={isRTL ? nav.labelAr : nav.labelEn}
-                aria-current={activeTab === nav.id ? 'page' : undefined}
-                className={`flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-2xl transition-all min-w-0 flex-1 ${activeTab === nav.id ? 'text-emerald-600 dark:text-mint bg-emerald-50 dark:bg-mint/10' : 'text-slate-400 dark:text-ink-muted'}`}
-              >
-                <nav.icon className={`transition-transform ${activeTab === nav.id ? 'scale-110' : ''}`} style={{ width: 22, height: 22 }} aria-hidden="true" />
-                <span className="text-[10px] font-bold tracking-wide">{isRTL ? nav.labelAr : nav.labelEn}</span>
-              </button>
-            ))}
-          </div>
-        </nav>
+        {/* Bottom nav (mobile) */}
+        <BottomNavigation activeTab={activeTab} switchTab={switchTab} t={t} />
 
         {/* More sheet — travel-app design */}
         {showMoreSheet && (
@@ -1372,8 +1369,8 @@ export const App = () => {
               {/* Header */}
               <div className="flex items-center justify-between px-5 pt-2 pb-4">
                 <div>
-                  <h2 className="text-xl font-black text-slate-900 dark:text-white">{(t as any).moreSheetTitle || 'Explore Tripo'}</h2>
-                  <p className="text-xs text-slate-400 mt-0.5">{(t as any).moreSheetSubtitle || 'Everything in one place'}</p>
+                  <h2 className="text-xl font-black text-slate-900 dark:text-white">{t.more.title}</h2>
+                  <p className="text-xs text-slate-400 mt-0.5">{t.more.subtitle}</p>
                 </div>
                 <button onClick={() => setShowMoreSheet(false)} className="w-8 h-8 bg-slate-100 dark:bg-white/10 rounded-full flex items-center justify-center" aria-label="Close">
                   <X className="w-4 h-4 text-slate-500 dark:text-slate-400" />
@@ -1382,13 +1379,13 @@ export const App = () => {
 
               {/* ── Discover ────────────────────────────────────────── */}
               <div className="px-4 mb-5">
-                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 px-1">{(t as any).moreDiscoverSection || 'Discover'}</p>
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 px-1">{t.more.discoverSection}</p>
                 <div className="grid grid-cols-2 gap-3">
                   {[
-                    { id: 'explore', emoji: '🗺️', label: (t as any).moreSeeYourMap || 'See Your Map', sub: (t as any).moreSeeYourMapSub || 'Find places near you', from: 'from-emerald-500', to: 'to-teal-500' },
-                    { id: 'places', emoji: '📍', label: (t as any).moreDiscoverNewPlaces || 'Discover New Places', sub: (t as any).moreDiscoverNewPlacesSub || 'Spots, parks & more', from: 'from-blue-500', to: 'to-cyan-500' },
-                    { id: 'events', emoji: '🎉', label: (t as any).moreCheckEventsLabel || 'Check Events', sub: (t as any).moreCheckEventsSub || 'Happening near you', from: 'from-violet-500', to: 'to-purple-600' },
-                    { id: 'your_mood', emoji: '✨', label: (t as any).moodTitle || 'Your Mood', sub: (t as any).moreYourMoodSub || 'Match to experiences', from: 'from-rose-500', to: 'to-pink-500' },
+                    { id: 'explore', emoji: '🗺️', label: t.more.seeYourMap, sub: t.more.seeYourMapSub, from: 'from-emerald-500', to: 'to-teal-500' },
+                    { id: 'places', emoji: '📍', label: t.more.discoverNewPlaces, sub: t.more.discoverNewPlacesSub, from: 'from-blue-500', to: 'to-cyan-500' },
+                    { id: 'events', emoji: '🎉', label: t.more.checkEvents, sub: t.more.checkEventsSub, from: 'from-violet-500', to: 'to-purple-600' },
+                    { id: 'your_mood', emoji: '✨', label: t.mood.title, sub: t.more.yourMoodSub, from: 'from-rose-500', to: 'to-pink-500' },
                   ].map(item => (
                     <button
                       key={item.id}
@@ -1406,13 +1403,13 @@ export const App = () => {
 
               {/* ── Book & Plan ──────────────────────────────────────── */}
               <div className="px-4 mb-5">
-                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 px-1">{(t as any).moreBookPlanSection || 'Book & Plan'}</p>
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 px-1">{t.more.bookPlanSection}</p>
                 <div className="grid grid-cols-2 gap-3">
                   {[
-                    { id: 'tours', emoji: '🧭', label: (t as any).moreBookTourLabel || 'Book Your Tour', sub: (t as any).moreBookTourSub || 'Guided adventures', from: 'from-amber-500', to: 'to-orange-500' },
-                    { id: 'rentals', emoji: '🏕️', label: (t as any).moreReservePlaceLabel || 'Reserve a Place', sub: (t as any).moreReservePlaceSub || 'Chalets, camps & villas', from: 'from-sky-500', to: 'to-blue-600' },
-                    { id: 'ai_planner', emoji: '🤖', label: (t as any).moreAIPlanner || 'AI Planner', sub: (t as any).moreAIPlannerSub || 'Plan with AI', from: 'from-indigo-500', to: 'to-violet-600' },
-                    { id: 'ar', emoji: '📸', label: (t as any).sidebarARGuide || 'Use AR Guide', sub: (t as any).moreARGuideSub || 'Point & discover', from: 'from-orange-500', to: 'to-red-500' },
+                    { id: 'tours', emoji: '🧭', label: t.more.bookTour, sub: t.more.bookTourSub, from: 'from-amber-500', to: 'to-orange-500' },
+                    { id: 'rentals', emoji: '🏕️', label: t.more.reservePlace, sub: t.more.reservePlaceSub, from: 'from-sky-500', to: 'to-blue-600' },
+                    { id: 'ai_planner', emoji: '🤖', label: t.more.aiPlanner, sub: t.more.aiPlannerSub, from: 'from-indigo-500', to: 'to-violet-600' },
+                    { id: 'ar', emoji: '📸', label: t.more.arGuide, sub: t.more.arGuideSub, from: 'from-orange-500', to: 'to-red-500' },
                   ].map(item => (
                     <button
                       key={item.id}
@@ -1430,14 +1427,14 @@ export const App = () => {
 
               {/* ── Your Space ───────────────────────────────────────── */}
               <div className="px-4">
-                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 px-1">{(t as any).moreYourSpaceSection || 'Your Space'}</p>
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 px-1">{t.more.yourSpaceSection}</p>
                 <div className="grid grid-cols-3 gap-2">
                   {[
-                    { id: 'my_trips',        emoji: '🔒', label: (t as any).moreMyTrips || 'My Trips',       bg: 'bg-emerald-50 dark:bg-emerald-900/30',   text: 'text-emerald-700 dark:text-emerald-400' },
-                    { id: 'personal_lists',  emoji: '📋', label: (t as any).moreMyListsLabel || 'My Lists',  bg: 'bg-indigo-50 dark:bg-indigo-900/30',      text: 'text-indigo-700 dark:text-indigo-400' },
-                    { id: 'wallet',          emoji: '💰', label: (t as any).moreWalletLabel || 'Wallet',      bg: 'bg-yellow-50 dark:bg-yellow-900/30',      text: 'text-yellow-700 dark:text-yellow-400' },
-                    { id: 'booking_history', emoji: '🎫', label: (t as any).moreBookingsLabel || 'Bookings', bg: 'bg-teal-50 dark:bg-teal-900/30',          text: 'text-teal-700 dark:text-teal-400' },
-                    { id: 'notifications',   emoji: '🔔', label: (t as any).moreNotifsLabel || 'Notifications', bg: 'bg-purple-50 dark:bg-purple-900/30',   text: 'text-purple-700 dark:text-purple-400' },
+                    { id: 'my_trips', emoji: '🔒', label: t.more.myTrips, bg: 'bg-emerald-50 dark:bg-emerald-900/30', text: 'text-emerald-700 dark:text-emerald-400' },
+                    { id: 'personal_lists', emoji: '📋', label: t.more.myLists, bg: 'bg-indigo-50 dark:bg-indigo-900/30', text: 'text-indigo-700 dark:text-indigo-400' },
+                    { id: 'wallet', emoji: '💰', label: t.more.wallet, bg: 'bg-yellow-50 dark:bg-yellow-900/30', text: 'text-yellow-700 dark:text-yellow-400' },
+                    { id: 'booking_history', emoji: '🎫', label: t.more.bookings, bg: 'bg-teal-50 dark:bg-teal-900/30', text: 'text-teal-700 dark:text-teal-400' },
+                    { id: 'notifications', emoji: '🔔', label: t.more.notifications, bg: 'bg-purple-50 dark:bg-purple-900/30', text: 'text-purple-700 dark:text-purple-400' },
                   ].map(item => (
                     <button
                       key={item.id}
@@ -1480,44 +1477,21 @@ export const App = () => {
 
       </div>
 
-      {/* Payment result overlay */}
-      {paymentResult && (
-        <div className="fixed inset-0 z-[500] bg-black/50 flex items-center justify-center p-6" onClick={() => { setPaymentResult(null); setPaymentBooking(null); }}>
+      {/* Legacy Payment Result Overlay Removed in favor of PaymentSuccess screen */}
+      {paymentResult === 'cancelled' && (
+        <div className="fixed inset-0 z-[500] bg-black/50 flex items-center justify-center p-6" onClick={() => { setPaymentResult(null); }}>
           <div className="bg-white dark:bg-slate-900 rounded-3xl shadow-2xl p-8 max-w-sm w-full text-center" onClick={e => e.stopPropagation()}>
-            {paymentResult === 'success' ? (
-              <>
-                <div className="w-16 h-16 bg-emerald-100 dark:bg-emerald-900/40 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <span className="text-3xl">✅</span>
-                </div>
-                <h2 className="text-xl font-extrabold text-slate-900 dark:text-white mb-2">Payment Successful!</h2>
-                {paymentBooking && (
-                  <p className="text-sm font-semibold text-emerald-600 dark:text-emerald-400 mb-1">
-                    {paymentBooking.bookingDetails?.tourTitle || paymentBooking.bookingDetails?.rentalTitle || ''}
-                  </p>
-                )}
-                <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">Your booking is confirmed. You can view it in your booking history.</p>
-                <button
-                  onClick={() => { setPaymentResult(null); setPaymentBooking(null); switchTab('booking_history'); }}
-                  className="w-full py-3 bg-emerald-600 text-white font-bold rounded-2xl hover:bg-emerald-700 transition"
-                >
-                  View My Bookings
-                </button>
-              </>
-            ) : (
-              <>
-                <div className="w-16 h-16 bg-slate-100 dark:bg-slate-800 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <span className="text-3xl">❌</span>
-                </div>
-                <h2 className="text-xl font-extrabold text-slate-900 dark:text-white mb-2">Payment Cancelled</h2>
-                <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">No charge was made. You can try again whenever you're ready.</p>
-                <button
-                  onClick={() => setPaymentResult(null)}
-                  className="w-full py-3 bg-slate-100 dark:bg-white/10 text-slate-700 dark:text-slate-300 font-bold rounded-2xl hover:bg-slate-200 dark:hover:bg-white/20 transition"
-                >
-                  Back to App
-                </button>
-              </>
-            )}
+            <div className="w-16 h-16 bg-slate-100 dark:bg-slate-800 rounded-full flex items-center justify-center mx-auto mb-4">
+              <span className="text-3xl">❌</span>
+            </div>
+            <h2 className="text-xl font-extrabold text-slate-900 dark:text-white mb-2">Payment Cancelled</h2>
+            <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">No charge was made. You can try again whenever you're ready.</p>
+            <button
+              onClick={() => setPaymentResult(null)}
+              className="w-full py-3 bg-slate-100 dark:bg-white/10 text-slate-700 dark:text-slate-300 font-bold rounded-2xl hover:bg-slate-200 dark:hover:bg-white/20 transition"
+            >
+              Back to App
+            </button>
           </div>
         </div>
       )}

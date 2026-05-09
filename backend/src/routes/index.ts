@@ -17,6 +17,7 @@ import aiRoutes from './aiRoutes';
 
 // ─── مسارات الأقسام الجديدة ───
 import rentalRoutes from './rentalRoutes';
+import threadRoutes from './threadRoutes';
 import communityRoutes from './communityRoutes';
 import eventRoutes from './eventRoutes';
 import fazaRoutes from './fazaRoutes';
@@ -47,6 +48,7 @@ router.use('/ai', aiRoutes);
 
 // ─── دمج المسارات الجديدة التي طلبتها ───
 router.use('/rentals', rentalRoutes);
+router.use('/threads', threadRoutes);
 router.use('/communities', communityRoutes);
 router.use('/events', eventRoutes);
 router.use('/faza-requests', fazaRoutes);

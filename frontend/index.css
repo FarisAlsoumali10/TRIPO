@@ -91,6 +91,15 @@
     animation: streak-fire 2.2s cubic-bezier(0.16, 1, 0.3, 1) infinite;
   }
 
+  /* ── Text semantic tokens ── */
+  /* Kept as explicit utilities in case Tailwind purges ink-* tokens when only used via @apply */
+  .text-ink-secondary { color: #B8C2D6; } /* Desert Moon */
+  .text-ink-muted     { color: #7F8AA3; } /* Dusk Sand */
+
+  /* ── Scrollbar hiding ── */
+  .no-scrollbar::-webkit-scrollbar { display: none; }
+  .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
   /* ── Scroll-reveal ── */
   .section-reveal {
     opacity: 0;
@@ -102,6 +111,16 @@
     opacity: 1;
     transform: translateY(0);
   }
+}
+
+/* ─── Hide scrollbars globally (Tripo style) ─── */
+* {
+  scrollbar-width: none;        /* Firefox */
+  -ms-overflow-style: none;     /* IE / Edge */
+}
+
+*::-webkit-scrollbar {
+  display: none;                /* Chrome / Safari / Opera */
 }
 
 /* ── Reduced motion ───────────────────────────────────────────────────────── */

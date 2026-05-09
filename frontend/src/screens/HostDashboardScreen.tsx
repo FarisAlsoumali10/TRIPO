@@ -18,7 +18,7 @@ const MOON    = '#B8C2D6';
 const SAND    = '#7F8AA3';
 const GOLD    = '#F7C948';
 const RED     = '#FF6B7A';
-const BORDER  = 'rgba(255,255,255,0.08)';
+const BORDER  = 'rgba(255,255,255,0.05)';
 const MINT_GLOW = '0 8px 24px -6px rgba(124,247,200,0.45)';
 
 // ── Legacy claimed-places types/helpers ───────────────────────────────────────
@@ -60,7 +60,7 @@ const HoursEditor = ({ placeId, onClose }: { placeId: string; onClose: () => voi
     setHours(p => ({ ...p, [day]: { ...p[day], [field]: val } }));
 
   return (
-    <div className="fixed inset-0 z-[300] flex items-center justify-center p-4" style={{ background: 'rgba(5,11,30,0.85)', backdropFilter: 'blur(4px)' }} onClick={onClose}>
+    <div className="fixed inset-0 z-[300] flex items-center justify-center p-4" style={{ background: 'rgba(5,11,30,0.85)', backdropFilter: 'blur(8px)' }} onClick={onClose}>
       <div className="w-full max-w-sm rounded-3xl p-6 max-h-[90vh] overflow-y-auto" style={{ background: SURFACE, border: `1px solid ${BORDER}` }} onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-5">
           <h3 className="font-black text-white text-base">Update Hours</h3>
@@ -76,7 +76,7 @@ const HoursEditor = ({ placeId, onClose }: { placeId: string; onClose: () => voi
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-sm font-bold text-white">{DAY_LABELS[i]}</span>
                   <label className="flex items-center gap-1.5 text-xs cursor-pointer" style={{ color: SAND }}>
-                    <input type="checkbox" checked={h.closed} onChange={e => update(day, 'closed', e.target.checked)} className="accent-emerald-500" />
+                    <input type="checkbox" checked={h.closed} onChange={e => update(day, 'closed', e.target.checked)} className="accent-oasis-spring" />
                     Closed
                   </label>
                 </div>
@@ -240,7 +240,7 @@ const ClaimedPlaceCard = ({ claim }: { claim: ClaimedPlace }) => {
                           className="w-5 h-5 rounded-full" alt="" />
                         <p className="text-xs font-bold text-white">{typeof r.userId === 'object' ? r.userId?.name : 'Guest'}</p>
                         <div className="flex gap-0.5 ml-auto">
-                          {[1,2,3,4,5].map(s => <Star key={s} className={`w-2.5 h-2.5 ${s <= (r.rating||5) ? 'fill-amber-400 text-amber-400' : 'text-slate-600'}`} />)}
+                          {[1,2,3,4,5].map(s => <Star key={s} className={`w-2.5 h-2.5 ${s <= (r.rating||5) ? 'fill-karam text-karam' : 'text-lifted'}`} />)}
                         </div>
                       </div>
                       {r.comment && <p className="text-xs mb-2" style={{ color: MOON }}>{r.comment}</p>}
@@ -488,12 +488,12 @@ const RentalCard = ({
             <div className="flex gap-3">
               <button onClick={() => setShowConfirmDelete(false)}
                 className="flex-1 py-3 rounded-full font-black text-sm"
-                style={{ background: LIFTED, color: MOON }}>
+                style={{ background: LIFTED, color: MOON, border: `1px solid ${BORDER}` }}>
                 Cancel
               </button>
               <button onClick={() => { setShowConfirmDelete(false); handleDelete(); }}
                 className="flex-1 py-3 rounded-full font-black text-sm"
-                style={{ background: 'rgba(255,107,122,0.15)', color: RED }}>
+                style={{ background: 'rgba(255,107,122,0.1)', color: RED, border: `1px solid ${RED}20` }}>
                 Delete
               </button>
             </div>
@@ -528,6 +528,8 @@ export const HostDashboardScreen = () => {
   const [payoutIban, setPayoutIban] = useState('');
   const [payoutSubmitting, setPayoutSubmitting] = useState(false);
   const [payoutFormOpen, setPayoutFormOpen] = useState(false);
+
+  const isRTL = false; // Add this if needed for future localization
 
   useEffect(() => {
     rentalAPI.getMyRentals()
@@ -644,7 +646,7 @@ export const HostDashboardScreen = () => {
   };
 
   return (
-    <div className="min-h-full pb-24" style={{ background: BG }}>
+    <div className="min-h-full pb-24 transition-colors duration-300" style={{ background: BG }}>
       {/* Header */}
       <div className="px-5 pt-8 pb-4">
         <div className="flex items-center gap-3 mb-1">
@@ -682,7 +684,7 @@ export const HostDashboardScreen = () => {
               {label}
               {count > 0 && (
                 <span className="w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-black"
-                  style={{ background: tab === 'bookings' ? BG : RED, color: tab === 'bookings' ? BG : 'white' }}>
+                  style={{ background: tab === 'bookings' ? BG : RED, color: tab === 'bookings' ? SURFACE : 'white' }}>
                   {count}
                 </span>
               )}

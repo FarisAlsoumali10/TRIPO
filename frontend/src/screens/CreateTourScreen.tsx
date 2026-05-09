@@ -160,26 +160,26 @@ export const CreateTourScreen = ({ currentUser, lang, onTourCreated }: Props) =>
   const progress = (step / 3) * 100;
 
   // ── Field helpers ─────────────────────────────────────────────────────────────
-  const inputCls = 'w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 text-slate-800 placeholder:text-slate-300';
-  const labelCls = 'block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5';
+  const inputCls = 'w-full border border-slate-200 dark:border-white/10 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 text-slate-800 dark:text-slate-100 placeholder:text-slate-300';
+  const labelCls = 'block text-xs font-semibold text-slate-500 dark:text-slate-500 uppercase tracking-wider mb-1.5';
 
   return (
-    <div className="min-h-screen bg-slate-50 pb-28">
+    <div className="min-h-screen bg-slate-50 dark:bg-midnight pb-28">
       {/* Header */}
-      <div className="bg-white border-b border-slate-100 px-5 pt-10 pb-4 sticky top-0 z-10">
+      <div className="bg-white dark:bg-chamber border-b border-slate-100 dark:border-white/10 px-5 pt-10 pb-4 sticky top-0 z-10">
         <div className="flex items-center gap-3 mb-3">
-          <div className="w-9 h-9 bg-emerald-100 rounded-xl flex items-center justify-center">
-            <Tag className="w-4 h-4 text-emerald-600" />
+          <div className="w-9 h-9 bg-oasis-spring/10 rounded-xl flex items-center justify-center border border-oasis-spring/20">
+            <Tag className="w-4 h-4 text-oasis-spring" />
           </div>
           <div>
-            <h1 className="font-black text-lg text-slate-900 leading-tight">{ar ? 'أضف جولة جديدة' : 'Add a New Tour'}</h1>
+            <h1 className="font-black text-lg text-slate-900 dark:text-white leading-tight">{ar ? 'أضف جولة جديدة' : 'Add a New Tour'}</h1>
             <p className="text-xs text-slate-400">{ar ? `الخطوة ${step} من ٣ — ${STEP_LABELS_AR[step - 1]}` : `Step ${step} of 3 — ${STEP_LABELS_EN[step - 1]}`}</p>
           </div>
         </div>
         {/* Progress */}
-        <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+        <div className="h-1.5 bg-slate-100 dark:bg-lifted rounded-full overflow-hidden">
           <div
-            className="h-full bg-emerald-500 rounded-full transition-all duration-300"
+            className="h-full bg-oasis-spring rounded-full transition-all duration-300"
             style={{ width: `${progress}%` }}
           />
         </div>
@@ -192,14 +192,14 @@ export const CreateTourScreen = ({ currentUser, lang, onTourCreated }: Props) =>
           <>
             {/* Cover photo */}
             <div
-              className="relative h-44 bg-slate-100 rounded-2xl overflow-hidden cursor-pointer border-2 border-dashed border-slate-200 flex items-center justify-center"
+              className="relative h-44 bg-slate-100 dark:bg-lifted rounded-2xl overflow-hidden cursor-pointer border-2 border-dashed border-slate-200 dark:border-white/10 flex items-center justify-center"
               onClick={() => heroInputRef.current?.click()}
             >
               {heroImage ? (
                 <>
                   <img src={heroImage} alt="" className="w-full h-full object-cover" />
                   <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
-                    <div className="bg-white/20 backdrop-blur-sm border border-white/30 rounded-full px-4 py-2 flex items-center gap-2">
+                    <div className="bg-white/10 backdrop-blur-md border border-white/20 rounded-full px-4 py-2 flex items-center gap-2">
                       <Camera className="w-4 h-4 text-white" />
                       <span className="text-white text-sm font-semibold">{ar ? 'تغيير الصورة' : 'Change photo'}</span>
                     </div>
@@ -207,8 +207,8 @@ export const CreateTourScreen = ({ currentUser, lang, onTourCreated }: Props) =>
                 </>
               ) : (
                 <div className="flex flex-col items-center gap-2 text-slate-400">
-                  <div className="w-14 h-14 bg-slate-200 rounded-2xl flex items-center justify-center">
-                    <ImageIcon className="w-7 h-7 text-slate-400" />
+                  <div className="w-14 h-14 bg-slate-200 dark:bg-lifted rounded-2xl flex items-center justify-center border border-slate-300/10">
+                    <ImageIcon className="w-7 h-7 text-slate-400 dark:text-moon/30" />
                   </div>
                   <span className="text-sm font-medium">{ar ? 'أضف صورة الغلاف' : 'Add cover photo'}</span>
                 </div>
@@ -236,7 +236,7 @@ export const CreateTourScreen = ({ currentUser, lang, onTourCreated }: Props) =>
                 value={description}
                 onChange={e => setDescription(e.target.value)}
                 rows={3}
-                className={`${inputCls} resize-none`}
+                className={`${inputCls} resize-none focus:ring-oasis-spring`}
               />
             </div>
 
@@ -252,7 +252,7 @@ export const CreateTourScreen = ({ currentUser, lang, onTourCreated }: Props) =>
                   placeholder="0"
                   value={price}
                   onChange={e => setPrice(e.target.value)}
-                  className={`${inputCls} pl-12`}
+                  className={`${inputCls} pl-12 focus:ring-oasis-spring`}
                 />
               </div>
             </div>
@@ -265,20 +265,16 @@ export const CreateTourScreen = ({ currentUser, lang, onTourCreated }: Props) =>
                   <button
                     key={cat.val}
                     onClick={() => setCategory(c => c === cat.val ? '' : cat.val)}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all border ${
-                      category === cat.val
-                        ? 'bg-emerald-500 text-white border-emerald-500'
-                        : 'bg-white text-slate-600 border-slate-200 hover:border-emerald-300'
-                    }`}
+                    className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border ${ category === cat.val ? 'bg-oasis-spring text-midnight border-transparent shadow-mint-glow' : 'bg-white dark:bg-lifted text-slate-500 dark:text-moon/60 border-slate-100 dark:border-white/5 hover:border-slate-200' }`}
                   >
                     <span>{cat.emoji}</span>{ar ? cat.labelAr : cat.label}
-                    {category === cat.val && <Check className="w-3 h-3" />}
+                    {category === cat.val && <Check className="w-3.5 h-3.5" />}
                   </button>
                 ))}
               </div>
             </div>
 
-            <Button className="w-full" onClick={() => {
+            <Button className="w-full h-14 rounded-2xl bg-oasis-spring text-midnight hover:bg-oasis-spring/90 shadow-mint-glow text-xs font-black uppercase tracking-widest" onClick={() => {
               if (!title.trim()) { showToast('Tour name is required', 'error'); return; }
               if (!price || isNaN(Number(price))) { showToast('Enter a valid price', 'error'); return; }
               setStep(2);
@@ -318,11 +314,7 @@ export const CreateTourScreen = ({ currentUser, lang, onTourCreated }: Props) =>
                   <button
                     key={d.val}
                     onClick={() => setDifficulty(d.val)}
-                    className={`flex-1 py-2 rounded-xl text-xs font-bold border transition-all ${
-                      difficulty === d.val
-                        ? 'bg-emerald-500 text-white border-emerald-500'
-                        : 'bg-white text-slate-600 border-slate-200'
-                    }`}
+                    className={`flex-1 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest border transition-all ${ difficulty === d.val ? 'bg-oasis-spring text-midnight border-transparent shadow-mint-glow' : 'bg-white dark:bg-lifted text-slate-500 dark:text-moon/60 border-slate-100 dark:border-white/5 hover:border-slate-200' }`}
                   >
                     {ar ? d.labelAr : d.label}
                   </button>
@@ -344,7 +336,7 @@ export const CreateTourScreen = ({ currentUser, lang, onTourCreated }: Props) =>
                 />
                 <button
                   onClick={() => addChip(highlightInput, setHighlights, setHighlightInput)}
-                  className="px-3 bg-emerald-500 text-white rounded-xl hover:bg-emerald-600 transition"
+                  className="px-4 bg-oasis-spring text-midnight rounded-xl hover:bg-oasis-spring/90 transition shadow-mint-glow"
                 >
                   <Plus className="w-4 h-4" />
                 </button>
@@ -352,7 +344,7 @@ export const CreateTourScreen = ({ currentUser, lang, onTourCreated }: Props) =>
               {highlights.length > 0 && (
                 <div className="flex flex-wrap gap-2 mt-2">
                   {highlights.map((h, i) => (
-                    <span key={i} className="flex items-center gap-1 bg-emerald-50 text-emerald-700 text-xs font-semibold px-2.5 py-1 rounded-full">
+                    <span key={i} className="flex items-center gap-1.5 bg-oasis-spring/10 text-oasis-spring text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-xl border border-oasis-spring/20">
                       {h}
                       <button onClick={() => setHighlights(hs => hs.filter((_, j) => j !== i))}><X className="w-3 h-3" /></button>
                     </span>
@@ -375,7 +367,7 @@ export const CreateTourScreen = ({ currentUser, lang, onTourCreated }: Props) =>
                 />
                 <button
                   onClick={() => addChip(includedInput, setIncluded, setIncludedInput)}
-                  className="px-3 bg-emerald-500 text-white rounded-xl hover:bg-emerald-600 transition"
+                  className="px-4 bg-oasis-spring text-midnight rounded-xl hover:bg-oasis-spring/90 transition shadow-mint-glow"
                 >
                   <Plus className="w-4 h-4" />
                 </button>
@@ -383,7 +375,7 @@ export const CreateTourScreen = ({ currentUser, lang, onTourCreated }: Props) =>
               {included.length > 0 && (
                 <div className="flex flex-wrap gap-2 mt-2">
                   {included.map((item, i) => (
-                    <span key={i} className="flex items-center gap-1 bg-teal-50 text-teal-700 text-xs font-semibold px-2.5 py-1 rounded-full">
+                    <span key={i} className="flex items-center gap-1.5 bg-oasis-spring/10 text-oasis-spring text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-xl border border-oasis-spring/20">
                       {item}
                       <button onClick={() => setIncluded(arr => arr.filter((_, j) => j !== i))}><X className="w-3 h-3" /></button>
                     </span>
@@ -410,7 +402,7 @@ export const CreateTourScreen = ({ currentUser, lang, onTourCreated }: Props) =>
                       setDateInput('');
                     }
                   }}
-                  className="px-3 bg-emerald-500 text-white rounded-xl hover:bg-emerald-600 transition"
+                  className="px-4 bg-oasis-spring text-midnight rounded-xl hover:bg-oasis-spring/90 transition shadow-mint-glow"
                 >
                   <Plus className="w-4 h-4" />
                 </button>
@@ -418,7 +410,7 @@ export const CreateTourScreen = ({ currentUser, lang, onTourCreated }: Props) =>
               {availableDates.length > 0 && (
                 <div className="flex flex-wrap gap-2 mt-2">
                   {availableDates.map(d => (
-                    <span key={d} className="flex items-center gap-1 bg-blue-50 text-blue-700 text-xs font-semibold px-2.5 py-1 rounded-full">
+                    <span key={d} className="flex items-center gap-1.5 bg-oasis-spring/10 text-oasis-spring text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-xl border border-oasis-spring/20">
                       {d}
                       <button onClick={() => setAvailableDates(arr => arr.filter(x => x !== d))}><X className="w-3 h-3" /></button>
                     </span>
@@ -445,7 +437,7 @@ export const CreateTourScreen = ({ currentUser, lang, onTourCreated }: Props) =>
                 {images.length < 5 && (
                   <button
                     onClick={() => extraInputRef.current?.click()}
-                    className="w-20 h-20 rounded-xl border-2 border-dashed border-slate-200 flex items-center justify-center text-slate-400 hover:border-emerald-300 transition"
+                    className="w-20 h-20 rounded-xl border-2 border-dashed border-slate-200 dark:border-white/10 bg-white dark:bg-lifted flex items-center justify-center text-slate-400 hover:border-oasis-spring transition"
                   >
                     <Plus className="w-6 h-6" />
                   </button>
@@ -455,8 +447,8 @@ export const CreateTourScreen = ({ currentUser, lang, onTourCreated }: Props) =>
             </div>
 
             <div className="flex gap-3">
-              <Button variant="secondary" className="flex-1" onClick={() => setStep(1)}>{ar ? 'رجوع' : 'Back'}</Button>
-              <Button className="flex-1" onClick={() => setStep(3)}>{ar ? 'مراجعة ونشر' : 'Review & Publish'}</Button>
+              <Button variant="secondary" className="flex-1 h-14 rounded-2xl text-[10px] font-black uppercase tracking-widest border-slate-100 dark:border-white/10" onClick={() => setStep(1)}>{ar ? 'رجوع' : 'Back'}</Button>
+              <Button className="flex-1 h-14 rounded-2xl bg-oasis-spring text-midnight hover:bg-oasis-spring/90 shadow-mint-glow text-[10px] font-black uppercase tracking-widest" onClick={() => setStep(3)}>{ar ? 'مراجعة ونشر' : 'Review & Publish'}</Button>
             </div>
           </>
         )}
@@ -466,47 +458,47 @@ export const CreateTourScreen = ({ currentUser, lang, onTourCreated }: Props) =>
           <>
             {done ? (
               <div className="flex flex-col items-center py-16 gap-4">
-                <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center">
-                  <Check className="w-8 h-8 text-emerald-600" />
+                <div className="w-16 h-16 bg-oasis-spring/20 rounded-full flex items-center justify-center border border-oasis-spring/30 shadow-mint-glow">
+                  <Check className="w-8 h-8 text-oasis-spring" />
                 </div>
-                <p className="font-black text-lg text-slate-900">{ar ? 'تم نشر الجولة!' : 'Tour Published!'}</p>
-                <p className="text-sm text-slate-500 text-center">{ar ? 'جولتك الآن متاحة. جاري التحويل إلى تبويب الجولات…' : 'Your tour is now live. Redirecting to the Tours tab…'}</p>
+                <p className="font-black text-lg text-slate-900 dark:text-white uppercase tracking-tight">{ar ? 'تم نشر الجولة!' : 'Tour Published!'}</p>
+                <p className="text-sm text-slate-500 dark:text-slate-500 text-center">{ar ? 'جولتك الآن متاحة. جاري التحويل إلى تبويب الجولات…' : 'Your tour is now live. Redirecting to the Tours tab…'}</p>
               </div>
             ) : (
               <>
                 {/* Preview card */}
-                <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+                <div className="bg-white dark:bg-chamber rounded-3xl shadow-2xl border border-slate-100 dark:border-white/10 overflow-hidden">
                   {heroImage && <img src={heroImage} alt="" className="w-full h-40 object-cover" />}
                   <div className="p-4">
                     <div className="flex items-start justify-between gap-2 mb-1">
-                      <h2 className="font-black text-base text-slate-900">{title || 'Tour Name'}</h2>
-                      <span className="text-sm font-black text-emerald-600 shrink-0">SAR {price || '0'}/person</span>
+                      <h2 className="font-black text-base text-slate-900 dark:text-white uppercase tracking-tight">{title || 'Tour Name'}</h2>
+                      <span className="text-[10px] font-black text-oasis-spring shrink-0 uppercase tracking-widest bg-oasis-spring/10 px-2 py-1 rounded-lg border border-oasis-spring/20">SAR {price || '0'}/person</span>
                     </div>
-                    {description && <p className="text-xs text-slate-500 mb-2 line-clamp-2">{description}</p>}
-                    <div className="flex flex-wrap gap-2 text-xs text-slate-500">
-                      {departureLocation && <span className="flex items-center gap-1"><MapPin className="w-3 h-3" />{departureLocation}</span>}
-                      {totalDuration && <span className="flex items-center gap-1"><Clock className="w-3 h-3" />{totalDuration}h</span>}
-                      {maxGroupSize && <span className="flex items-center gap-1"><Users className="w-3 h-3" />{ar ? `حتى ${maxGroupSize}` : `Up to ${maxGroupSize}`}</span>}
+                    {description && <p className="text-xs text-slate-500 dark:text-slate-500 mb-2 line-clamp-2">{description}</p>}
+                    <div className="flex flex-wrap gap-3 text-[10px] text-slate-500 dark:text-moon/40 uppercase font-black tracking-widest">
+                      {departureLocation && <span className="flex items-center gap-1.5"><MapPin className="w-3.5 h-3.5" />{departureLocation}</span>}
+                      {totalDuration && <span className="flex items-center gap-1.5"><Clock className="w-3.5 h-3.5" />{totalDuration}h</span>}
+                      {maxGroupSize && <span className="flex items-center gap-1.5"><Users className="w-3.5 h-3.5" />{ar ? `حتى ${maxGroupSize}` : `Up to ${maxGroupSize}`}</span>}
                     </div>
                     {highlights.length > 0 && (
-                      <div className="flex flex-wrap gap-1.5 mt-2">
+                      <div className="flex flex-wrap gap-1.5 mt-3">
                         {highlights.map((h, i) => (
-                          <span key={i} className="bg-emerald-50 text-emerald-700 text-[10px] font-semibold px-2 py-0.5 rounded-full">{h}</span>
+                          <span key={i} className="bg-oasis-spring/10 text-oasis-spring text-[9px] font-black uppercase tracking-widest px-2.5 py-1 rounded-lg border border-oasis-spring/20">{h}</span>
                         ))}
                       </div>
                     )}
                   </div>
                 </div>
 
-                <div className="bg-amber-50 border border-amber-100 rounded-2xl px-4 py-3 text-xs text-amber-700">
+                <div className="bg-oasis-spring/10 border border-oasis-spring/20 rounded-2xl px-5 py-4 text-[10px] font-black uppercase tracking-widest leading-relaxed text-oasis-spring">
                   {ar ? 'بعد النشر ستظهر جولتك في تبويب الجولات ضمن "أضيف مؤخراً". يمكنك إدارتها في أي وقت من لوحة المضيف.' : 'Once published, your tour will appear in the Tours tab under "Recently Added". You can manage it anytime from the Host Dashboard.'}
                 </div>
 
                 <div className="flex gap-3">
-                  <Button variant="secondary" className="flex-1" onClick={() => setStep(2)}>{ar ? 'رجوع' : 'Back'}</Button>
-                  <Button className="flex-1" onClick={handlePublish} disabled={isPublishing}>
+                  <Button variant="secondary" className="flex-1 h-14 rounded-2xl text-[10px] font-black uppercase tracking-widest border-slate-100 dark:border-white/10" onClick={() => setStep(2)}>{ar ? 'رجوع' : 'Back'}</Button>
+                  <Button className="flex-1 h-14 rounded-2xl bg-oasis-spring text-midnight hover:bg-oasis-spring/90 shadow-mint-glow text-[10px] font-black uppercase tracking-widest" onClick={handlePublish} disabled={isPublishing}>
                     {isPublishing ? (
-                      <span className="flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" />{ar ? 'جاري النشر…' : 'Publishing…'}</span>
+                      <span className="flex items-center gap-2"><Loader2 className="w-5 h-5 animate-spin" />{ar ? 'جاري النشر…' : 'Publishing…'}</span>
                     ) : (ar ? 'نشر الجولة' : 'Publish Tour')}
                   </Button>
                 </div>

@@ -11,7 +11,7 @@ function toggleWishlist(id: string): boolean {
   if (idx === -1) { list.push(id); localStorage.setItem(WISHLIST_KEY, JSON.stringify(list)); return true; }
   list.splice(idx, 1); localStorage.setItem(WISHLIST_KEY, JSON.stringify(list)); return false;
 }
-import { Button } from '../components/ui';
+import { Button, SafeImage } from '../components/ui';
 import { Itinerary } from '../types/index';
 import { itineraryAPI } from '../services/api';
 import { showToast } from '../components/Toast';
@@ -143,7 +143,7 @@ export const ItineraryDetailScreen = ({
 
       {/* Hero Image */}
       <div className="h-64 w-full shrink-0 relative bg-slate-200">
-        <img src={heroImage} className="w-full h-full object-cover" alt={itinerary.title} />
+        <SafeImage src={heroImage} className="w-full h-full object-cover" alt={itinerary.title} fallbackType="placeholder" seed={itineraryId} />
       </div>
 
       {/* Content */}
@@ -205,7 +205,7 @@ export const ItineraryDetailScreen = ({
                   </div>
                   <div className="bg-white p-3 rounded-xl border border-slate-100 shadow-sm flex gap-3">
                     {image ? (
-                      <img src={image} className="w-16 h-16 rounded-lg object-cover bg-slate-200 flex-shrink-0" alt={name} />
+                      <SafeImage src={image} className="w-16 h-16 rounded-lg object-cover bg-slate-200 flex-shrink-0" alt={name} fallbackType="placeholder" seed={name} />
                     ) : (
                       <div className="w-16 h-16 rounded-lg bg-slate-100 flex-shrink-0" />
                     )}

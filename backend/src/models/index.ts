@@ -21,6 +21,8 @@ export { Expense, IExpense } from './Expense';
 export { Message, IMessage } from './Message';
 export { Review, IReview } from './Review';
 export { Favorite, IFavorite } from './Favorite';
+export { Event, IEvent } from './Event';
+export { Community, ICommunity } from './Community';
 
 // ==========================================
 // ⚙️ System & Operations (النظام والعمليات)

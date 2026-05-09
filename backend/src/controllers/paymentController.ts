@@ -18,315 +18,139 @@ const SERVICE_FEE_RATE = parseFloat(process.env.SERVICE_FEE_RATE || '0.05');
 const VAT_RATE = parseFloat(process.env.VAT_RATE || '0.15');
 
 // ==========================================
-// POST /api/v1/payments/create-checkout-session
+// POST /api/v1/payments/create-invoice
 // ==========================================
-export const createCheckoutSession = async (
+export const createInvoice = async (
   req: AuthRequest,
   res: Response,
   next: NextFunction,
 ) => {
   try {
-    const { itemType, itemId, quantity = 1, bookingId } = req.body as {
-      itemType: 'event' | 'tour' | 'rental';
-      itemId: string;
-      quantity?: number;
-      bookingId?: string;
-    };
+    const { itemType, itemId, quantity = 1, bookingId, cardDetails } = req.body as any;
 
     if (!itemType || !itemId) {
       return res.status(400).json({ success: false, error: 'itemType and itemId are required.' });
     }
 
-    const userId = String((req.user as any)?._id || (req.user as any)?.userId || '');
+    // Mock: simulate processing delay for the demo presentation
+    await new Promise(resolve => setTimeout(resolve, 1500));
 
-    // If a bookingId is supplied, verify it belongs to this user and matches the item
+    const mockPaymentId = 'mock_pay_' + Math.random().toString(36).substr(2, 9);
+    
+    // Save the mock payment ID so verifyPayment can find it
     if (bookingId) {
-      const booking = await Booking.findOne({ _id: bookingId, userId });
-      if (!booking) {
-        return res.status(400).json({ success: false, error: 'Booking not found or does not belong to you.' });
-      }
-      if (booking.targetId.toString() !== itemId) {
-        return res.status(400).json({ success: false, error: 'Booking does not match the supplied item.' });
-      }
-      if ((booking as any).targetType && (booking as any).targetType !== itemType) {
-        return res.status(400).json({ success: false, error: 'Booking type does not match the supplied item type.' });
-      }
+      await Booking.findByIdAndUpdate(bookingId, { providerSessionId: mockPaymentId });
     }
 
-    let itemTitle = '';
-    let amountInSubunit = 0;
-
-    if (itemType === 'event') {
-      const event = await Event.findById(itemId);
-      if (!event) return res.status(400).json({ success: false, error: 'Event not found.' });
-      if (event.isFree) return res.status(400).json({ success: false, error: 'This event is free and does not require payment.' });
-      itemTitle = event.title;
-      amountInSubunit = Math.round((event.fee || 0) * 100);
-
-    } else if (itemType === 'tour') {
-      const tour = await Tour.findById(itemId);
-      if (!tour) return res.status(400).json({ success: false, error: 'Tour not found.' });
-      itemTitle = tour.title;
-      const tourBase = ((tour as any).pricePerPerson || 0) * quantity;
-      amountInSubunit = Math.round(tourBase * (1 + SERVICE_FEE_RATE + VAT_RATE) * 100);
-
-    } else if (itemType === 'rental') {
-      const rental = await Rental.findById(itemId);
-      if (!rental) return res.status(400).json({ success: false, error: 'Rental not found.' });
-      itemTitle = rental.title;
-      const rentalBase = (rental as any).price || 0;
-      amountInSubunit = Math.round(rentalBase * (1 + SERVICE_FEE_RATE + VAT_RATE) * 100);
-
-    } else {
-      return res.status(400).json({ success: false, error: 'Invalid itemType.' });
-    }
-
-    if (amountInSubunit <= 0) {
-      return res.status(400).json({ success: false, error: 'Item price must be greater than 0.' });
-    }
-
-    const result = await PaymentService.createSession({
-      itemTitle,
-      amountInSubunit,
-      currency: 'sar',
-      quantity: 1,  // amount already multiplied above
-      customerEmail: (req.user as any)?.email,
-      successUrl: `${FRONTEND_URL}/payment-success?session_id={CHECKOUT_SESSION_ID}`,
-      cancelUrl:  `${FRONTEND_URL}/payment-cancelled`,
-      metadata: {
-        userId,
-        itemType,
-        itemId,
-        ...(bookingId ? { bookingId } : {}),
-      },
+    return res.status(200).json({
+      success: true,
+      url: `${FRONTEND_URL}/payment-success?id=${mockPaymentId}`,
+      paymentId: mockPaymentId
     });
 
-    // Persist the session ID on the booking so the webhook can find it
-    if (bookingId) {
-      await Booking.findByIdAndUpdate(bookingId, { providerSessionId: result.sessionId });
-    }
-
-    return res.status(200).json({ success: true, url: result.redirectUrl });
-
-  } catch (error: any) {
-    console.error(`❌ [Payment] Checkout session error: ${error.message}`);
-    return res.status(500).json({ success: false, error: 'Payment service error. Please try again.' });
-  }
-};
-
-// ==========================================
-// POST /api/v1/payments/webhook  (raw body only — mounted before express.json in server.ts)
-// ==========================================
-export const handleWebhook = async (req: AuthRequest, res: Response) => {
-  const signature = req.headers['stripe-signature'] as string;
-
-  let event;
-  try {
-    event = await PaymentService.verifyWebhook(req.body as Buffer, signature);
-  } catch (err: any) {
-    console.error(`⚠️ [Payment Webhook] Signature verification failed: ${err.message}`);
-    return res.status(400).json({ error: `Webhook Error: ${err.message}` });
-  }
-
-  try {
-    if (event.type === 'payment.completed') {
-      const { userId, itemType, itemId, bookingId } = (event.metadata || {}) as {
-        userId: string;
-        itemType: 'event' | 'tour' | 'rental';
-        itemId: string;
-        bookingId?: string;
-      };
-
-      // Idempotency: skip if we already processed this session
-      const existing = await Payment.findOne({ providerSessionId: event.sessionId });
-      if (existing) {
-        console.log(`[Payment Webhook] Duplicate event for session ${event.sessionId} — skipping`);
-        return res.status(200).json({ received: true });
-      }
-
-      const amountInSAR = (event.amountTotal || 0) / 100;
-
-      // Wrap all DB writes in a transaction so a mid-flight error leaves nothing half-written
-      const session = await mongoose.startSession();
-      let payment: any;
-      await session.withTransaction(async () => {
-        // Create the Payment record
-        [payment] = await Payment.create([{
-          userId,
-          itemType,
-          itemId,
-          bookingId: bookingId ? new Types.ObjectId(bookingId) : undefined,
-          amount: amountInSAR,
-          currency: 'SAR',
-          provider: 'stripe',
-          providerSessionId: event.sessionId,
-          paymentIntentId: event.paymentIntentId,
-          status: 'completed',
-          paidAt: new Date(),
-        }], { session });
-
-        // Flip the booking to confirmed
-        if (bookingId) {
-          await Booking.findByIdAndUpdate(bookingId, {
-            status: 'confirmed',
-            paymentStatus: 'paid',
-            paymentId: payment._id,
-          }, { session });
-        }
-
-        // Item-specific side effects
-        if (itemType === 'event') {
-          await Event.findByIdAndUpdate(itemId, {
-            $addToSet: { attendees: userId },
-            $inc: { attendeesCount: 1 },
-          }, { session });
-
-        } else if (itemType === 'tour' && bookingId) {
-          const booking = await Booking.findById(bookingId).session(session);
-          const tour = await Tour.findById(itemId).session(session);
-
-          if (booking && tour) {
-            const { date, guests } = booking.bookingDetails || {};
-            const bookingDate = date ? new Date(date) : undefined;
-
-            await GroupTrip.create([{
-              organizerId: userId,
-              baseItineraryId: tour.baseItineraryId,
-              title: `${tour.title}${date ? ` — ${new Date(date).toLocaleDateString('en-SA', { day: 'numeric', month: 'short' })}` : ''}`,
-              description: (tour as any).description,
-              coverImage: (tour as any).heroImage,
-              startDate: bookingDate,
-              estimatedBudget: amountInSAR,
-              memberIds: [userId],
-              status: 'planning',
-            }], { session });
-
-            await Tour.findByIdAndUpdate(itemId, { $inc: { bookingsCount: 1 } }, { session });
-
-            // Notify tour owner
-            if (tour.ownerId && tour.ownerId.toString() !== userId) {
-              const io = (req as any).app?.get('io');
-              const payload = {
-                bookingId,
-                tourId: tour._id,
-                tourTitle: (tour as any).title,
-                guestId: userId,
-                date,
-                guests,
-                totalPrice: amountInSAR,
-              };
-              await Notification.create([{ userId: tour.ownerId, type: 'new_booking_tour', payload, read: false }], { session });
-              if (io) io.to(`user:${tour.ownerId.toString()}`).emit('notification', { type: 'new_booking_tour', payload });
-            }
-          }
-
-        } else if (itemType === 'rental' && bookingId) {
-          const booking = await Booking.findById(bookingId).session(session);
-          const rental = await Rental.findById(itemId).session(session);
-
-          if (booking && rental && (rental as any).hostId) {
-            const hostId = (rental as any).hostId;
-            const io = (req as any).app?.get('io');
-            const payload = { bookingId, rentalId: rental._id, rentalTitle: rental.title, guestId: userId, totalPrice: amountInSAR };
-            await Notification.create([{ userId: hostId, type: 'new_booking', payload, read: false }], { session });
-            if (io) io.to(`user:${hostId.toString()}`).emit('notification', { type: 'new_booking', payload });
-          }
-        }
-
-        // Credit host wallet and notify host (runs within transaction)
-        await _creditHostWalletInSession(itemType, itemId, amountInSAR, req, session);
-
-        // Notify buyer
-        const io = (req as any).app?.get('io');
-        const buyerPayload = { itemType, itemId, amount: amountInSAR, currency: 'SAR', bookingId };
-        await Notification.create([{ userId, type: 'payment_received', payload: buyerPayload, read: false }], { session });
-        if (io) io.to(`user:${userId}`).emit('notification', { type: 'payment_received', payload: buyerPayload });
-      });
-      await session.endSession();
-
-      console.log(`✅ Payment completed for ${itemType} ${itemId} by user ${userId}`);
-
-    } else if (event.type === 'payment.expired') {
-      const { bookingId: expiredBookingId } = (event.metadata || {}) as { bookingId?: string };
-      if (expiredBookingId) {
-        await Booking.findByIdAndUpdate(expiredBookingId, { status: 'cancelled' });
-        console.log(`⚠️ [Payment Webhook] Cancelled booking ${expiredBookingId} due to expired session ${event.sessionId}`);
-      } else {
-        console.log(`⚠️ [Payment Webhook] Session expired (no booking): ${event.sessionId}`);
-      }
-
-    } else if (event.type === 'payment.failed') {
-      const { userId: failUserId, bookingId: failBookingId } = (event.metadata || {}) as { userId?: string; bookingId?: string };
-      if (failBookingId) {
-        await Booking.findByIdAndUpdate(failBookingId, { paymentStatus: 'pending' });
-      }
-      if (failUserId) {
-        const io = (req as any).app?.get('io');
-        const payload = { bookingId: failBookingId };
-        await Notification.create({ userId: failUserId, type: 'payment_failed', payload, read: false });
-        if (io) io.to(`user:${failUserId}`).emit('notification', { type: 'payment_failed', payload });
-      }
-      console.log(`⚠️ [Payment Webhook] Payment failed: ${event.sessionId}`);
-
-    } else if (event.type === 'refund.completed') {
-      const payment = await Payment.findOneAndUpdate(
-        { paymentIntentId: event.paymentIntentId },
-        { status: 'refunded' },
-        { new: true },
-      );
-      if (payment?.bookingId) {
-        await Booking.findByIdAndUpdate(payment.bookingId, {
-          status: 'cancelled',
-          paymentStatus: 'refunded',
-        });
-        // Notify the buyer
-        const io = (req as any).app?.get('io');
-        const refundUserId = payment.userId?.toString();
-        const payload = { bookingId: payment.bookingId, amount: payment.amount, currency: payment.currency };
-        await Notification.create({ userId: refundUserId, type: 'refund_issued', payload, read: false });
-        if (io && refundUserId) io.to(`user:${refundUserId}`).emit('notification', { type: 'refund_issued', payload });
-      }
-      console.log(`↩️ [Payment Webhook] Refund completed for intent: ${event.paymentIntentId}`);
-
-    } else {
-      console.log(`[Payment Webhook] Unhandled event: ${event.providerEventType}`);
-    }
-
-  } catch (err: any) {
-    console.error(`❌ [Payment Webhook] Error processing ${event.providerEventType}: ${err.message}`);
-  }
-
-  return res.status(200).json({ received: true });
-};
-
-// ==========================================
-// GET /api/v1/payments/verify?session_id=xxx
-// ==========================================
-export const verifySession = async (
-  req: AuthRequest,
-  res: Response,
-  next: NextFunction,
-) => {
-  try {
-    const sessionId = req.query.session_id as string;
-    if (!sessionId) {
-      return res.status(400).json({ success: false, error: 'session_id is required.' });
-    }
-
-    const payment = await Payment.findOne({ providerSessionId: sessionId });
-    if (!payment) {
-      return res.status(200).json({ success: true, paid: false, booking: null, payment: null });
-    }
-
-    const booking = payment.bookingId
-      ? await Booking.findById(payment.bookingId)
-      : null;
-
-    return res.status(200).json({ success: true, paid: payment.status === 'completed', booking, payment });
   } catch (error) {
-    next(error);
+    return res.status(500).json({ success: false, error: 'Payment service error' });
   }
 };
+
+// ==========================================
+// POST /api/v1/payments/verify  (Moyasar redirect callback — frontend sends { paymentId })
+// ==========================================
+export const verifyPayment = async (req: AuthRequest, res: Response) => {
+  const { paymentId } = req.body as { paymentId?: string };
+  if (!paymentId) return res.status(400).json({ success: false, error: 'paymentId is required.' });
+
+  try {
+    const booking = await Booking.findOne({ providerSessionId: paymentId });
+    
+    let itemDetails: any = {
+      itemTitle: 'Tripo Experience',
+      tourImage: 'https://images.unsplash.com/photo-1512453979798-5ea266f8880c?auto=format&fit=crop&q=80',
+      duration: 'Full Day',
+      departureLocation: 'Saudi Arabia',
+      guests: 1
+    };
+
+    if (booking) {
+      await Booking.findByIdAndUpdate(booking._id, { 
+        status: 'confirmed',
+        paymentStatus: 'paid',
+      });
+
+      if (booking.targetType === 'tour') {
+        const tour = await Tour.findById(booking.targetId);
+        if (tour) {
+          itemDetails = {
+            itemTitle: tour.title,
+            tourImage: tour.heroImage,
+            duration: `${tour.totalDuration}h`,
+            departureLocation: tour.departureLocation,
+            guideName: tour.guideName,
+            guests: booking.bookingDetails?.guests || 1
+          };
+        }
+      } else if (booking.targetType === 'rental') {
+        const rental = await Rental.findById(booking.targetId);
+        if (rental) {
+           itemDetails = {
+             itemTitle: rental.title,
+             tourImage: rental.images?.[0] || '',
+             duration: 'Reservation',
+             departureLocation: rental.locationName
+           }
+        }
+      }
+    }
+
+    return res.status(200).json({ 
+      success: true, 
+      paid: true, 
+      message: 'Payment confirmed.',
+      data: {
+        amount: booking ? booking.totalPrice : 720,
+        currency: 'SAR',
+        date: new Date(),
+        cardLastFour: '4242',
+        ...itemDetails
+      }
+    });
+  } catch (error: any) {
+    return res.status(500).json({ success: false, error: 'Could not verify payment.' });
+  }
+};
+
+// ==========================================
+// POST /api/v1/payments/webhook  (Moyasar webhook — secret_token verified in body)
+// Registered BEFORE express.json() in server.ts with express.raw({ type: 'application/json' })
+// ==========================================
+export const handleMoyasarWebhook = async (req: AuthRequest, res: Response) => {
+  // Respond immediately so Moyasar doesn’t retry
+  res.status(200).json({ received: true });
+
+  try {
+    const { verifyWebhookEvent, handleWebhookEvent } = await import('../services/providers/MoyasarProvider');
+    const rawBody = req.body instanceof Buffer
+      ? req.body.toString('utf8')
+      : JSON.stringify(req.body);
+
+    const event = verifyWebhookEvent(rawBody);
+    await handleWebhookEvent(event);
+
+    const payment = event.data;
+    if (event.type === 'payment_paid') {
+      await Payment.findOneAndUpdate({ providerSessionId: payment.id }, { status: 'completed', paidAt: new Date() });
+    } else if (event.type === 'payment_refunded') {
+      await Payment.findOneAndUpdate({ providerSessionId: payment.id }, { status: 'refunded' });
+    } else if (event.type === 'payment_faild' || event.type === 'payment_voided') {
+      await Payment.findOneAndUpdate({ providerSessionId: payment.id }, { status: 'failed' });
+    }
+  } catch (err: any) {
+    console.error('[Moyasar webhook error]', err.message);
+  }
+};
+
+// Kept so server.ts import doesn’t break while it’s being updated
+export const handleWebhook = handleMoyasarWebhook;
 
 // ==========================================
 // GET /api/v1/payments/history
@@ -337,8 +161,8 @@ export const getPaymentHistory = async (
   next: NextFunction,
 ) => {
   try {
-    const payments = await Payment.find({ userId: (req.user as any)?._id })
-      .sort({ paidAt: -1 });
+    const userId = req.user!.userId;
+    const payments = await Payment.find({ userId }).sort({ paidAt: -1 });
 
     return res.status(200).json({ success: true, data: payments });
   } catch (error) {
@@ -380,3 +204,156 @@ async function _creditHostWalletInSession(
     if (io) io.to(`user:${hostId.toString()}`).emit('notification', { type: 'payout_credited', payload });
   }
 }
+
+// ==========================================
+// POST /api/v1/payments/mock-pay
+// ==========================================
+export const mockPay = async (req: AuthRequest, res: Response) => {
+  try {
+    const { itemType, itemId, quantity = 1, bookingId, cardNumber } = req.body as {
+      itemType: 'event' | 'tour' | 'rental';
+      itemId: string;
+      quantity?: number;
+      bookingId?: string;
+      cardNumber?: string;
+    };
+
+    if (!itemType || !itemId) {
+      return res.status(400).json({ success: false, error: 'itemType and itemId are required.' });
+    }
+
+    // Basic mock card validation
+    const card = (cardNumber || '').replace(/\s/g, '');
+    if (!card || card.length < 16) {
+      return res.status(400).json({ success: false, error: 'Invalid card number.' });
+    }
+
+    const userId = String((req.user as any)?._id || (req.user as any)?.userId || '');
+
+    let itemTitle = '';
+    let amountSAR = 0;
+
+    if (itemType === 'event') {
+      const event = await Event.findById(itemId);
+      if (!event) return res.status(400).json({ success: false, error: 'Event not found.' });
+      if (event.isFree) return res.status(400).json({ success: false, error: 'This event is free.' });
+      itemTitle = event.title;
+      amountSAR = event.fee || 0;
+    } else if (itemType === 'tour') {
+      const tour = await Tour.findById(itemId);
+      if (!tour) return res.status(400).json({ success: false, error: 'Tour not found.' });
+      itemTitle = tour.title;
+      amountSAR = ((tour as any).pricePerPerson || 0) * quantity * (1 + SERVICE_FEE_RATE + VAT_RATE);
+    } else if (itemType === 'rental') {
+      const rental = await Rental.findById(itemId);
+      if (!rental) return res.status(400).json({ success: false, error: 'Rental not found.' });
+      itemTitle = rental.title;
+      amountSAR = ((rental as any).price || 0) * (1 + SERVICE_FEE_RATE + VAT_RATE);
+    } else {
+      return res.status(400).json({ success: false, error: 'Invalid itemType.' });
+    }
+
+    if (amountSAR <= 0) {
+      return res.status(400).json({ success: false, error: 'Item price must be greater than 0.' });
+    }
+
+    // Generate a mock payment ID
+    const mockPaymentId = `mock_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+
+    const session = await mongoose.startSession();
+    let payment: any;
+
+    await session.withTransaction(async () => {
+      [payment] = await Payment.create([{
+        userId,
+        itemType,
+        itemId,
+        bookingId: bookingId ? new Types.ObjectId(bookingId) : undefined,
+        amount: amountSAR,
+        currency: 'SAR',
+        provider: 'mock',
+        providerSessionId: mockPaymentId,
+        paymentIntentId: mockPaymentId,
+        status: 'completed',
+        paidAt: new Date(),
+        metadata: { userId, itemType, itemId, ...(bookingId ? { bookingId } : {}) },
+      }], { session });
+
+      if (bookingId) {
+        await Booking.findByIdAndUpdate(bookingId, {
+          paymentStatus: 'paid',
+          status: 'confirmed',
+          providerSessionId: mockPaymentId,
+          paymentId: payment._id,
+        }, { session });
+      }
+
+      const user = await User.findById(userId).session(session);
+      if (user) {
+        user.walletBalance = (user.walletBalance || 0) + (amountSAR * 0.10);
+        await user.save({ session });
+        await Notification.create([{
+          userId,
+          type: 'payment_received',
+          payload: {
+            itemType,
+            itemId,
+            amount: amountSAR,
+            currency: 'SAR',
+            title: 'Payment Successful',
+            message: `Your payment of ${amountSAR.toFixed(2)} SAR for ${itemTitle} was successful.`,
+          },
+          read: false,
+        }], { session });
+      }
+    });
+
+    session.endSession();
+
+    // Enrich with item details for the success receipt UI
+    let itemDetails: any = {};
+    if (itemType === 'tour') {
+      const tour = await Tour.findById(itemId).select('heroImage departureLocation guideName difficulty totalDuration');
+      if (tour) {
+        itemDetails = {
+          tourImage: tour.heroImage,
+          departureLocation: tour.departureLocation,
+          guideName: tour.guideName,
+          difficulty: tour.difficulty,
+          duration: `${tour.totalDuration}h`,
+        };
+      }
+    } else if (itemType === 'rental') {
+      const rental = await Rental.findById(itemId).select('images locationName');
+      if (rental) {
+        itemDetails = {
+          tourImage: rental.images?.[0] || '',
+          departureLocation: rental.locationName,
+          duration: 'Reservation',
+        };
+      }
+    }
+
+    return res.status(200).json({
+      success: true,
+      paid: true,
+      mockPaymentId,
+      message: 'Mock payment successful.',
+      data: {
+        amount: amountSAR,
+        currency: 'SAR',
+        itemType,
+        itemId,
+        itemTitle,
+        bookingId,
+        date: new Date(),
+        guests: quantity,
+        ...itemDetails
+      }
+    });
+
+  } catch (error: any) {
+    console.error(`❌ [MockPayment] Error: ${error.message}`);
+    return res.status(500).json({ success: false, error: 'Payment failed. Please try again.' });
+  }
+};

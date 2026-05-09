@@ -9,12 +9,12 @@ import { showToast } from '../components/Toast';
 // ── Constants ──────────────────────────────────────────────────────────────
 const LISTS_KEY = 'tripo_personal_lists';
 
-const LIST_DEFS: Omit<PersonalList, 'entries'>[] = [
-  { id: 'want_to_go',  label: 'Want to Go',   labelAr: 'أريد الذهاب',    emoji: '🔖' },
-  { id: 'been_there',  label: 'Been There',   labelAr: 'زرته',            emoji: '✅' },
-  { id: 'going_again', label: 'Going Again',  labelAr: 'سأعود مجدداً',   emoji: '🔁' },
-  { id: 'favorites',   label: 'Favorites',    labelAr: 'المفضلة',         emoji: '⭐' },
-  { id: 'avoid',       label: 'Avoid',        labelAr: 'تجنّب',           emoji: '🚫' },
+const getListDefs = (t: any) => [
+  { id: 'want_to_go',  label: t.lists.listWantToGo,   emoji: '🔖' },
+  { id: 'been_there',  label: t.lists.listBeenThere,   emoji: '✅' },
+  { id: 'going_again', label: t.lists.listGoingAgain,  emoji: '🔁' },
+  { id: 'favorites',   label: t.lists.listFavorites,   emoji: '⭐' },
+  { id: 'avoid',       label: t.lists.listAvoid,       emoji: '🚫' },
 ];
 
 // ── Storage helpers ─────────────────────────────────────────────────────────
@@ -22,12 +22,12 @@ function loadLists(): PersonalList[] {
   try {
     const raw = localStorage.getItem(LISTS_KEY);
     const stored: Partial<PersonalList>[] = raw ? JSON.parse(raw) : [];
-    return LIST_DEFS.map(def => {
+    return getListDefs({ lists: {} }).map(def => {
       const found = stored.find(s => s.id === def.id);
-      return { ...def, entries: found?.entries || [] };
+      return { ...def, entries: found?.entries || [] } as PersonalList;
     });
   } catch {
-    return LIST_DEFS.map(def => ({ ...def, entries: [] }));
+    return getListDefs({ lists: {} }).map(def => ({ ...def, entries: [] } as PersonalList));
   }
 }
 
@@ -60,20 +60,22 @@ export function getPlaceListMembership(placeId: string): PersonalListType[] {
   return lists.filter(l => l.entries.some(e => e.placeId === placeId)).map(l => l.id);
 }
 
-// ── Design tokens ───────────────────────────────────────────────────────────
-const BG       = '#050B1E';
-const SURFACE  = '#081229';
-const LIFTED   = '#101B36';
-const MINT     = '#7CF7C8';
-const MOON     = '#B8C2D6';
-const SAND     = '#7F8AA3';
-const BORDER   = 'rgba(255,255,255,0.08)';
-const MINT_GLOW = '0 8px 24px -6px rgba(124,247,200,0.45)';
+// Design tokens moved to Tailwind classes
 
 // ── Component ────────────────────────────────────────────────────────────────
 export const PersonalListsScreen = ({ t, lang }: { t: any; lang?: 'en' | 'ar' }) => {
   const isRTL = lang === 'ar';
-  const [lists, setLists] = useState<PersonalList[]>(() => loadLists());
+  const ls = t.lists;
+  const LIST_DEFS = getListDefs(t);
+  
+  const [lists, setLists] = useState<PersonalList[]>(() => {
+    const stored = loadLists();
+    // Refresh labels from current translations
+    return LIST_DEFS.map(def => {
+      const found = stored.find(s => s.id === def.id);
+      return { ...def, entries: found?.entries || [] } as PersonalList;
+    });
+  });
   const [selectedList, setSelectedList] = useState<PersonalList | null>(null);
   const [editEntry, setEditEntry] = useState<PersonalListEntry | null>(null);
   const [editNote, setEditNote] = useState('');
@@ -93,7 +95,7 @@ export const PersonalListsScreen = ({ t, lang }: { t: any; lang?: 'en' | 'ar' })
       l.id === listId ? { ...l, entries: l.entries.filter(e => e.placeId !== placeId) } : l
     );
     persist(updated);
-    showToast(isRTL ? 'تم الإزالة' : 'Removed', 'success');
+    showToast(ls.toastRemoved, 'success');
   };
 
   const saveNote = () => {
@@ -105,7 +107,7 @@ export const PersonalListsScreen = ({ t, lang }: { t: any; lang?: 'en' | 'ar' })
     );
     persist(updated);
     setEditEntry(null);
-    showToast(isRTL ? 'تم حفظ الملاحظة' : 'Note saved', 'success');
+    showToast(ls.toastNoteSaved, 'success');
   };
 
   const moveToList = (toListId: PersonalListType) => {
@@ -120,39 +122,38 @@ export const PersonalListsScreen = ({ t, lang }: { t: any; lang?: 'en' | 'ar' })
     });
     persist(updated);
     setMoveEntry(null);
-    showToast(isRTL ? 'تم النقل' : 'Moved', 'success');
+    showToast(ls.toastMoved, 'success');
   };
 
   const totalEntries = lists.reduce((s, l) => s + l.entries.length, 0);
 
   // ── Overview ─────────────────────────────────────────────────────────────
   if (!selectedList) return (
-    <div className="min-h-full pb-24" style={{ background: BG }}>
+    <div className="min-h-full pb-24 bg-white dark:bg-navy-950">
       {/* Header */}
       <div className="px-5 pt-8 pb-6">
-        <h1 className="font-black text-white" style={{ fontSize: '1.75rem', lineHeight: 1.05, letterSpacing: '-0.02em' }}>
-          {isRTL ? 'قوائمي' : 'My Lists'}
+        <h1 className="font-black text-slate-900 dark:text-white" style={{ fontSize: '1.75rem', lineHeight: 1.05, letterSpacing: '-0.02em' }}>
+          {ls.title}
         </h1>
-        <p className="mt-1 text-sm" style={{ color: SAND }}>
-          {isRTL ? 'نظّم الأماكن التي تريد زيارتها' : 'Organise places you want to visit'}
+        <p className="mt-1 text-sm text-slate-500 dark:text-slate-500">
+          {ls.subtitle}
         </p>
       </div>
 
       {/* Empty state nudge — only when completely empty */}
       {totalEntries === 0 && (
-        <div className="mx-5 mb-6 rounded-2xl px-5 py-5" style={{ background: SURFACE, border: `1px solid ${BORDER}` }}>
-          <p className="font-black text-white text-sm mb-1">
-            {isRTL ? 'احفظ مكانك الأول' : 'Save your first place'}
+        <div className="mx-5 mb-6 rounded-2xl px-5 py-5 bg-slate-50 dark:bg-navy-900 border border-slate-100 dark:border-white/8">
+          <p className="font-black text-slate-900 dark:text-white text-sm mb-1">
+            {ls.emptyStateTitle}
           </p>
-          <p className="text-xs mb-4" style={{ color: SAND }}>
-            {isRTL ? 'عند تصفح الخريطة، اضغط 🔖 لحفظ أي مكان هنا.' : 'Bookmarks from the map land here.'}
+          <p className="text-xs mb-4 text-slate-500 dark:text-slate-500">
+            {ls.emptyStateDesc}
           </p>
           <button
             onClick={() => window.dispatchEvent(new CustomEvent('tripo:navigate', { detail: 'explore' }))}
-            className="px-5 py-2.5 rounded-full font-black text-xs transition-all active:scale-95"
-            style={{ background: MINT, color: BG, boxShadow: MINT_GLOW }}
+            className="px-5 py-2.5 rounded-full font-black text-xs transition-all active:scale-95 bg-oasis-spring text-midnight shadow-mint-glow"
           >
-            {isRTL ? 'افتح الخريطة' : 'Open Map'}
+            {ls.openMap}
           </button>
         </div>
       )}
@@ -163,36 +164,33 @@ export const PersonalListsScreen = ({ t, lang }: { t: any; lang?: 'en' | 'ar' })
           <button
             key={list.id}
             onClick={() => setSelectedList(list)}
-            className="w-full flex items-center gap-4 px-4 py-4 rounded-2xl transition-all active:scale-[0.98] text-left"
-            style={{ background: SURFACE, border: `1px solid ${BORDER}` }}
+            className="w-full flex items-center gap-4 px-4 py-4 rounded-2xl transition-all active:scale-[0.98] text-left bg-slate-50 dark:bg-navy-900 border border-slate-100 dark:border-white/8"
           >
             {/* Icon tile */}
             <div
-              className="w-12 h-12 rounded-xl flex items-center justify-center text-xl shrink-0"
-              style={{ background: list.id === 'favorites' ? 'rgba(247,201,72,0.12)' : 'rgba(124,247,200,0.10)' }}
+              className={`w-12 h-12 rounded-xl flex items-center justify-center text-xl shrink-0 ${list.id === 'favorites' ? 'bg-yellow-400/10' : 'bg-oasis-spring/10'}`}
             >
               {list.emoji}
             </div>
 
             {/* Text */}
             <div className="flex-1 min-w-0 text-left">
-              <p className="font-black text-white text-sm">{isRTL ? list.labelAr : list.label}</p>
-              <p className="text-xs mt-0.5" style={{ color: SAND }}>
-                {list.entries.length} {isRTL ? 'مكان' : 'places'}
+              <p className="font-black text-slate-900 dark:text-white text-sm">{list.label}</p>
+              <p className="text-xs mt-0.5 text-slate-500 dark:text-slate-500">
+                {ls.placesCount.replace('{n}', String(list.entries.length))}
               </p>
             </div>
 
             {/* Count bubble */}
             {list.entries.length > 0 && (
               <div
-                className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-black shrink-0"
-                style={{ background: 'rgba(124,247,200,0.15)', color: MINT }}
+                className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-black shrink-0 bg-oasis-spring/20 text-oasis-spring"
               >
                 {list.entries.length}
               </div>
             )}
 
-            <ChevronLeft className="w-4 h-4 shrink-0 rotate-180" style={{ color: SAND }} />
+            <ChevronLeft className="w-4 h-4 shrink-0 rotate-180 text-slate-400 dark:text-slate-500" />
           </button>
         ))}
       </div>
@@ -201,28 +199,26 @@ export const PersonalListsScreen = ({ t, lang }: { t: any; lang?: 'en' | 'ar' })
 
   // ── Detail ────────────────────────────────────────────────────────────────
   return (
-    <div className="min-h-full pb-24" style={{ background: BG }}>
+    <div className="min-h-full pb-24 bg-white dark:bg-navy-950">
       {/* Header */}
-      <div className="px-5 pt-6 pb-5 flex items-center gap-4" style={{ background: SURFACE, borderBottom: `1px solid ${BORDER}` }}>
+      <div className="px-5 pt-6 pb-5 flex items-center gap-4 bg-slate-50 dark:bg-navy-900 border-b border-slate-100 dark:border-white/8">
         <button
           onClick={() => setSelectedList(null)}
-          className="w-9 h-9 flex items-center justify-center rounded-xl transition-all active:scale-90"
-          style={{ background: LIFTED }}
+          className="w-9 h-9 flex items-center justify-center rounded-xl transition-all active:scale-90 bg-slate-100 dark:bg-navy-800"
         >
-          <ChevronLeft className="w-4 h-4" style={{ color: MOON }} />
+          <ChevronLeft className="w-4 h-4 text-slate-500 dark:text-slate-400" />
         </button>
         <div
-          className="w-10 h-10 rounded-xl flex items-center justify-center text-xl shrink-0"
-          style={{ background: selectedList.id === 'favorites' ? 'rgba(247,201,72,0.12)' : 'rgba(124,247,200,0.10)' }}
+          className={`w-10 h-10 rounded-xl flex items-center justify-center text-xl shrink-0 ${selectedList.id === 'favorites' ? 'bg-yellow-400/10' : 'bg-oasis-spring/10'}`}
         >
           {selectedList.emoji}
         </div>
         <div className="flex-1 min-w-0">
-          <h2 className="font-black text-white text-base leading-tight">
-            {isRTL ? selectedList.labelAr : selectedList.label}
+          <h2 className="font-black text-slate-900 dark:text-white text-base leading-tight">
+            {selectedList.label}
           </h2>
-          <p className="text-xs" style={{ color: SAND }}>
-            {selectedList.entries.length} {isRTL ? 'مكان' : 'places'}
+          <p className="text-xs text-slate-500 dark:text-slate-500">
+            {ls.placesCount.replace('{n}', String(selectedList.entries.length))}
           </p>
         </div>
       </div>
@@ -232,26 +228,24 @@ export const PersonalListsScreen = ({ t, lang }: { t: any; lang?: 'en' | 'ar' })
         {selectedList.entries.length === 0 ? (
           <div className="flex flex-col items-center py-16 text-center">
             <span className="text-4xl mb-3">{selectedList.emoji}</span>
-            <p className="font-black text-white text-sm mb-1">
-              {isRTL ? 'القائمة فارغة' : 'Nothing here yet'}
+            <p className="font-black text-slate-900 dark:text-white text-sm mb-1">
+              {ls.nothingHere}
             </p>
-            <p className="text-xs mb-5" style={{ color: SAND }}>
-              {isRTL ? 'أضف أماكن من صفحة الاستكشاف' : 'Save places while browsing the map'}
+            <p className="text-xs mb-5 text-slate-500 dark:text-slate-500">
+              {ls.savePlacesDesc}
             </p>
             <button
               onClick={() => window.dispatchEvent(new CustomEvent('tripo:navigate', { detail: 'explore' }))}
-              className="px-5 py-2.5 rounded-full font-black text-xs transition-all active:scale-95"
-              style={{ background: MINT, color: BG, boxShadow: MINT_GLOW }}
+              className="px-5 py-2.5 rounded-full font-black text-xs transition-all active:scale-95 bg-oasis-spring text-midnight shadow-mint-glow"
             >
-              {isRTL ? 'تصفح الأماكن' : 'Browse places'}
+              {ls.browsePlaces}
             </button>
           </div>
         ) : (
           selectedList.entries.map(entry => (
             <div
               key={entry.placeId}
-              className="rounded-2xl overflow-hidden"
-              style={{ background: SURFACE, border: `1px solid ${BORDER}` }}
+              className="rounded-2xl overflow-hidden bg-slate-50 dark:bg-navy-900 border border-slate-100 dark:border-white/8"
             >
               <div className="flex items-start gap-3 p-4">
                 {/* Thumbnail */}
@@ -263,8 +257,7 @@ export const PersonalListsScreen = ({ t, lang }: { t: any; lang?: 'en' | 'ar' })
                   />
                 ) : (
                   <div
-                    className="w-14 h-14 rounded-xl flex items-center justify-center text-xl shrink-0"
-                    style={{ background: LIFTED }}
+                    className="w-14 h-14 rounded-xl flex items-center justify-center text-xl shrink-0 bg-slate-100 dark:bg-navy-800"
                   >
                     📍
                   </div>
@@ -272,22 +265,21 @@ export const PersonalListsScreen = ({ t, lang }: { t: any; lang?: 'en' | 'ar' })
 
                 {/* Info */}
                 <div className="flex-1 min-w-0">
-                  <p className="font-black text-white text-sm truncate">{entry.placeName || (isRTL ? 'مكان' : 'Place')}</p>
+                  <p className="font-black text-slate-900 dark:text-white text-sm truncate">{entry.placeName || (isRTL ? 'مكان' : 'Place')}</p>
                   {entry.placeCity && (
-                    <p className="text-xs flex items-center gap-1 mt-0.5" style={{ color: SAND }}>
+                    <p className="text-xs flex items-center gap-1 mt-0.5 text-slate-500 dark:text-slate-500">
                       <MapPin className="w-3 h-3 shrink-0" />
                       {entry.placeCity}
                     </p>
                   )}
                   {entry.privateNote && (
                     <div
-                      className="mt-2 px-2.5 py-1.5 rounded-xl text-xs"
-                      style={{ background: 'rgba(247,201,72,0.08)', color: MOON, border: '1px solid rgba(247,201,72,0.15)' }}
+                      className="mt-2 px-2.5 py-1.5 rounded-xl text-xs bg-yellow-400/10 text-slate-600 dark:text-slate-400 border border-yellow-400/20"
                     >
                       📝 {entry.privateNote}
                     </div>
                   )}
-                  <p className="text-xs mt-1.5" style={{ color: 'rgba(127,138,163,0.6)' }}>
+                  <p className="text-xs mt-1.5 text-slate-400/60">
                     {new Date(entry.addedAt).toLocaleDateString(isRTL ? 'ar-SA' : 'en-US', { month: 'short', day: 'numeric' })}
                   </p>
                 </div>
@@ -296,27 +288,24 @@ export const PersonalListsScreen = ({ t, lang }: { t: any; lang?: 'en' | 'ar' })
                 <div className="flex flex-col gap-1.5 shrink-0">
                   <button
                     onClick={() => { setEditEntry(entry); setEditNote(entry.privateNote || ''); }}
-                    className="w-8 h-8 flex items-center justify-center rounded-xl transition-all active:scale-90"
-                    style={{ background: LIFTED }}
-                    title={isRTL ? 'ملاحظة' : 'Note'}
+                    className="w-8 h-8 flex items-center justify-center rounded-xl transition-all active:scale-90 bg-slate-100 dark:bg-navy-800"
+                    title={ls.actionNote}
                   >
-                    <StickyNote className="w-3.5 h-3.5" style={{ color: '#F7C948' }} />
+                    <StickyNote className="w-3.5 h-3.5 text-yellow-500" />
                   </button>
                   <button
                     onClick={() => setMoveEntry(entry)}
-                    className="w-8 h-8 flex items-center justify-center rounded-xl transition-all active:scale-90"
-                    style={{ background: LIFTED }}
-                    title={isRTL ? 'نقل' : 'Move'}
+                    className="w-8 h-8 flex items-center justify-center rounded-xl transition-all active:scale-90 bg-slate-100 dark:bg-navy-800"
+                    title={ls.actionMove}
                   >
-                    <ArrowLeftRight className="w-3.5 h-3.5" style={{ color: MINT }} />
+                    <ArrowLeftRight className="w-3.5 h-3.5 text-oasis-spring" />
                   </button>
                   <button
                     onClick={() => removeEntry(selectedList.id, entry.placeId)}
-                    className="w-8 h-8 flex items-center justify-center rounded-xl transition-all active:scale-90"
-                    style={{ background: LIFTED }}
-                    title={isRTL ? 'إزالة' : 'Remove'}
+                    className="w-8 h-8 flex items-center justify-center rounded-xl transition-all active:scale-90 bg-slate-100 dark:bg-navy-800"
+                    title={ls.actionRemove}
                   >
-                    <Trash2 className="w-3.5 h-3.5" style={{ color: '#FF6B7A' }} />
+                    <Trash2 className="w-3.5 h-3.5 text-rose-500" />
                   </button>
                 </div>
               </div>
@@ -328,40 +317,36 @@ export const PersonalListsScreen = ({ t, lang }: { t: any; lang?: 'en' | 'ar' })
       {/* Move bottom sheet */}
       {moveEntry && (
         <div
-          className="fixed inset-0 z-50 flex items-end justify-center"
-          style={{ background: 'rgba(5,11,30,0.75)', backdropFilter: 'blur(4px)' }}
+          className="fixed inset-0 z-50 flex items-end justify-center bg-slate-900/60 dark:bg-navy-950/80 backdrop-blur-sm"
           onClick={() => setMoveEntry(null)}
         >
           <div
-            className="w-full max-w-md rounded-t-3xl px-5 pt-5 pb-8"
-            style={{ background: SURFACE, border: `1px solid ${BORDER}` }}
+            className="w-full max-w-md rounded-t-3xl px-5 pt-5 pb-8 bg-white dark:bg-navy-900 border-t border-slate-100 dark:border-white/10"
             onClick={e => e.stopPropagation()}
           >
             <div className="flex items-center justify-between mb-5">
-              <p className="font-black text-white text-base">
-                {isRTL ? 'نقل إلى قائمة' : 'Move to list'}
+              <p className="font-black text-slate-900 dark:text-white text-base">
+                {ls.moveTitle}
               </p>
               <button
                 onClick={() => setMoveEntry(null)}
-                className="w-8 h-8 flex items-center justify-center rounded-full"
-                style={{ background: LIFTED }}
+                className="w-8 h-8 flex items-center justify-center rounded-full bg-slate-100 dark:bg-navy-800"
               >
-                <X className="w-4 h-4" style={{ color: MOON }} />
+                <X className="w-4 h-4 text-slate-500 dark:text-slate-400" />
               </button>
             </div>
-            <p className="text-sm mb-4 truncate" style={{ color: SAND }}>
+            <p className="text-sm mb-4 truncate text-slate-500 dark:text-slate-500">
               {moveEntry.placeName}
             </p>
             <div className="space-y-2">
               {LIST_DEFS.filter(l => l.id !== selectedList.id).map(l => (
                 <button
                   key={l.id}
-                  onClick={() => moveToList(l.id)}
-                  className="w-full flex items-center gap-4 px-4 py-3.5 rounded-2xl transition-all active:scale-[0.98]"
-                  style={{ background: LIFTED, border: `1px solid ${BORDER}` }}
+                  onClick={() => moveToList(l.id as PersonalListType)}
+                  className="w-full flex items-center gap-4 px-4 py-3.5 rounded-2xl transition-all active:scale-[0.98] bg-slate-50 dark:bg-navy-950 border border-slate-100 dark:border-white/8"
                 >
                   <span className="text-xl">{l.emoji}</span>
-                  <span className="font-black text-white text-sm">{isRTL ? l.labelAr : l.label}</span>
+                  <span className="font-black text-slate-900 dark:text-white text-sm">{l.label}</span>
                 </button>
               ))}
             </div>
@@ -372,47 +357,37 @@ export const PersonalListsScreen = ({ t, lang }: { t: any; lang?: 'en' | 'ar' })
       {/* Private note bottom sheet */}
       {editEntry && (
         <div
-          className="fixed inset-0 z-50 flex items-end justify-center"
-          style={{ background: 'rgba(5,11,30,0.75)', backdropFilter: 'blur(4px)' }}
+          className="fixed inset-0 z-50 flex items-end justify-center bg-slate-900/60 dark:bg-navy-950/80 backdrop-blur-sm"
           onClick={() => setEditEntry(null)}
         >
           <div
-            className="w-full max-w-md rounded-t-3xl px-5 pt-5 pb-8"
-            style={{ background: SURFACE, border: `1px solid ${BORDER}` }}
+            className="w-full max-w-md rounded-t-3xl px-5 pt-5 pb-8 bg-white dark:bg-navy-900 border-t border-slate-100 dark:border-white/10"
             onClick={e => e.stopPropagation()}
           >
             <div className="flex items-center justify-between mb-2">
-              <p className="font-black text-white text-base">{isRTL ? 'ملاحظة خاصة' : 'Private note'}</p>
+              <p className="font-black text-slate-900 dark:text-white text-base">{ls.privateNoteTitle}</p>
               <button
                 onClick={() => setEditEntry(null)}
-                className="w-8 h-8 flex items-center justify-center rounded-full"
-                style={{ background: LIFTED }}
+                className="w-8 h-8 flex items-center justify-center rounded-full bg-slate-100 dark:bg-navy-800"
               >
-                <X className="w-4 h-4" style={{ color: MOON }} />
+                <X className="w-4 h-4 text-slate-500 dark:text-slate-400" />
               </button>
             </div>
-            <p className="text-xs mb-3 truncate" style={{ color: SAND }}>
+            <p className="text-xs mb-3 truncate text-slate-500 dark:text-slate-500">
               {editEntry.placeName}
             </p>
             <textarea
-              className="w-full rounded-2xl px-4 py-3 text-sm text-white outline-none resize-none mb-4 transition-all"
-              style={{
-                background: LIFTED,
-                border: '1px solid rgba(255,255,255,0.10)',
-                minHeight: '6rem',
-              }}
-              placeholder={isRTL ? 'مثل: طلبت الكابتشينو بـ 18 ريال...' : 'e.g. Great terrace seating, order the kushari...'}
+              className="w-full rounded-2xl px-4 py-3 text-sm text-slate-900 dark:text-white outline-none resize-none mb-4 transition-all bg-slate-100 dark:bg-navy-800 border border-slate-200 dark:border-white/10 focus:border-oasis-spring/50"
+              style={{ minHeight: '6rem' }}
+              placeholder={ls.notePlaceholder}
               value={editNote}
               onChange={e => setEditNote(e.target.value)}
-              onFocus={e => (e.currentTarget.style.borderColor = 'rgba(124,247,200,0.5)')}
-              onBlur={e => (e.currentTarget.style.borderColor = 'rgba(255,255,255,0.10)')}
             />
             <button
               onClick={saveNote}
-              className="w-full py-3.5 rounded-full font-black text-sm transition-all active:scale-[0.97]"
-              style={{ background: MINT, color: BG, boxShadow: MINT_GLOW }}
+              className="w-full py-3.5 rounded-full font-black text-sm transition-all active:scale-[0.97] bg-oasis-spring text-midnight shadow-mint-glow"
             >
-              {isRTL ? 'حفظ الملاحظة' : 'Save note'}
+              {ls.saveNote}
             </button>
           </div>
         </div>

@@ -108,6 +108,10 @@ export interface Place {
   entryFeeAmount?: number;
   partnerVenue?: boolean;
   appDiscount?: number;
+  location?: {
+    type: 'Point';
+    coordinates: [number, number]; // [lng, lat]
+  };
 
   // --- legacy ---
   category?: string;

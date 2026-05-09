@@ -1,142 +1,128 @@
-import { Response } from 'express';
-import { Thread } from '../models/Thread';
-import { User } from '../models/User';
-import { Notification } from '../models/Notification';
+import { Request, Response } from 'express';
+import { MajlisThread } from '../models/MajlisThread';
 import { AuthRequest } from '../types';
+import { User } from '../models/User';
 
-// Get all threads for a specific community
-export const getThreadsByCommunity = async (req: AuthRequest, res: Response) => {
+// GET /api/threads?communityId=xxx
+export const getThreads = async (req: Request, res: Response) => {
   try {
-    const { communityId } = req.params;
-    const threads = await Thread.find({ communityId }).sort({ pinned: -1, createdAt: -1 }).lean();
-    
-    // Normalize _id to id for the frontend
-    const formatted = threads.map(t => ({ ...t, id: t._id }));
-    return res.status(200).json({ success: true, count: formatted.length, data: formatted });
-  } catch (error) {
-    console.error('Error fetching threads:', error);
-    return res.status(500).json({ success: false, error: 'Server Error' });
+    const { communityId } = req.query;
+    if (!communityId) return res.status(400).json({ message: 'communityId required' });
+
+    const threads = await MajlisThread.find({ communityId }).sort({ pinned: -1, createdAt: -1 });
+    res.json(threads);
+  } catch (err) {
+    res.status(500).json({ message: 'Server error' });
   }
 };
 
-// Create a new thread
+// POST /api/threads
 export const createThread = async (req: AuthRequest, res: Response) => {
   try {
-    const { communityId } = req.params;
-    const userId = req.user?.userId;
-    if (!userId) return res.status(401).json({ success: false, error: 'Unauthorized' });
+    const { communityId, title, body, tags, imageUrl, poll } = req.body;
+    if (!communityId || !title) return res.status(400).json({ message: 'communityId and title required' });
 
-    const user = await User.findById(userId);
-    if (!user) return res.status(404).json({ success: false, error: 'User not found' });
+    const userId = req.user!.userId;
+    const author = await User.findById(userId).select('name').lean();
 
-    const newThread = await Thread.create({
-      ...req.body,
+    const thread = await MajlisThread.create({
       communityId,
-      authorId: userId,
-      authorName: user.name
+      title,
+      body,
+      authorName: author?.name ?? 'مستخدم',
+      userId,
+      tags: tags ?? [],
+      imageUrl,
+      poll,
     });
-
-    return res.status(201).json({ success: true, data: { ...newThread.toObject(), id: newThread._id } });
-  } catch (error) {
-    console.error('Error creating thread:', error);
-    return res.status(500).json({ success: false, error: 'Server Error' });
+    res.status(201).json(thread);
+  } catch (err) {
+    res.status(500).json({ message: 'Server error' });
   }
 };
 
-// Add a reply
-export const addReply = async (req: AuthRequest, res: Response) => {
+// POST /api/threads/:id/reply
+export const replyToThread = async (req: AuthRequest, res: Response) => {
   try {
-    const { threadId } = req.params;
     const { text, imageUrl } = req.body;
-    const userId = req.user?.userId;
-    
-    if (!userId) return res.status(401).json({ success: false, error: 'Unauthorized' });
-    const user = await User.findById(userId);
-    if (!user) return res.status(404).json({ success: false, error: 'User not found' });
+    if (!text?.trim()) return res.status(400).json({ message: 'Reply text required' });
 
-    const updated = await Thread.findByIdAndUpdate(
-      threadId,
-      { $push: { replies: { text, imageUrl, authorId: userId, authorName: user.name } } },
+    const userId = req.user!.userId;
+    const author = await User.findById(userId).select('name').lean();
+
+    const thread = await MajlisThread.findByIdAndUpdate(
+      req.params.id,
+      {
+        $push: {
+          replies: {
+            text,
+            authorName: author?.name ?? 'مستخدم',
+            userId,
+            imageUrl,
+            createdAt: new Date().toISOString(),
+          },
+        },
+      },
       { new: true }
-    ).lean();
-
-    // Notify thread author (skip if replying to own thread)
-    const thread = await Thread.findById(threadId).select('authorId title').lean();
-    if (thread && thread.authorId && thread.authorId.toString() !== userId) {
-      const payload = { threadId, threadTitle: thread.title, replyAuthorId: userId, replyAuthorName: user.name, text };
-      await Notification.create({ userId: thread.authorId, type: 'new_reply', payload, read: false });
-      const io = req.app?.get('io');
-      if (io) io.to(`user:${thread.authorId.toString()}`).emit('notification', { type: 'new_reply', payload });
-    }
-
-    return res.status(200).json({ success: true, data: { ...updated, id: updated?._id } });
-  } catch (error) {
-    console.error('Error adding reply:', error);
-    return res.status(500).json({ success: false, error: 'Server Error' });
+    );
+    if (!thread) return res.status(404).json({ message: 'Thread not found' });
+    res.json(thread);
+  } catch (err) {
+    res.status(500).json({ message: 'Server error' });
   }
 };
 
-// Toggle Reaction (Optimized to handle arrays in Maps)
+// POST /api/threads/:id/react  body: { emoji }
 export const toggleReaction = async (req: AuthRequest, res: Response) => {
   try {
-    const { threadId } = req.params;
     const { emoji } = req.body;
-    const userId = req.user?.userId;
-    if (!userId) return res.status(401).json({ success: false, error: 'Unauthorized' });
+    const userId = req.user!.userId;
+    const thread = await MajlisThread.findById(req.params.id);
+    if (!thread) return res.status(404).json({ message: 'Thread not found' });
 
-    const thread = await Thread.findById(threadId);
-    if (!thread) return res.status(404).json({ success: false, error: 'Not found' });
-
-    const currentReactions = thread.reactions.get(emoji) || [];
-    const hasReacted = currentReactions.includes(userId);
-
-    if (hasReacted) {
-      thread.reactions.set(emoji, currentReactions.filter((id: string) => id !== userId));
-    } else {
-      thread.reactions.set(emoji, [...currentReactions, userId]);
-    }
-
+    const current: string[] = (thread.reactions.get(emoji) as string[]) ?? [];
+    const updated = current.includes(userId)
+      ? current.filter((u) => u !== userId)
+      : [...current, userId];
+    thread.reactions.set(emoji, updated);
     await thread.save();
-    return res.status(200).json({ success: true, data: { ...thread.toObject(), id: thread._id } });
-  } catch (error) {
-    console.error('Error toggling reaction:', error);
-    return res.status(500).json({ success: false, error: 'Server Error' });
+    res.json(thread);
+  } catch (err) {
+    res.status(500).json({ message: 'Server error' });
   }
 };
 
-// Vote on a Poll
+// POST /api/threads/:id/vote  body: { optionIndex }
 export const votePoll = async (req: AuthRequest, res: Response) => {
   try {
-    const { threadId } = req.params;
     const { optionIndex } = req.body;
-    const userId = req.user?.userId;
-    if (!userId) return res.status(401).json({ success: false, error: 'Unauthorized' });
-
-    const thread = await Thread.findById(threadId);
-    if (!thread || !thread.poll) return res.status(404).json({ success: false, error: 'Poll not found' });
+    const userId = req.user!.userId;
+    const thread = await MajlisThread.findById(req.params.id);
+    if (!thread || !thread.poll) return res.status(404).json({ message: 'Thread or poll not found' });
+    if (thread.poll.votes.get(userId) !== undefined)
+      return res.status(409).json({ message: 'Already voted' });
 
     thread.poll.votes.set(userId, optionIndex);
     await thread.save();
-
-    return res.status(200).json({ success: true, data: { ...thread.toObject(), id: thread._id } });
-  } catch (error) {
-    console.error('Error voting on poll:', error);
-    return res.status(500).json({ success: false, error: 'Server Error' });
+    res.json(thread);
+  } catch (err) {
+    res.status(500).json({ message: 'Server error' });
   }
 };
 
-// Toggle Pin (Admin Only)
+// PATCH /api/threads/:id/pin  (admin/author only)
 export const togglePin = async (req: AuthRequest, res: Response) => {
   try {
-    const thread = await Thread.findById(req.params.threadId);
-    if (!thread) return res.status(404).json({ success: false });
-    
+    const userId = req.user!.userId;
+    const thread = await MajlisThread.findById(req.params.id);
+    if (!thread) return res.status(404).json({ message: 'Thread not found' });
+    if (thread.userId !== userId && req.user!.role !== 'admin')
+      return res.status(403).json({ message: 'Forbidden' });
+
     thread.pinned = !thread.pinned;
     await thread.save();
-    
-    return res.status(200).json({ success: true, data: { ...thread.toObject(), id: thread._id } });
-  } catch (error) {
-    console.error('Error toggling pin:', error);
-    return res.status(500).json({ success: false });
+    res.json(thread);
+  } catch (err) {
+    res.status(500).json({ message: 'Server error' });
   }
 };

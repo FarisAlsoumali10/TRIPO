@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Star, ChevronLeft, ChevronRight, Flame, MapPin } from 'lucide-react';
+import { SafeImage } from './ui';
 
 export const TrendingCards = ({
   items,
@@ -25,13 +26,13 @@ export const TrendingCards = ({
             className="flex-shrink-0 w-36 bg-white rounded-2xl overflow-hidden shadow-sm border border-slate-100 hover:shadow-md hover:-translate-y-0.5 transition-all text-left"
           >
             <div className="h-24 relative overflow-hidden bg-slate-200">
-              {item.image ? (
-                <img src={item.image} alt={item.name} className="w-full h-full object-cover" />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center">
-                  <MapPin className="w-6 h-6 text-slate-300" />
-                </div>
-              )}
+              <SafeImage
+                src={item.image}
+                alt={item.name}
+                className="w-full h-full object-cover"
+                fallbackType="placeholder"
+                seed={item.name}
+              />
               {item.rating != null && (
                 <div className="absolute top-1.5 right-1.5 flex items-center gap-0.5 bg-white/90 backdrop-blur-sm px-1.5 py-0.5 rounded-full">
                   <Star className="w-2.5 h-2.5 fill-amber-400 text-amber-400" />
@@ -125,24 +126,26 @@ export const TrendingSlideshow = ({
 
         {/* Current image */}
         <div
-          className="absolute inset-0 bg-cover bg-center"
+          className="absolute inset-0"
           style={{
-            backgroundImage: `url(${items[cur].image})`,
             opacity: fading ? 0 : 1,
             transition: 'opacity 0.7s ease',
           }}
-        />
+        >
+          <SafeImage src={items[cur].image} className="w-full h-full object-cover" fallbackType="placeholder" seed={items[cur].name} />
+        </div>
 
         {/* Next image */}
         {nxt !== null && (
           <div
-            className="absolute inset-0 bg-cover bg-center"
+            className="absolute inset-0"
             style={{
-              backgroundImage: `url(${items[nxt].image})`,
               opacity: fading ? 1 : 0,
               transition: 'opacity 0.7s ease',
             }}
-          />
+          >
+            <SafeImage src={items[nxt].image} className="w-full h-full object-cover" fallbackType="placeholder" seed={items[nxt].name} />
+          </div>
         )}
 
         {/* Gradient */}

@@ -1,36 +1,39 @@
-import mongoose, { Schema, Document, Types } from 'mongoose';
+import mongoose, { Document, Schema } from 'mongoose';
 
 export interface ITravelPost extends Document {
-  authorId: Types.ObjectId;
-  authorName: string;
-  authorAvatar?: string;
+  communityId?: string;
+  userId: string;
+  userName: string;
+  userAvatar?: string;
   placeName: string;
   placeId?: string;
-  date: Date;
-  groupSize: number;
-  maxSize: number;
-  description: string;
+  date: string; // ISO date string "YYYY-MM-DD"
+  maxGroupSize: number;
+  description?: string;
   interests: string[];
-  joinedBy: Types.ObjectId[];
+  members: string[]; // userId[]
   createdAt: Date;
   updatedAt: Date;
 }
 
 const travelPostSchema = new Schema<ITravelPost>(
   {
-    authorId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
-    authorName: { type: String, required: true },
-    authorAvatar: { type: String },
-    placeName: { type: String, required: true },
+    communityId: { type: String, index: true },
+    userId: { type: String, required: true, index: true },
+    userName: { type: String, required: true },
+    userAvatar: { type: String },
+    placeName: { type: String, required: true, trim: true },
     placeId: { type: String },
-    date: { type: Date, required: true },
-    groupSize: { type: Number, required: true, min: 1 },
-    maxSize: { type: Number, required: true, min: 2 },
-    description: { type: String, required: true },
+    date: { type: String, required: true },
+    maxGroupSize: { type: Number, required: true, min: 2, max: 20, default: 4 },
+    description: { type: String, trim: true },
     interests: { type: [String], default: [] },
-    joinedBy: [{ type: Schema.Types.ObjectId, ref: 'User' }],
+    members: { type: [String], default: [] }, // populated with userId on join
   },
   { timestamps: true }
 );
 
-export const TravelPost = mongoose.model<ITravelPost>('TravelPost', travelPostSchema);
+export const TravelPost = mongoose.model<ITravelPost>(
+  'TravelPost',
+  travelPostSchema
+);

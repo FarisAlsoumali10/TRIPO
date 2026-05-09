@@ -8,15 +8,15 @@ import {
   TrendingUp, Award, Navigation, Wallet, Heart, Share2, Send,
   Wifi, Utensils, Car, Waves, Wind, ShieldCheck, Calendar, Clock,
 } from 'lucide-react';
-import { Button, Input } from '../components/ui';
+import { Button, Input, SafeImage } from '../components/ui';
 import { Rental } from '../types/index';
 import { rentalAPI, paymentAPI } from '../services/api';
 import { showToast } from '../components/Toast';
 import type { RentalFormValue } from '../components/RentalFormFields';
 import { compressImage } from '../utils/compressImage';
 import { TrendingCards, TrendingItem } from '../components/TrendingSlideshow';
-import { FeaturedSlideshow, SlideItem } from '../components/FeaturedSlideshow';
 import { PhotoLightbox } from '../components/PhotoLightbox';
+import { PaymentForm } from '../components/PaymentForm';
 
 interface RentalReview {
   id: string;
@@ -153,6 +153,8 @@ const RentalDetailPage = ({
   const [bookingDate, setBookingDate] = useState('');
   const [selectedSlot, setSelectedSlot] = useState('');
   const [bookingLoading, setBookingLoading] = useState(false);
+  const [showPayment, setShowPayment] = useState(false);
+  const [activeBookingId, setActiveBookingId] = useState('');
 
   const basePrice = Number(rental.price) || 0;
   const cleaningFee = rental.cleaningFee || 0;
@@ -204,11 +206,17 @@ const RentalDetailPage = ({
         slot: isSport ? selectedSlot : undefined,
         totalPrice: totalNights
       });
-      // Step 2: redirect to secure checkout linked to this booking
-      const { url } = await paymentAPI.createCheckoutSession('rental', rentalId, 1, booking?._id);
-      window.location.href = url;
+      
+      const bId = booking?._id || booking?.id;
+      if (bId) {
+        setActiveBookingId(bId);
+        setShowPayment(true);
+      } else {
+        throw new Error('Booking ID missing');
+      }
     } catch (e) {
       showToast('Failed to submit booking', 'error');
+    } finally {
       setBookingLoading(false);
     }
   };
@@ -246,9 +254,9 @@ const RentalDetailPage = ({
           onClose={() => setLightboxIdx(null)}
         />
       )}
-      <div className="fixed inset-0 z-50 bg-white overflow-y-auto flex flex-col">
+      <div className="fixed inset-0 z-50 bg-white dark:bg-navy-900 overflow-y-auto flex flex-col">
         {/* ── Hero image ── */}
-        <div className="relative w-full h-72 flex-shrink-0 bg-slate-200">
+        <div className="relative w-full h-72 flex-shrink-0 bg-slate-100 dark:bg-navy-800">
           {images.length > 0 ? (
             <img
               src={images[imgIdx]}
@@ -259,7 +267,7 @@ const RentalDetailPage = ({
               loading="lazy"
             />
           ) : (
-            <div className="w-full h-full flex items-center justify-center bg-slate-100">
+            <div className="w-full h-full flex items-center justify-center bg-slate-100 dark:bg-navy-800">
               <Tent className="w-16 h-16 text-slate-300" />
             </div>
           )}
@@ -268,7 +276,7 @@ const RentalDetailPage = ({
           {/* Back button */}
           <button
             onClick={onBack}
-            className="absolute top-4 left-4 flex items-center gap-1.5 bg-white/90 backdrop-blur-sm text-slate-800 px-3 py-2 rounded-xl font-semibold text-sm shadow hover:bg-white transition-colors"
+            className="absolute top-4 left-4 flex items-center gap-2 bg-lifted/80 backdrop-blur-md text-white px-4 py-2.5 rounded-2xl font-black text-[10px] uppercase tracking-widest border border-white/10 shadow-2xl active:scale-95 transition-all"
           >
             <ArrowLeft className="w-4 h-4" /> {t.backBtn || 'Back'}
           </button>
@@ -277,32 +285,32 @@ const RentalDetailPage = ({
           <div className="absolute top-4 right-4 flex items-center gap-2">
             <button
               onClick={handleShare}
-              className="bg-white/90 backdrop-blur-sm text-slate-700 p-2 rounded-xl shadow hover:bg-white transition"
+              className="bg-lifted/80 backdrop-blur-md text-white p-2.5 rounded-2xl border border-white/10 shadow-2xl active:scale-95 transition-all"
             >
               <Share2 className="w-4 h-4" />
             </button>
             <button
               onClick={() => onToggleFavorite(rentalId)}
-              className={`p-2 rounded-xl shadow backdrop-blur-sm transition-all duration-200 ${isFav ? 'bg-rose-500 text-white scale-105' : 'bg-white/90 text-slate-700 hover:bg-white'}`}
+              className={`p-2.5 rounded-2xl border shadow-2xl backdrop-blur-md transition-all duration-300 active:scale-95 ${isFav ? 'bg-rose-500 border-rose-500 text-white' : 'bg-lifted/80 border-white/10 text-white'}`}
             >
               <Heart className={`w-4 h-4 ${isFav ? 'fill-current' : ''}`} />
             </button>
-            <span className="bg-black/60 text-white text-xs font-bold px-3 py-1.5 rounded-xl backdrop-blur-sm">
+            <span className="bg-oasis-spring text-midnight text-[10px] font-black px-3 py-2 rounded-xl backdrop-blur-md shadow-mint-glow uppercase tracking-widest">
               {rental.type}
             </span>
           </div>
 
           {/* Title + location */}
-          <div className="absolute bottom-4 left-5 right-5">
-            <div className="flex items-center gap-1.5 mb-1">
-              <h1 className="text-2xl font-extrabold text-white leading-tight drop-shadow">{rental.title}</h1>
+          <div className="absolute bottom-6 left-6 right-6">
+            <div className="flex items-center gap-2 mb-1.5">
+              <h1 className="text-3xl font-black text-white tracking-tighter uppercase leading-none drop-shadow-2xl">{rental.title}</h1>
               {rental.verified && (
-                <ShieldCheck className="w-5 h-5 text-emerald-400 flex-shrink-0 drop-shadow" />
+                <ShieldCheck className="w-5 h-5 text-oasis-spring flex-shrink-0 drop-shadow-2xl" />
               )}
             </div>
             <div className="flex items-center gap-1.5">
-              <MapPin className="w-3.5 h-3.5 text-white/80 flex-shrink-0" />
-              <span className="text-sm text-white/90">{rental.locationName}</span>
+              <MapPin className="w-3.5 h-3.5 text-moon flex-shrink-0" />
+              <span className="text-[10px] font-black text-moon uppercase tracking-widest">{rental.locationName}</span>
             </div>
           </div>
 
@@ -335,21 +343,21 @@ const RentalDetailPage = ({
           {/* Price + rating */}
           <div className="flex items-center justify-between">
             <div>
-              <span className="text-3xl font-extrabold text-emerald-700">{rental.price}</span>
-              <span className="text-sm text-slate-500 ml-1.5">{ar ? (isSport ? 'ريال / ساعة' : 'ريال / ليلة') : (isSport ? 'SAR / hr' : 'SAR / night')}</span>
+              <span className="text-4xl font-black text-oasis-spring tracking-tighter">{rental.price}</span>
+              <span className="text-[10px] font-black text-moon/40 ml-2 uppercase tracking-widest">{ar ? (isSport ? 'ريال / ساعة' : 'ريال / ليلة') : (isSport ? 'SAR / hr' : 'SAR / night')}</span>
             </div>
             {(avgRating || rental.ratingSummary?.avgRating || rental.rating) && (
-              <div className="flex items-center gap-1.5 bg-amber-50 border border-amber-100 px-3 py-1.5 rounded-full">
+              <div className="flex items-center gap-2 bg-white dark:bg-navy-900 border border-slate-100 dark:border-white/8 px-4 py-2 rounded-2xl shadow-xl">
                 <Star className="w-4 h-4 fill-amber-400 text-amber-400" />
-                <span className="font-bold text-amber-700">
+                <span className="font-black text-slate-900 dark:text-white text-sm">
                   {avgRating ?? rental.ratingSummary?.avgRating?.toFixed(1) ?? rental.rating}
                 </span>
                 {(reviews.length || rental.ratingSummary?.reviewCount) ? (
-                  <span className="text-xs text-amber-600">
-                    ({reviews.length || rental.ratingSummary?.reviewCount} {ar ? 'مراجعة' : 'reviews'})
+                  <span className="text-[10px] font-black text-slate-500 dark:text-slate-500 uppercase tracking-widest">
+                    ({reviews.length || rental.ratingSummary?.reviewCount})
                   </span>
                 ) : (
-                  <span className="text-xs text-amber-600">/ 5</span>
+                  <span className="text-[10px] font-black text-slate-500 dark:text-slate-500 uppercase tracking-widest">/ 5</span>
                 )}
               </div>
             )}
@@ -357,73 +365,76 @@ const RentalDetailPage = ({
 
           {/* Quick-info badges */}
           <div className="flex flex-wrap gap-2">
-            <span className="flex items-center gap-1.5 bg-slate-100 text-slate-700 text-xs font-bold px-3 py-1.5 rounded-full">
-              <MapPin className="w-3.5 h-3.5" /> {rental.locationName}
+            <span className="flex items-center gap-2 bg-white dark:bg-navy-900 border border-slate-100 dark:border-white/8 text-slate-500 dark:text-slate-500 text-[10px] font-black px-4 py-2 rounded-xl uppercase tracking-widest shadow-xl">
+              <MapPin className="w-3.5 h-3.5 text-oasis-spring" /> {rental.locationName}
             </span>
             {rental.capacity && (
-              <span className="flex items-center gap-1.5 bg-blue-50 border border-blue-100 text-blue-700 text-xs font-bold px-3 py-1.5 rounded-full">
-                <Users className="w-3.5 h-3.5" /> {ar ? `حتى ${rental.capacity} ضيف` : `Up to ${rental.capacity} guests`}
+              <span className="flex items-center gap-2 bg-white dark:bg-navy-900 border border-slate-100 dark:border-white/8 text-slate-500 dark:text-slate-500 text-[10px] font-black px-4 py-2 rounded-xl uppercase tracking-widest shadow-xl">
+                <Users className="w-3.5 h-3.5 text-oasis-spring" /> {ar ? `حتى ${rental.capacity} ضيف` : `Up to ${rental.capacity} guests`}
               </span>
             )}
             {rental.bedrooms != null && rental.bedrooms > 0 && (
-              <span className="flex items-center gap-1.5 bg-purple-50 border border-purple-100 text-purple-700 text-xs font-bold px-3 py-1.5 rounded-full">
-                <BedDouble className="w-3.5 h-3.5" /> {ar ? `${rental.bedrooms} غرفة` : `${rental.bedrooms} bed${rental.bedrooms > 1 ? 's' : ''}`}
+              <span className="flex items-center gap-2 bg-white dark:bg-navy-900 border border-slate-100 dark:border-white/8 text-slate-500 dark:text-slate-500 text-[10px] font-black px-4 py-2 rounded-xl uppercase tracking-widest shadow-xl">
+                <BedDouble className="w-3.5 h-3.5 text-oasis-spring" /> {ar ? `${rental.bedrooms} غرفة` : `${rental.bedrooms} bed${rental.bedrooms > 1 ? 's' : ''}`}
               </span>
             )}
           </div>
 
           {/* ── Description ── */}
           {rental.description && (
-            <div>
-              <div className="flex items-center gap-2 mb-2">
-                <Info className="w-4 h-4 text-slate-400" />
-                <span className="text-sm font-bold text-slate-700">{t.aboutThisPlace || 'About this place'}</span>
+            <div className="animate-in fade-in slide-in-from-bottom-2 duration-500 delay-150">
+              <div className="flex items-center gap-2 mb-3">
+                <Info className="w-4 h-4 text-oasis-spring" />
+                <span className="text-[10px] font-black text-slate-900 dark:text-white uppercase tracking-widest">{t.aboutThisPlace || 'About this place'}</span>
               </div>
-              <p className="text-sm text-slate-600 leading-relaxed">{rental.description}</p>
+              <p className="text-sm text-slate-500 dark:text-slate-500 leading-relaxed font-medium">{rental.description}</p>
             </div>
           )}
 
           {/* ── Booking / Time-slot picker ── */}
-          <div className={`border rounded-2xl p-4 ${isSport ? 'bg-blue-50 border-blue-100' : 'bg-emerald-50 border-emerald-100'}`}>
-            <div className="flex items-center gap-2 mb-3">
-              {isSport ? <Clock className="w-4 h-4 text-blue-600" /> : <Calendar className="w-4 h-4 text-emerald-600" />}
-              <span className={`text-sm font-bold ${isSport ? 'text-blue-800' : 'text-emerald-800'}`}>
-                {isSport ? (ar ? 'احجز وقتاً' : 'Book a Time Slot') : (ar ? 'تفاصيل السعر' : 'Price Breakdown')}
-              </span>
-            </div>
-            <div className="space-y-3">
-              {/* Date Selection */}
-              <div>
-                <label className="text-xs text-slate-500 mb-1 block">{ar ? 'التاريخ' : 'Date'}</label>
-                <input
-                  type="date"
-                  value={bookingDate}
-                  onChange={e => setBookingDate(e.target.value)}
-                  min={new Date().toISOString().slice(0, 10)}
-                  className={`w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 ${isSport ? 'focus:ring-blue-500' : 'focus:ring-emerald-500'}`}
-                />
+          <div className="bg-white dark:bg-navy-900 border border-slate-100 dark:border-white/8 rounded-[2rem] p-6 shadow-2xl relative overflow-hidden group">
+            <div className="absolute top-0 right-0 w-32 h-32 bg-oasis-spring/5 blur-3xl -mr-16 -mt-16 pointer-events-none" />
+            <div className="relative z-10">
+              <div className="flex items-center gap-2 mb-5">
+                {isSport ? <Clock className="w-4 h-4 text-oasis-spring" /> : <Calendar className="w-4 h-4 text-oasis-spring" />}
+                <span className="text-[10px] font-black text-slate-900 dark:text-white uppercase tracking-widest">
+                  {isSport ? (ar ? 'احجز وقتاً' : 'Book a Time Slot') : (ar ? 'تفاصيل الحجز' : 'Booking Details')}
+                </span>
+              </div>
+              <div className="space-y-4">
+                {/* Date Selection */}
+                <div>
+                  <label className="text-[9px] font-black text-moon/40 uppercase tracking-widest mb-1.5 block">{ar ? 'التاريخ' : 'Date'}</label>
+                  <input
+                    type="date"
+                    value={bookingDate}
+                    onChange={e => setBookingDate(e.target.value)}
+                    min={new Date().toISOString().slice(0, 10)}
+                    className="w-full bg-slate-50 dark:bg-navy-950 border border-slate-100 dark:border-white/8 rounded-xl px-4 py-3 text-sm text-slate-900 dark:text-white font-bold focus:outline-none focus:ring-2 focus:ring-oasis-spring/30 transition-all"
+                  />
+                </div>
               </div>
 
               {/* Hours / Nights Adjuster */}
-              <div className="flex items-center justify-between gap-3">
-                <span className="text-xs text-slate-500">{isSport ? (ar ? 'ساعات' : 'Hours') : (ar ? 'ليالٍ' : 'Nights')}</span>
-                <div className="flex items-center gap-3">
-                  <button onClick={() => setNights(n => Math.max(1, n - 1))} className="w-8 h-8 rounded-full border border-slate-300 flex items-center justify-center text-slate-600 hover:bg-white text-sm transition">−</button>
-                  <span className="font-bold text-slate-900 w-6 text-center">{nights}</span>
-                  <button onClick={() => setNights(n => Math.min(30, n + 1))} className="w-8 h-8 rounded-full border border-slate-300 flex items-center justify-center text-slate-600 hover:bg-white text-sm transition">+</button>
+              <div className="flex items-center justify-between gap-4 bg-slate-50 dark:bg-navy-950 p-4 rounded-2xl border border-slate-100 dark:border-white/8">
+                <span className="text-[10px] font-black text-slate-500 dark:text-slate-500 uppercase tracking-widest">{isSport ? (ar ? 'ساعات' : 'Hours') : (ar ? 'ليالٍ' : 'Nights')}</span>
+                <div className="flex items-center gap-4">
+                  <button onClick={() => setNights(n => Math.max(1, n - 1))} className="w-10 h-10 rounded-xl bg-white dark:bg-navy-900 border border-slate-200 dark:border-white/10 flex items-center justify-center text-slate-900 dark:text-white text-lg active:scale-90 transition-all">−</button>
+                  <span className="font-black text-xl text-slate-900 dark:text-white w-6 text-center tracking-tighter">{nights}</span>
+                  <button onClick={() => setNights(n => Math.min(30, n + 1))} className="w-10 h-10 rounded-xl bg-white dark:bg-navy-900 border border-slate-200 dark:border-white/10 flex items-center justify-center text-slate-900 dark:text-white text-lg active:scale-90 transition-all">+</button>
                 </div>
               </div>
 
               {/* Time Slot Picker (Sports Only) */}
               {isSport && (
-                <div>
-                  <label className="text-xs text-slate-500 mb-2 block">{ar ? 'وقت البداية' : 'Start time'}</label>
-                  <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
+                <div className="space-y-3">
+                  <label className="text-[10px] font-black text-moon/40 uppercase tracking-widest block">{ar ? 'وقت البداية' : 'Start time'}</label>
+                  <div className="flex gap-2 overflow-x-auto no-scrollbar pb-2">
                     {TIME_SLOTS.slice(0, -nights).map(slot => (
                       <button
                         key={slot}
                         onClick={() => setSelectedSlot(slot)}
-                        className={`flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-bold border transition-all ${selectedSlot === slot ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-slate-600 border-slate-200 hover:border-blue-400'}`}
+                        className={`flex-shrink-0 px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest border transition-all active:scale-95 ${ selectedSlot === slot ? 'bg-oasis-spring border-oasis-spring text-midnight shadow-mint-glow' : 'bg-white dark:bg-navy-900 border-slate-100 dark:border-white/8 text-slate-500 dark:text-slate-500 hover:border-slate-300' }`}
                       >
                         {slot}
                       </button>
@@ -433,102 +444,129 @@ const RentalDetailPage = ({
               )}
 
               {/* Totals */}
-              <div className={`border-t pt-3 space-y-1 ${isSport ? 'border-blue-200' : 'border-emerald-200'}`}>
-                <div className="flex justify-between text-sm">
-                  <span className="text-slate-600">{ar ? `${rental.price} ريال × ${nights} ${isSport ? 'ساعة' : 'ليلة'}` : `${rental.price} SAR × ${nights} ${isSport ? 'hr' : 'night'}`}</span>
-                  <span className="font-semibold">{basePrice * nights} SAR</span>
+              <div className="border-t border-white/5 pt-5 space-y-3">
+                <div className="flex justify-between text-[10px] font-black uppercase tracking-widest">
+                  <span className="text-slate-500 dark:text-slate-500">{ar ? `${rental.price} ريال × ${nights} ${isSport ? 'ساعة' : 'ليلة'}` : `${rental.price} SAR × ${nights} ${isSport ? 'hr' : 'night'}`}</span>
+                  <span className="text-slate-900 dark:text-white font-black">{basePrice * nights} SAR</span>
                 </div>
                 {!isSport && cleaningFee > 0 && (
-                  <div className="flex justify-between text-sm">
-                    <span className="text-slate-600">{ar ? 'رسوم التنظيف' : 'Cleaning fee'}</span>
-                    <span>{cleaningFee} SAR</span>
+                  <div className="flex justify-between text-[10px] font-black uppercase tracking-widest">
+                    <span className="text-slate-500 dark:text-slate-500">{ar ? 'رسوم التنظيف' : 'Cleaning fee'}</span>
+                    <span className="text-slate-900 dark:text-white">{cleaningFee} SAR</span>
                   </div>
                 )}
                 {!isSport && (
-                  <div className="flex justify-between text-sm">
-                    <span className="text-slate-600">{ar ? 'رسوم الخدمة' : 'Service fee'}</span>
-                    <span>{serviceFee} SAR</span>
+                  <div className="flex justify-between text-[10px] font-black uppercase tracking-widest">
+                    <span className="text-slate-500 dark:text-slate-500">{ar ? 'رسوم الخدمة' : 'Service fee'}</span>
+                    <span className="text-slate-900 dark:text-white">{serviceFee} SAR</span>
                   </div>
                 )}
-                <div className={`flex justify-between text-sm font-bold border-t pt-1 mt-1 ${isSport ? 'text-blue-800 border-blue-200' : 'text-emerald-800 border-emerald-200'}`}>
-                  <span>{ar ? 'الإجمالي' : 'Total'}</span>
-                  <span>{totalNights} SAR</span>
+                <div className="flex justify-between items-center border-t border-slate-100 dark:border-white/8 pt-4 mt-2">
+                  <span className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-widest">{ar ? 'الإجمالي' : 'Total'}</span>
+                  <span className="text-2xl font-black text-oasis-spring tracking-tighter">{totalNights} SAR</span>
                 </div>
               </div>
 
-              <Button
-                className={`w-full ${isSport ? '!bg-blue-600 hover:!bg-blue-700' : '!bg-emerald-600 hover:!bg-emerald-700'}`}
-                onClick={handleBooking}
-                disabled={bookingLoading}
-              >
-                {bookingLoading ? (ar ? 'جاري المعالجة...' : 'Processing...') : (ar ? 'طلب حجز' : 'Request to Book')}
-              </Button>
+              {showPayment ? (
+                <div className="animate-in fade-in zoom-in duration-500 pt-4">
+                  <div className="flex items-center justify-between mb-4">
+                    <button 
+                      onClick={() => setShowPayment(false)}
+                      className="text-[10px] font-black text-moon hover:text-white uppercase tracking-widest flex items-center gap-1"
+                    >
+                      <ChevronLeft className="w-3 h-3" /> {ar ? 'تغيير الموعد' : 'Change Date'}
+                    </button>
+                    <span className="text-[10px] font-black text-oasis-spring uppercase tracking-widest">
+                      {ar ? 'تأكيد الدفع' : 'Confirm Payment'}
+                    </span>
+                  </div>
+                  <PaymentForm
+                    itemType="rental"
+                    itemId={rentalId}
+                    bookingId={activeBookingId}
+                    amount={totalNights}
+                    lang={lang}
+                    onSuccess={(mockId) => {
+                      setTimeout(() => {
+                        window.location.href = `/payment-success?id=${mockId}&status=paid&type=rental`;
+                      }, 2000);
+                    }}
+                  />
+                </div>
+              ) : (
+                <button
+                  className="w-full mt-8 bg-oasis-spring text-midnight py-4 rounded-2xl font-black text-sm uppercase tracking-widest shadow-mint-glow active:scale-[0.98] transition-all disabled:opacity-50"
+                  onClick={handleBooking}
+                  disabled={bookingLoading}
+                >
+                  {bookingLoading ? (ar ? 'جاري المعالجة...' : 'Processing...') : (ar ? 'طلب حجز' : 'Request to Book')}
+                </button>
+              )}
             </div>
           </div>
 
           {/* ── Reviews ── */}
-          <div>
-            <div className="flex items-center justify-between mb-3">
-              <h2 className="text-base font-bold text-slate-900">{t.reviewsHeader || 'Reviews'}</h2>
+          <div className="pt-8 animate-in fade-in slide-in-from-bottom-4 duration-700 delay-300">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-widest">{t.reviewsHeader || 'Reviews'}</h2>
               <button
                 onClick={() => setShowReviewForm(v => !v)}
-                className="flex items-center gap-1.5 bg-emerald-600 text-white text-xs font-bold px-3 py-2 rounded-xl hover:bg-emerald-700 transition"
+                className="flex items-center gap-2 bg-white dark:bg-navy-900 border border-slate-100 dark:border-white/8 text-slate-500 dark:text-slate-500 text-[10px] font-black px-4 py-2 rounded-xl hover:bg-slate-50 transition-all active:scale-95"
               >
-                <Star className="w-3.5 h-3.5" />
+                <Star className="w-3.5 h-3.5 text-oasis-spring" />
                 {showReviewForm ? (t.cancelBtn || 'Cancel') : (t.writeReview || 'Write a Review')}
               </button>
             </div>
 
             {showReviewForm && (
-              <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 mb-4 space-y-3 shadow-sm animate-in fade-in slide-in-from-top-2">
+              <div className="bg-white dark:bg-navy-900 border border-slate-100 dark:border-white/8 rounded-3xl p-6 mb-8 space-y-4 shadow-2xl animate-in fade-in slide-in-from-top-4">
                 <div>
-                  <label className="text-xs font-bold text-slate-600 mb-1 block">{ar ? 'اسمك' : 'Your Name'}</label>
+                  <label className="text-[10px] font-black text-moon/40 uppercase tracking-widest mb-1.5 block">{ar ? 'اسمك' : 'Your Name'}</label>
                   <input type="text" value={reviewAuthor} onChange={e => setReviewAuthor(e.target.value)} placeholder={ar ? 'أدخل اسمك' : 'Enter your name'}
-                    className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white" />
+                    className="w-full bg-slate-50 dark:bg-navy-950 border border-slate-100 dark:border-white/8 rounded-xl px-4 py-3 text-sm text-slate-900 dark:text-white font-bold focus:outline-none focus:ring-2 focus:ring-oasis-spring/30 transition-all" />
                 </div>
                 <div>
-                  <label className="text-xs font-bold text-slate-600 mb-1 block">{ar ? 'التقييم' : 'Rating'}</label>
+                  <label className="text-[10px] font-black text-moon/40 uppercase tracking-widest mb-1.5 block">{ar ? 'التقييم' : 'Rating'}</label>
                   <StarPicker value={reviewRating} onChange={setReviewRating} />
                 </div>
                 <div>
-                  <label className="text-xs font-bold text-slate-600 mb-1 block">{ar ? 'مراجعتك' : 'Review'}</label>
+                  <label className="text-[10px] font-black text-moon/40 uppercase tracking-widest mb-1.5 block">{ar ? 'مراجعتك' : 'Review'}</label>
                   <textarea value={reviewText} onChange={e => setReviewText(e.target.value)} placeholder={ar ? 'شارك تجربتك...' : 'Share your experience...'} rows={3}
-                    className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white resize-none" />
+                    className="w-full bg-slate-50 dark:bg-navy-950 border border-slate-100 dark:border-white/8 rounded-xl px-4 py-3 text-sm text-slate-900 dark:text-white font-bold focus:outline-none focus:ring-2 focus:ring-oasis-spring/30 transition-all resize-none" />
                 </div>
-                <button onClick={handleSubmitReview} disabled={submittingReview} className="w-full bg-emerald-600 text-white py-2.5 rounded-xl text-sm font-bold hover:bg-emerald-700 transition disabled:opacity-50">
+                <button onClick={handleSubmitReview} disabled={submittingReview} className="w-full bg-oasis-spring text-midnight py-4 rounded-xl text-sm font-black uppercase tracking-widest shadow-mint-glow hover:shadow-mint-glow-lg active:scale-[0.98] transition-all disabled:opacity-50">
                   {submittingReview ? (ar ? 'جاري الإرسال...' : 'Submitting...') : (ar ? 'إرسال المراجعة' : 'Submit Review')}
                 </button>
               </div>
             )}
 
             {loadingReviews ? (
-              <div className="py-8 flex justify-center"><div className="w-6 h-6 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" /></div>
+              <div className="py-12 flex justify-center"><div className="w-8 h-8 border-2 border-oasis-spring border-t-transparent rounded-full animate-spin" /></div>
             ) : reviews.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-8 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
-                <Star className="w-8 h-8 text-slate-200 mb-2" />
-                <p className="text-sm text-slate-400 font-medium">{ar ? 'لا توجد مراجعات بعد' : 'No reviews yet'}</p>
+              <div className="flex flex-col items-center justify-center py-16 bg-white dark:bg-navy-900 rounded-[2rem] border border-dashed border-slate-200 dark:border-white/10">
+                <Star className="w-12 h-12 text-slate-200 dark:text-slate-300 mb-4" />
+                <p className="text-[10px] font-black text-slate-500 dark:text-slate-500 uppercase tracking-widest">{ar ? 'لا توجد مراجعات بعد' : 'No reviews yet'}</p>
               </div>
             ) : (
-              <div className="space-y-3">
+              <div className="space-y-4">
                 {reviews.map(r => (
-                  <div key={r.id} className="bg-white border border-slate-100 rounded-2xl p-4 shadow-sm">
-                    <div className="flex items-start justify-between gap-2 mb-2">
-                      <div className="flex items-center gap-2">
-                        <div className="w-9 h-9 rounded-full bg-emerald-100 flex items-center justify-center flex-shrink-0">
-                          <User className="w-4 h-4 text-emerald-600" />
+                  <div key={r.id} className="bg-white dark:bg-navy-900 border border-slate-100 dark:border-white/8 rounded-[2rem] p-6 shadow-xl animate-in fade-in slide-in-from-bottom-4 duration-500">
+                    <div className="flex items-start justify-between gap-4 mb-4">
+                      <div className="flex items-center gap-3">
+                        <div className="w-12 h-12 rounded-2xl bg-slate-100 dark:bg-navy-800 flex items-center justify-center border border-slate-100 dark:border-white/10 shadow-lg">
+                          <User className="w-5 h-5 text-oasis-spring" />
                         </div>
                         <div>
-                          <p className="text-sm font-bold text-slate-800">{r.author}</p>
-                          <p className="text-xs text-slate-400">{new Date(r.date).toLocaleDateString('en-SA', { year: 'numeric', month: 'short', day: 'numeric' })}</p>
+                          <p className="text-sm font-black text-slate-900 dark:text-white tracking-tight uppercase leading-tight">{r.author}</p>
+                          <p className="text-[9px] font-black text-slate-500 dark:text-slate-500 uppercase tracking-widest">{new Date(r.date).toLocaleDateString(lang === 'ar' ? 'ar-SA' : 'en-US', { year: 'numeric', month: 'short', day: 'numeric' })}</p>
                         </div>
                       </div>
-                      <div className="flex items-center gap-0.5 flex-shrink-0">
-                        {[1, 2, 3, 4, 5].map(n => (
-                          <Star key={n} className={`w-3.5 h-3.5 ${n <= r.rating ? 'fill-amber-400 text-amber-400' : 'text-slate-200'}`} />
-                        ))}
+                      <div className="flex items-center gap-1 bg-slate-50 dark:bg-navy-950 px-3 py-1.5 rounded-xl border border-slate-100 dark:border-white/8 shadow-inner">
+                        <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
+                        <span className="text-xs font-black text-slate-900 dark:text-white">{r.rating}</span>
                       </div>
                     </div>
-                    <p className="text-sm text-slate-600 leading-relaxed">{r.text}</p>
+                    <p className="text-sm text-slate-500 dark:text-slate-500 leading-relaxed font-medium italic">"{r.text}"</p>
                   </div>
                 ))}
               </div>
@@ -709,18 +747,18 @@ export const RentalsScreen = ({ t, lang, initialRentalId, onRentalOpened, initia
   }, [rentals, typeFilter, sportTypeFilter, search, quickFilter, userLocation, favorites, showSaved, filter]);
 
   return (
-    <div className="min-h-full bg-slate-50 relative">
+    <div className="min-h-full bg-slate-50 dark:bg-navy-950 transition-colors duration-300 relative">
       {/* Header */}
-      <div className="bg-white border-b border-slate-100 px-6 py-5">
+      <div className="bg-white dark:bg-navy-900 border-b border-slate-100 dark:border-white/8 dark:border-white/10 px-6 py-5">
         <div className="flex justify-between items-end">
           <div>
-            <h2 className="text-2xl font-bold text-slate-900">{t.exploreRentals || 'Rentals'}</h2>
-            <p className="text-slate-500 text-sm">{t.rentalsDesc || 'Find camps, chalets, and local stays.'}</p>
+            <h2 className="text-2xl font-bold text-slate-900 dark:text-white">{t.exploreRentals || 'Rentals'}</h2>
+            <p className="text-slate-500 dark:text-slate-500 dark:text-slate-400 text-sm">{t.rentalsDesc || 'Find camps, chalets, and local stays.'}</p>
           </div>
           <button
             onClick={() => setShowHostModal(true)}
             title={t.hostPlace || 'Host a Place'}
-            className="w-9 h-9 flex items-center justify-center rounded-full bg-emerald-600 text-white hover:bg-emerald-700 active:scale-95 transition-all shadow-sm"
+            className="w-9 h-9 flex items-center justify-center rounded-full bg-emerald-600 text-white hover:bg-emerald-700 active:scale-95 transition-all shadow-sm dark:shadow-black/30"
           >
             <Plus className="w-5 h-5" />
           </button>
@@ -728,35 +766,31 @@ export const RentalsScreen = ({ t, lang, initialRentalId, onRentalOpened, initia
       </div>
 
       {/* ── Search + Filter toggles ── */}
-      <div className="bg-white border-b border-slate-100 px-4 pt-3 pb-0">
+      <div className="bg-white dark:bg-navy-900 border-b border-slate-100 dark:border-white/8 dark:border-white/10 px-4 pt-3 pb-0">
         <div className="flex items-center gap-2 mb-3">
           <div className="flex-1 relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 dark:text-slate-500 pointer-events-none" />
             <input
               value={search}
               onChange={e => setSearch(e.target.value)}
               placeholder={ar ? 'ابحث عن إيجارات، مدن...' : 'Search rentals, cities...'}
-              className="w-full pl-9 pr-3 py-2.5 text-sm bg-slate-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-400 text-slate-900 placeholder-slate-400"
+              className="w-full pl-9 pr-3 py-2.5 text-sm bg-slate-100 dark:bg-navy-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-400 text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500"
             />
             {search && (
-              <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+              <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:text-slate-400">
                 <X className="w-3.5 h-3.5" />
               </button>
             )}
           </div>
           <button
             onClick={() => { setPendingFilter(filter); setFilterOpen(true); }}
-            className={`p-2.5 rounded-xl transition-colors ${
-              filter.city !== 'All' || filter.amenities.length > 0 || filter.priceMax < DEFAULT_FILTER.priceMax || filter.minCapacity > 0
-                ? 'bg-emerald-600 text-white'
-                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-            }`}
+            className={`p-2.5 rounded-xl transition-colors ${ filter.city !== 'All' || filter.amenities.length > 0 || filter.priceMax < DEFAULT_FILTER.priceMax || filter.minCapacity > 0 ? 'bg-emerald-600 text-white' : 'bg-slate-100 dark:bg-navy-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:bg-white/10' }`}
           >
             <SlidersHorizontal className="w-4 h-4" />
           </button>
           <button
             onClick={() => setShowSaved(v => !v)}
-            className={`p-2.5 rounded-xl transition-colors ${showSaved ? 'bg-rose-500 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+            className={`p-2.5 rounded-xl transition-colors ${showSaved ? 'bg-rose-500 text-white' : 'bg-slate-100 dark:bg-navy-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:bg-white/10'}`}
           >
             <Heart className={`w-4 h-4 ${showSaved ? 'fill-current' : ''}`} />
           </button>
@@ -768,9 +802,7 @@ export const RentalsScreen = ({ t, lang, initialRentalId, onRentalOpened, initia
             <button
               key={type}
               onClick={() => { setTypeFilter(type); setSportTypeFilter('All'); }}
-              className={`flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-bold transition-colors ${
-                typeFilter === type ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-              }`}
+              className={`flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-bold transition-colors ${ typeFilter === type ? 'bg-emerald-600 text-white' : 'bg-slate-100 dark:bg-navy-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:bg-white/10 dark:hover:bg-navy-700' }`}
             >
               {(() => {
                 if (type === 'All') return ar ? 'الكل' : 'All Types';
@@ -789,9 +821,7 @@ export const RentalsScreen = ({ t, lang, initialRentalId, onRentalOpened, initia
               <button
                 key={sport}
                 onClick={() => setSportTypeFilter(sport)}
-                className={`flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-bold transition-colors ${
-                  sportTypeFilter === sport ? 'bg-blue-600 text-white' : 'bg-blue-50 text-blue-700 hover:bg-blue-100'
-                }`}
+                className={`flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-bold transition-colors ${ sportTypeFilter === sport ? 'bg-blue-600 text-white' : 'bg-blue-50 text-blue-700 hover:bg-blue-100' }`}
               >
                 {sport === 'All' ? (ar ? 'كل الرياضات' : 'All Sports') : sport}
               </button>
@@ -801,7 +831,7 @@ export const RentalsScreen = ({ t, lang, initialRentalId, onRentalOpened, initia
       </div>
 
       {/* ── Quick filters ── */}
-      <div className="bg-white border-b border-slate-100 px-4 py-2.5 flex gap-2 overflow-x-auto no-scrollbar">
+      <div className="bg-midnight border-b border-white/5 px-4 py-2.5 flex gap-2 overflow-x-auto no-scrollbar">
         {(ar
           ? [
               { id: 'new' as Exclude<QuickFilter, null>, label: '🆕 جديد' },
@@ -834,9 +864,7 @@ export const RentalsScreen = ({ t, lang, initialRentalId, onRentalOpened, initia
                 setQuickFilter(quickFilter === qf.id ? null : qf.id);
               }
             }}
-            className={`flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-bold transition-colors ${
-              quickFilter === qf.id ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-            }`}
+            className={`flex-shrink-0 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${ quickFilter === qf.id ? 'bg-oasis-spring text-midnight shadow-mint-glow' : 'bg-white dark:bg-navy-900 text-slate-500 dark:text-slate-500 border border-slate-100 dark:border-white/8 hover:border-slate-300 dark:hover:border-white/20' }`}
           >
             {qf.label}
           </button>
@@ -847,19 +875,19 @@ export const RentalsScreen = ({ t, lang, initialRentalId, onRentalOpened, initia
       {loading ? (
         <div className="p-6 space-y-4">
           {[1, 2, 3].map(i => (
-            <div key={i} className="h-40 bg-slate-200 rounded-2xl animate-pulse" />
+            <div key={i} className="h-40 bg-white dark:bg-navy-900 rounded-[2rem] animate-pulse border border-slate-100 dark:border-white/8" />
           ))}
         </div>
       ) : (
         <div className="p-4">
           {/* ── Host Banner ── */}
           {!hostBannerDismissed && !search && typeFilter === 'All' && !quickFilter && !showSaved && filter.city === 'All' && filter.amenities.length === 0 && filter.priceMax === DEFAULT_FILTER.priceMax && filter.minCapacity === 0 && (
-            <div className="relative overflow-hidden rounded-2xl mb-4 bg-gradient-to-br from-emerald-500 via-emerald-600 to-amber-500 shadow-lg">
+            <div className="relative overflow-hidden rounded-[2.5rem] mb-6 bg-gradient-to-br from-oasis-spring/20 via-slate-50 to-slate-100 dark:via-navy-800 dark:to-navy-950 border border-slate-200 dark:border-white/10 shadow-2xl group">
               {/* Decorative blobs */}
-              <div className="absolute -top-6 -right-6 w-32 h-32 rounded-full bg-white/10 blur-2xl pointer-events-none" />
-              <div className="absolute -bottom-4 -left-4 w-24 h-24 rounded-full bg-amber-300/20 blur-xl pointer-events-none" />
+              <div className="absolute -top-12 -right-12 w-48 h-48 rounded-full bg-oasis-spring/10 blur-3xl pointer-events-none group-hover:bg-oasis-spring/20 transition-all duration-1000" />
+              <div className="absolute -bottom-8 -left-8 w-32 h-32 rounded-full bg-blue-500/10 blur-2xl pointer-events-none" />
               {/* Large bg icon */}
-              <Tent className="absolute right-4 bottom-2 w-24 h-24 text-white/10 pointer-events-none" />
+              <Tent className="absolute right-6 bottom-4 w-32 h-32 text-white/5 pointer-events-none group-hover:rotate-6 transition-transform duration-700" />
 
               {/* Dismiss */}
               <button
@@ -867,26 +895,26 @@ export const RentalsScreen = ({ t, lang, initialRentalId, onRentalOpened, initia
                   setHostBannerDismissed(true);
                   localStorage.setItem('tripo:hostBannerDismissed', '1');
                 }}
-                className="absolute top-3 right-3 p-1.5 rounded-full bg-white/20 hover:bg-white/30 text-white transition"
+                className="absolute top-3 right-3 p-1.5 rounded-full bg-white dark:bg-navy-900/20 hover:bg-white dark:bg-navy-900/30 text-white transition"
               >
                 <X className="w-3.5 h-3.5" />
               </button>
 
               {/* Content */}
-              <div className="relative px-5 py-5 pr-12">
-                <div className="flex items-center gap-1.5 mb-1">
-                  <Trophy className="w-4 h-4 text-amber-200" />
-                  <span className="text-xs font-bold text-amber-200 uppercase tracking-wide">{ar ? 'للمضيفين' : 'For Hosts'}</span>
+              <div className="relative px-8 py-8 pr-20">
+                <div className="flex items-center gap-2 mb-2">
+                  <Trophy className="w-4 h-4 text-oasis-spring" />
+                  <span className="text-[10px] font-black text-oasis-spring uppercase tracking-[0.3em]">{ar ? 'للمضيفين' : 'For Hosts'}</span>
                 </div>
-                <h3 className="text-white font-extrabold text-lg leading-snug mb-1">
+                <h3 className="text-slate-900 dark:text-white font-black text-2xl leading-tight mb-2 tracking-tighter uppercase">
                   {t.hostBannerTitle || 'List your place, earn with Tripo'}
                 </h3>
-                <p className="text-white/80 text-xs leading-relaxed mb-4">
+                <p className="text-slate-500 dark:text-slate-500 text-xs font-medium leading-relaxed mb-6 max-w-[80%]">
                   {t.hostBannerSubtitle || 'Hosts in AlUla, Abha & Riyadh get bookings within 48h.'}
                 </p>
                 <button
                   onClick={() => setShowHostModal(true)}
-                  className="inline-flex items-center gap-2 bg-white text-emerald-700 font-extrabold text-sm px-4 py-2.5 rounded-xl shadow hover:shadow-md active:scale-95 transition-all"
+                  className="inline-flex items-center gap-2 bg-oasis-spring text-midnight font-black text-[10px] uppercase tracking-widest px-6 py-3.5 rounded-2xl shadow-mint-glow hover:shadow-mint-glow-lg active:scale-95 transition-all"
                 >
                   {t.hostBannerCta || '🏕️ Become a Host'}
                 </button>
@@ -895,11 +923,11 @@ export const RentalsScreen = ({ t, lang, initialRentalId, onRentalOpened, initia
           )}
 
           {visibleRentals.length === 0 ? (
-            <div className="text-center py-16 bg-white rounded-2xl border border-dashed border-slate-300">
-              <Tent className="w-12 h-12 mx-auto text-slate-300 mb-3" />
-              <h3 className="text-slate-500 font-bold text-lg mb-1">{ar ? 'لا توجد إيجارات' : 'No rentals found'}</h3>
-              <p className="text-slate-400 text-sm mb-4">{ar ? 'جرّب تعديل الفلاتر أو البحث' : 'Try adjusting your filters or search'}</p>
-              <button
+            <div className="text-center py-20 bg-white dark:bg-navy-900 rounded-[2.5rem] border border-dashed border-slate-200 dark:border-white/10 mx-2">
+              <Tent className="w-16 h-16 mx-auto text-slate-200 dark:text-slate-800 mb-5" />
+              <h3 className="text-slate-900 dark:text-white font-black text-xl mb-2 tracking-tighter uppercase">{ar ? 'لا توجد إيجارات' : 'No rentals found'}</h3>
+              <p className="text-slate-500 dark:text-slate-500 text-[10px] font-black uppercase tracking-widest mb-8">{ar ? 'جرّب تعديل الفلاتر أو البحث' : 'Try adjusting your filters or search'}</p>
+                <button
                 onClick={() => {
                   setSearch('');
                   setTypeFilter('All');
@@ -908,18 +936,18 @@ export const RentalsScreen = ({ t, lang, initialRentalId, onRentalOpened, initia
                   setFilter(DEFAULT_FILTER);
                   setShowSaved(false);
                 }}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white text-sm font-bold rounded-xl hover:bg-emerald-700 transition"
+                className="inline-flex items-center gap-2 px-8 py-4 bg-slate-100 dark:bg-navy-800 text-slate-900 dark:text-white text-[10px] font-black uppercase tracking-widest rounded-2xl hover:bg-slate-200 dark:hover:bg-navy-700 border border-slate-200 dark:border-white/10 transition-all active:scale-95"
               >
-                <X className="w-3.5 h-3.5" /> {ar ? 'مسح الفلاتر' : 'Clear filters'}
+                <X className="w-4 h-4" /> {ar ? 'مسح الفلاتر' : 'Clear filters'}
               </button>
             </div>
           ) : (
             <div className="space-y-4">
               {visibleRentals.map(item => (
                 <div key={item.id} onClick={() => setSelectedItem(item)}
-                  className="bg-white rounded-2xl p-3 border border-slate-100 shadow-sm flex flex-col cursor-pointer active:scale-[0.99] transition-transform hover:shadow-md">
+                  className="bg-white dark:bg-navy-900 rounded-3xl p-3 border border-slate-100 dark:border-white/8 shadow-xl flex flex-col cursor-pointer active:scale-[0.99] transition-transform hover:border-slate-200 dark:hover:border-white/10">
                   <div className="relative h-40 rounded-xl overflow-hidden mb-3">
-                    <img src={item.image || item.images?.[0]} className="w-full h-full object-cover" loading="lazy" />
+                    <SafeImage src={item.image || item.images?.[0]} alt={item.title} className="w-full h-full object-cover" fallbackType="placeholder" seed={item.title} />
                     <div className="absolute top-2 left-2 flex items-center gap-1">
                       <span className="bg-slate-900/70 text-white px-2 py-0.5 rounded text-[10px] font-bold backdrop-blur-sm">{item.type}</span>
                       {item.createdAt && (Date.now() - new Date(item.createdAt).getTime()) < 7 * 24 * 60 * 60 * 1000 && (
@@ -934,10 +962,10 @@ export const RentalsScreen = ({ t, lang, initialRentalId, onRentalOpened, initia
                     </button>
                   </div>
                   <div>
-                    <h3 className="font-bold text-slate-900">{item.title}</h3>
-                    <div className="flex items-center gap-1 text-xs text-slate-500 mb-2"><MapPin className="w-3 h-3" /> {item.locationName}</div>
-                    <div className="flex items-center justify-between border-t border-slate-50 pt-3">
-                      <p className="font-bold text-lg text-emerald-700">{item.price} <span className="text-xs font-normal text-slate-500">{ar ? (SPORT_TYPES.has(item.type) ? 'ريال/ساعة' : 'ريال/ليلة') : (SPORT_TYPES.has(item.type) ? 'SAR / hr' : 'SAR / night')}</span></p>
+                    <h3 className="font-black text-slate-900 dark:text-white text-lg tracking-tighter uppercase">{item.title}</h3>
+                    <div className="flex items-center gap-1.5 text-[10px] font-black text-slate-500 dark:text-slate-500 uppercase tracking-widest mb-3"><MapPin className="w-3 h-3 text-oasis-spring" /> {item.locationName}</div>
+                    <div className="flex items-center justify-between border-t border-slate-100 dark:border-white/8 pt-3 mt-1">
+                      <p className="font-black text-xl text-oasis-spring">{item.price} <span className="text-[10px] font-normal text-slate-500 dark:text-slate-500 lowercase tracking-normal">{ar ? (SPORT_TYPES.has(item.type) ? 'ريال/ساعة' : 'ريال/ليلة') : (SPORT_TYPES.has(item.type) ? 'SAR / hr' : 'SAR / night')}</span></p>
                       <div className="flex items-center gap-2">
                         {(() => {
                           const avg = item.ratingSummary?.avgRating ?? item.rating;
@@ -952,7 +980,7 @@ export const RentalsScreen = ({ t, lang, initialRentalId, onRentalOpened, initia
                           );
                         })()}
                         {quickFilter === 'near_me' && userLocation && item.lat && item.lng && (
-                          <span className="flex items-center gap-1 text-xs font-bold text-slate-500">
+                          <span className="flex items-center gap-1 text-xs font-bold text-slate-500 dark:text-slate-500">
                             <Navigation className="w-3 h-3" />
                             {haversine(userLocation.lat, userLocation.lng, item.lat, item.lng).toFixed(1)} km
                           </span>
@@ -982,26 +1010,24 @@ export const RentalsScreen = ({ t, lang, initialRentalId, onRentalOpened, initia
 
       {/* ── Filter Sheet ─────────────────────────────────────────────── */}
       {filterOpen && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm">
-          <div className="bg-white rounded-t-3xl w-full max-w-md max-h-[85vh] overflow-y-auto shadow-2xl">
-            <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-slate-100">
-              <h2 className="text-lg font-extrabold text-slate-900">{ar ? 'الفلاتر' : 'Filters'}</h2>
-              <button onClick={() => setFilterOpen(false)} className="p-2 rounded-full hover:bg-slate-100 transition">
-                <X className="w-5 h-5 text-slate-500" />
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-900/60 dark:bg-navy-950/80 backdrop-blur-md animate-in fade-in">
+          <div className="bg-white dark:bg-navy-900 rounded-t-[3rem] w-full max-w-md max-h-[85vh] overflow-y-auto shadow-[0_-20px_50px_-12px_rgba(0,0,0,0.5)] border-t border-slate-100 dark:border-white/10">
+            <div className="flex items-center justify-between px-8 pt-8 pb-4">
+              <h2 className="text-xl font-black text-slate-900 dark:text-white tracking-tighter uppercase">{ar ? 'الفلاتر' : 'Filters'}</h2>
+              <button onClick={() => setFilterOpen(false)} className="w-10 h-10 flex items-center justify-center rounded-2xl bg-slate-100 dark:bg-navy-800 border border-slate-100 dark:border-white/10 text-slate-500 dark:text-slate-500 active:scale-90 transition-all">
+                <X className="w-5 h-5" />
               </button>
             </div>
-            <div className="px-5 py-4 space-y-5">
+            <div className="px-8 py-4 space-y-8">
               {/* City */}
               <div>
-                <label className="text-xs font-bold text-slate-600 mb-2 block">{ar ? 'المدينة' : 'City'}</label>
+                <label className="text-[10px] font-black text-moon/40 uppercase tracking-widest mb-3 block">{ar ? 'المدينة' : 'City'}</label>
                 <div className="flex flex-wrap gap-2">
                   {CITY_LIST.map(city => (
                     <button
                       key={city}
                       onClick={() => setPendingFilter(f => ({ ...f, city }))}
-                      className={`px-3 py-1.5 rounded-full text-xs font-bold transition-colors ${
-                        pendingFilter.city === city ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                      }`}
+                      className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${ pendingFilter.city === city ? 'bg-oasis-spring text-midnight shadow-mint-glow' : 'bg-slate-100 dark:bg-navy-800 text-slate-500 dark:text-slate-500 border border-slate-200 dark:border-white/10 hover:border-slate-300' }`}
                     >
                       {city}
                     </button>
@@ -1010,30 +1036,33 @@ export const RentalsScreen = ({ t, lang, initialRentalId, onRentalOpened, initia
               </div>
               {/* Price range */}
               <div>
-                <label className="text-xs font-bold text-slate-600 mb-2 block">
-                  {ar ? `السعر: ${pendingFilter.priceMin} – ${pendingFilter.priceMax} ريال` : `Price: ${pendingFilter.priceMin} – ${pendingFilter.priceMax} SAR`}
-                </label>
+                <div className="flex items-center justify-between mb-4">
+                  <label className="text-[10px] font-black text-moon/40 uppercase tracking-widest">{ar ? 'ميزانية السعر' : 'Price Budget'}</label>
+                  <span className="text-sm font-black text-oasis-spring">
+                    {ar ? `${pendingFilter.priceMax} ريال` : `${pendingFilter.priceMax} SAR`}
+                  </span>
+                </div>
                 <input
                   type="range" min={0} max={5000} step={50}
                   value={pendingFilter.priceMax}
                   onChange={e => setPendingFilter(f => ({ ...f, priceMax: Number(e.target.value) }))}
-                  className="w-full accent-emerald-600"
+                  className="w-full accent-oasis-spring h-1.5 bg-slate-100 dark:bg-navy-800 rounded-full appearance-none cursor-pointer"
                 />
               </div>
               {/* Min capacity */}
               <div>
-                <label className="text-xs font-bold text-slate-600 mb-2 block">{ar ? 'الحد الأدنى للضيوف' : 'Min. Guests'}</label>
-                <div className="flex items-center gap-3">
+                <label className="text-[10px] font-black text-moon/40 uppercase tracking-widest mb-3 block">{ar ? 'الحد الأدنى للضيوف' : 'Min. Guests'}</label>
+                <div className="flex items-center gap-5">
                   <button onClick={() => setPendingFilter(f => ({ ...f, minCapacity: Math.max(0, f.minCapacity - 1) }))}
-                    className="w-8 h-8 rounded-full border border-slate-300 flex items-center justify-center text-slate-600 hover:bg-slate-100 text-sm transition">−</button>
-                  <span className="font-bold text-slate-900 w-8 text-center">{pendingFilter.minCapacity || (ar ? 'أي' : 'Any')}</span>
+                    className="w-12 h-12 rounded-2xl bg-slate-100 dark:bg-navy-800 border border-slate-100 dark:border-white/10 flex items-center justify-center text-slate-900 dark:text-white text-xl active:scale-90 transition-all">−</button>
+                  <span className="font-black text-2xl text-slate-900 dark:text-white w-8 text-center tracking-tighter">{pendingFilter.minCapacity || (ar ? '0' : '0')}</span>
                   <button onClick={() => setPendingFilter(f => ({ ...f, minCapacity: f.minCapacity + 1 }))}
-                    className="w-8 h-8 rounded-full border border-slate-300 flex items-center justify-center text-slate-600 hover:bg-slate-100 text-sm transition">+</button>
+                    className="w-12 h-12 rounded-2xl bg-slate-100 dark:bg-navy-800 border border-slate-100 dark:border-white/10 flex items-center justify-center text-slate-900 dark:text-white text-xl active:scale-90 transition-all">+</button>
                 </div>
               </div>
               {/* Amenities */}
               <div>
-                <label className="text-xs font-bold text-slate-600 mb-2 block">{ar ? 'المرافق' : 'Amenities'}</label>
+                <label className="text-[10px] font-black text-moon/40 uppercase tracking-widest mb-3 block">{ar ? 'المرافق' : 'Amenities'}</label>
                 <div className="flex flex-wrap gap-2">
                   {AMENITY_LIST.map(amenity => {
                     const active = pendingFilter.amenities.includes(amenity);
@@ -1044,9 +1073,7 @@ export const RentalsScreen = ({ t, lang, initialRentalId, onRentalOpened, initia
                           ...f,
                           amenities: active ? f.amenities.filter(a => a !== amenity) : [...f.amenities, amenity],
                         }))}
-                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-colors ${
-                          active ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                        }`}
+                        className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${ active ? 'bg-oasis-spring text-midnight shadow-mint-glow' : 'bg-slate-100 dark:bg-navy-800 text-slate-500 dark:text-slate-500 border border-slate-200 dark:border-white/10 hover:border-slate-300' }`}
                       >
                         {AMENITY_ICONS[amenity]} {amenity}
                       </button>
@@ -1055,16 +1082,16 @@ export const RentalsScreen = ({ t, lang, initialRentalId, onRentalOpened, initia
                 </div>
               </div>
             </div>
-            <div className="px-5 pb-6 flex gap-3">
-              <button
+            <div className="px-8 pb-10 pt-4 flex gap-4">
+                <button
                 onClick={() => { setPendingFilter(DEFAULT_FILTER); setFilter(DEFAULT_FILTER); setFilterOpen(false); }}
-                className="flex-1 py-3 border border-slate-200 text-slate-600 font-bold rounded-2xl hover:bg-slate-50 transition"
+                className="flex-1 py-4 bg-slate-100 dark:bg-navy-800 text-slate-900 dark:text-white font-black text-xs uppercase tracking-widest rounded-2xl border border-slate-200 dark:border-white/10 active:scale-95 transition-all"
               >
                 {ar ? 'إعادة تعيين' : 'Reset'}
               </button>
               <button
                 onClick={() => { setFilter(pendingFilter); setFilterOpen(false); }}
-                className="flex-1 py-3 bg-emerald-600 text-white font-bold rounded-2xl hover:bg-emerald-700 transition"
+                className="flex-1 py-4 bg-oasis-spring text-midnight font-black text-xs uppercase tracking-widest rounded-2xl shadow-mint-glow active:scale-95 transition-all"
               >
                 {ar ? 'تطبيق' : 'Apply'}
               </button>
@@ -1120,36 +1147,35 @@ export const RentalsScreen = ({ t, lang, initialRentalId, onRentalOpened, initia
         };
 
         return (
-          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/70 backdrop-blur-sm p-0 sm:p-4">
+          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-slate-900/60 dark:bg-navy-950/80 backdrop-blur-md p-0 sm:p-4 animate-in fade-in">
             <div
-              className="w-full sm:max-w-md rounded-t-3xl sm:rounded-3xl overflow-hidden flex flex-col"
-              style={{ background: '#081229', maxHeight: '92dvh' }}
+              className="w-full sm:max-w-md bg-white dark:bg-navy-900 rounded-t-[3rem] sm:rounded-[3rem] overflow-hidden flex flex-col shadow-[0_-20px_50px_-12px_rgba(0,0,0,0.5)] border-t sm:border border-slate-200 dark:border-white/10"
+              style={{ maxHeight: '92dvh' }}
             >
               {/* Progress bar */}
-              <div className="h-1 w-full" style={{ background: 'rgba(255,255,255,0.08)' }}>
+              <div className="h-1.5 w-full bg-slate-100 dark:bg-navy-950">
                 <div
-                  className="h-full transition-all duration-500"
-                  style={{ width: `${(hostStep / 3) * 100}%`, background: '#7CF7C8' }}
+                  className="h-full bg-oasis-spring shadow-mint-glow transition-all duration-700"
+                  style={{ width: `${(hostStep / 3) * 100}%` }}
                 />
               </div>
 
               {/* Header */}
-              <div className="flex items-center justify-between px-5 pt-5 pb-3">
-                <div className="flex items-center gap-3">
+              <div className="flex items-center justify-between px-8 pt-8 pb-4">
+                <div className="flex items-center gap-4">
                   {hostStep > 1 && (
                     <button
                       onClick={() => setHostStep(s => s - 1)}
-                      className="w-8 h-8 flex items-center justify-center rounded-full transition-colors"
-                      style={{ background: 'rgba(255,255,255,0.08)' }}
+                      className="w-10 h-10 flex items-center justify-center rounded-2xl bg-slate-100 dark:bg-navy-800 border border-slate-100 dark:border-white/10 text-slate-500 dark:text-slate-500 active:scale-90 transition-all"
                     >
-                      <ChevronLeft className="w-4 h-4" style={{ color: '#B8C2D6' }} />
+                      <ChevronLeft className="w-5 h-5" />
                     </button>
                   )}
                   <div>
-                    <p className="text-xs font-bold tracking-widest uppercase" style={{ color: '#7CF7C8' }}>
+                    <p className="text-[10px] font-black text-oasis-spring uppercase tracking-[0.3em] mb-1">
                       {ar ? `خطوة ${hostStep} من 3` : `Step ${hostStep} of 3`}
                     </p>
-                    <h2 className="font-black text-white leading-tight" style={{ fontSize: '1.1rem' }}>
+                    <h2 className="text-lg font-black text-slate-900 dark:text-white tracking-tighter uppercase leading-none">
                       {hostStep === 1 && (ar ? 'مكانك' : 'Your place')}
                       {hostStep === 2 && (ar ? 'التفاصيل والتسعير' : 'Details & pricing')}
                       {hostStep === 3 && (ar ? 'مراجعة ونشر' : 'Review & publish')}
@@ -1158,38 +1184,32 @@ export const RentalsScreen = ({ t, lang, initialRentalId, onRentalOpened, initia
                 </div>
                 <button
                   onClick={resetHostModal}
-                  className="w-8 h-8 flex items-center justify-center rounded-full transition-colors"
-                  style={{ background: 'rgba(255,255,255,0.08)' }}
+                  className="w-10 h-10 flex items-center justify-center rounded-2xl bg-slate-100 dark:bg-navy-800 border border-slate-100 dark:border-white/10 text-slate-500 dark:text-slate-500 active:scale-90 transition-all"
                 >
-                  <X className="w-4 h-4" style={{ color: '#B8C2D6' }} />
+                  <X className="w-5 h-5" />
                 </button>
               </div>
 
               {/* Body */}
-              <div className="flex-1 overflow-y-auto px-5 pb-2 space-y-5">
+              <div className="flex-1 overflow-y-auto px-8 pb-4 space-y-6">
 
                 {/* ── Step 1: Identity ── */}
                 {hostStep === 1 && (
                   <>
-                    <p className="text-sm" style={{ color: '#7F8AA3' }}>{ar ? 'ما نوع المكان الذي تشاركه؟' : 'What kind of place are you sharing?'}</p>
+                    <p className="text-[10px] font-black text-slate-500 dark:text-slate-500 uppercase tracking-widest">{ar ? 'ما نوع المكان الذي تشاركه؟' : 'What kind of place are you sharing?'}</p>
 
                     {/* Type chips */}
-                    <div className="grid grid-cols-3 gap-2.5">
+                    <div className="grid grid-cols-3 gap-2">
                       {PLACE_TYPES.map(pt => {
                         const active = hostForm.type === pt.id;
                         return (
                           <button
                             key={pt.id}
                             onClick={() => setHostForm(f => ({ ...f, type: pt.id }))}
-                            className="flex flex-col items-center gap-2 py-3.5 rounded-2xl border transition-all"
-                            style={{
-                              background: active ? '#7CF7C8' : 'rgba(255,255,255,0.06)',
-                              borderColor: active ? '#7CF7C8' : 'rgba(255,255,255,0.10)',
-                              color: active ? '#050B1E' : '#B8C2D6',
-                            }}
+                            className={`flex flex-col items-center gap-2 py-4 rounded-2xl border transition-all active:scale-95 ${ active ? 'bg-oasis-spring border-oasis-spring text-midnight shadow-mint-glow' : 'bg-slate-50 dark:bg-navy-950 border-slate-100 dark:border-white/8 text-slate-500 dark:text-slate-500 hover:border-slate-300' }`}
                           >
-                            {pt.icon}
-                            <span className="text-xs font-bold">{ar ? pt.labelAr : pt.label}</span>
+                            <div className={active ? 'text-midnight' : 'text-oasis-spring'}>{pt.icon}</div>
+                            <span className="text-[10px] font-black uppercase tracking-widest">{ar ? pt.labelAr : pt.label}</span>
                           </button>
                         );
                       })}
@@ -1197,64 +1217,47 @@ export const RentalsScreen = ({ t, lang, initialRentalId, onRentalOpened, initia
 
                     {/* Name */}
                     <div>
-                      <label className="block text-xs font-bold mb-1.5" style={{ color: '#B8C2D6' }}>{ar ? 'اسم المكان *' : 'Place name *'}</label>
-                      <input
+                      <label className="block text-[10px] font-black text-moon/40 uppercase tracking-widest mb-2">{ar ? 'اسم المكان *' : 'Place name *'}</label>
+                        <input
                         value={hostForm.title}
                         onChange={e => setHostForm(f => ({ ...f, title: e.target.value }))}
                         placeholder={ar ? 'مثال: شاليه الغروب، أبها' : 'e.g. Sunset Chalet, Abha'}
-                        className="w-full rounded-xl px-4 py-3 text-sm text-white outline-none transition-all"
-                        style={{
-                          background: '#101B36',
-                          border: '1px solid rgba(255,255,255,0.10)',
-                        }}
-                        onFocus={e => (e.currentTarget.style.borderColor = 'rgba(124,247,200,0.5)')}
-                        onBlur={e => (e.currentTarget.style.borderColor = 'rgba(255,255,255,0.10)')}
+                        className="w-full bg-slate-50 dark:bg-navy-950 border border-slate-100 dark:border-white/8 rounded-2xl px-5 py-4 text-sm text-slate-900 dark:text-white font-bold outline-none focus:ring-2 focus:ring-oasis-spring/30 transition-all placeholder:text-slate-400"
                       />
                     </div>
 
                     {/* Location */}
                     <div>
-                      <label className="block text-xs font-bold mb-1.5" style={{ color: '#B8C2D6' }}>{ar ? 'الموقع *' : 'Location *'}</label>
-                      <input
+                      <label className="block text-[10px] font-black text-moon/40 uppercase tracking-widest mb-2">{ar ? 'الموقع *' : 'Location *'}</label>
+                        <input
                         value={hostForm.locationName}
                         onChange={e => setHostForm(f => ({ ...f, locationName: e.target.value }))}
                         placeholder={ar ? 'مثال: أبها، منطقة عسير' : 'e.g. Abha, Asir Region'}
-                        className="w-full rounded-xl px-4 py-3 text-sm text-white outline-none transition-all"
-                        style={{
-                          background: '#101B36',
-                          border: '1px solid rgba(255,255,255,0.10)',
-                        }}
-                        onFocus={e => (e.currentTarget.style.borderColor = 'rgba(124,247,200,0.5)')}
-                        onBlur={e => (e.currentTarget.style.borderColor = 'rgba(255,255,255,0.10)')}
+                        className="w-full bg-slate-50 dark:bg-navy-950 border border-slate-100 dark:border-white/8 rounded-2xl px-5 py-4 text-sm text-slate-900 dark:text-white font-bold outline-none focus:ring-2 focus:ring-oasis-spring/30 transition-all placeholder:text-slate-400"
                       />
                     </div>
 
                     {/* Google Maps URL */}
                     <div>
-                      <label className="block text-xs font-bold mb-1.5" style={{ color: '#B8C2D6' }}>{ar ? 'رابط خرائط جوجل' : 'Google Maps link'} <span style={{ color: '#7F8AA3', fontWeight: 400 }}>{ar ? '(اختياري)' : '(optional)'}</span></label>
-                      <input
+                      <label className="block text-[10px] font-black text-moon/40 uppercase tracking-widest mb-2">
+                        {ar ? 'رابط خرائط جوجل' : 'Google Maps link'} <span className="text-moon/20 font-medium normal-case ml-1">{ar ? '(اختياري)' : '(optional)'}</span>
+                      </label>
+                        <input
                         value={hostMapsUrl}
                         onChange={e => setHostMapsUrl(e.target.value)}
                         placeholder="https://maps.app.goo.gl/..."
-                        className="w-full rounded-xl px-4 py-3 text-sm text-white outline-none transition-all"
-                        style={{
-                          background: '#101B36',
-                          border: '1px solid rgba(255,255,255,0.10)',
-                        }}
-                        onFocus={e => (e.currentTarget.style.borderColor = 'rgba(124,247,200,0.5)')}
-                        onBlur={e => (e.currentTarget.style.borderColor = 'rgba(255,255,255,0.10)')}
+                        className="w-full bg-slate-50 dark:bg-navy-950 border border-slate-100 dark:border-white/8 rounded-2xl px-5 py-4 text-sm text-slate-900 dark:text-white font-bold outline-none focus:ring-2 focus:ring-oasis-spring/30 transition-all placeholder:text-slate-400"
                       />
-                      <div className="flex items-center justify-between mt-1.5">
-                        <p className="text-xs" style={{ color: '#7F8AA3' }}>{ar ? 'خرائط جوجل ← مشاركة ← نسخ الرابط' : 'Google Maps → Share → Copy link'}</p>
+                      <div className="flex items-center justify-between mt-2">
+                        <p className="text-[9px] font-black text-moon/20 uppercase tracking-widest">{ar ? 'خرائط جوجل ← مشاركة ← نسخ الرابط' : 'Google Maps → Share → Copy link'}</p>
                         {hostMapsUrl.trim().startsWith('http') && (hostMapsUrl.includes('google') || hostMapsUrl.includes('goo.gl')) && (
                           <a
                             href={hostMapsUrl.trim()}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="flex items-center gap-1 text-xs font-bold"
-                            style={{ color: '#7CF7C8' }}
+                            className="flex items-center gap-1 text-[10px] font-black text-oasis-spring uppercase tracking-widest hover:underline"
                           >
-                            Preview on Maps <ExternalLink className="w-3 h-3" />
+                            Preview <ExternalLink className="w-3 h-3" />
                           </a>
                         )}
                       </div>
@@ -1262,7 +1265,9 @@ export const RentalsScreen = ({ t, lang, initialRentalId, onRentalOpened, initia
 
                     {/* Photo upload */}
                     <div>
-                      <label className="block text-xs font-bold mb-1.5" style={{ color: '#B8C2D6' }}>{ar ? 'صورة' : 'Photo'} <span style={{ color: '#7F8AA3', fontWeight: 400 }}>{ar ? '(اختياري)' : '(optional)'}</span></label>
+                      <label className="block text-[10px] font-black text-moon/40 uppercase tracking-widest mb-2">
+                        {ar ? 'صورة' : 'Photo'} <span className="text-moon/20 font-medium normal-case ml-1">{ar ? '(اختياري)' : '(optional)'}</span>
+                      </label>
                       <input
                         ref={hostImageInputRef}
                         type="file"
@@ -1277,33 +1282,30 @@ export const RentalsScreen = ({ t, lang, initialRentalId, onRentalOpened, initia
                         }}
                       />
                       {hostImage ? (
-                        <div className="relative rounded-xl overflow-hidden" style={{ height: '140px' }}>
+                        <div className="relative rounded-2xl overflow-hidden shadow-2xl border border-white/10" style={{ height: '160px' }}>
                           <img src={hostImage} alt="preview" className="w-full h-full object-cover" />
-                          <div className="absolute top-2 right-2 flex gap-2">
+                          <div className="absolute top-3 right-3 flex gap-2">
                             <button
                               onClick={() => hostImageInputRef.current?.click()}
-                              className="px-3 py-1 rounded-full text-xs font-bold"
-                              style={{ background: 'rgba(8,18,41,0.85)', color: '#7CF7C8' }}
+                              className="px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest bg-slate-900/60 dark:bg-navy-950/80 backdrop-blur-md text-oasis-spring border border-slate-100 dark:border-white/10"
                             >
                               {ar ? 'استبدال' : 'Replace'}
                             </button>
                             <button
                               onClick={() => setHostImage(null)}
-                              className="w-7 h-7 flex items-center justify-center rounded-full"
-                              style={{ background: 'rgba(8,18,41,0.85)' }}
+                              className="w-10 h-10 flex items-center justify-center rounded-xl bg-rose-500 text-white shadow-lg active:scale-90 transition-all"
                             >
-                              <X className="w-3.5 h-3.5 text-white" />
+                              <X className="w-5 h-5" />
                             </button>
                           </div>
                         </div>
                       ) : (
                         <button
                           onClick={() => hostImageInputRef.current?.click()}
-                          className="w-full rounded-xl flex flex-col items-center justify-center gap-2 py-6 border-2 border-dashed transition-all"
-                          style={{ borderColor: 'rgba(124,247,200,0.25)', background: 'rgba(124,247,200,0.04)' }}
+                          className="w-full rounded-[2rem] flex flex-col items-center justify-center gap-3 py-10 border-2 border-dashed border-oasis-spring/20 bg-oasis-spring/5 hover:bg-oasis-spring/10 transition-all active:scale-[0.98] group"
                         >
-                          <Camera className="w-6 h-6" style={{ color: '#7CF7C8', opacity: 0.7 }} />
-                          <span className="text-xs font-bold" style={{ color: '#7CF7C8', opacity: 0.7 }}>{ar ? 'أضف صورة' : 'Add a photo'}</span>
+                          <Camera className="w-8 h-8 text-oasis-spring group-hover:scale-110 transition-transform" />
+                          <span className="text-[10px] font-black text-oasis-spring uppercase tracking-widest">{ar ? 'أضف صورة احترافية' : 'Add a pro photo'}</span>
                         </button>
                       )}
                     </div>
@@ -1317,25 +1319,19 @@ export const RentalsScreen = ({ t, lang, initialRentalId, onRentalOpened, initia
 
                     {/* Description */}
                     <div>
-                      <label className="block text-xs font-bold mb-1.5" style={{ color: '#B8C2D6' }}>{ar ? 'الوصف' : 'Description'}</label>
+                      <label className="block text-xs font-bold mb-1.5 text-slate-400 dark:text-slate-500">{ar ? 'الوصف' : 'Description'}</label>
                       <textarea
                         value={hostForm.description}
                         onChange={e => setHostForm(f => ({ ...f, description: e.target.value }))}
                         placeholder={ar ? 'صف الأجواء، المشاهد، وأفضل وقت للزيارة…' : 'Describe the vibe, the views, the best time to visit…'}
                         rows={4}
-                        className="w-full rounded-xl px-4 py-3 text-sm text-white outline-none resize-none transition-all"
-                        style={{
-                          background: '#101B36',
-                          border: '1px solid rgba(255,255,255,0.10)',
-                        }}
-                        onFocus={e => (e.currentTarget.style.borderColor = 'rgba(124,247,200,0.5)')}
-                        onBlur={e => (e.currentTarget.style.borderColor = 'rgba(255,255,255,0.10)')}
+                        className="w-full bg-slate-50 dark:bg-navy-950 border border-slate-100 dark:border-white/8 rounded-xl px-4 py-3 text-sm text-slate-900 dark:text-white outline-none resize-none focus:border-oasis-spring/50 transition-all"
                       />
                     </div>
 
                     {/* Amenities */}
                     <div>
-                      <label className="block text-xs font-bold mb-2" style={{ color: '#B8C2D6' }}>{ar ? 'المرافق' : 'Amenities'}</label>
+                      <label className="block text-xs font-bold mb-2 text-slate-400 dark:text-slate-500">{ar ? 'المرافق' : 'Amenities'}</label>
                       <div className="flex flex-wrap gap-2">
                         {HOST_AMENITIES.map(a => {
                           const on = hostForm.amenities.includes(a);
@@ -1343,12 +1339,7 @@ export const RentalsScreen = ({ t, lang, initialRentalId, onRentalOpened, initia
                             <button
                               key={a}
                               onClick={() => toggleAmenity(a)}
-                              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold border transition-all"
-                              style={{
-                                background: on ? '#7CF7C8' : 'rgba(255,255,255,0.06)',
-                                borderColor: on ? '#7CF7C8' : 'rgba(255,255,255,0.10)',
-                                color: on ? '#050B1E' : '#B8C2D6',
-                              }}
+                              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold border transition-all ${ on ? 'bg-oasis-spring border-oasis-spring text-midnight' : 'bg-slate-100 dark:bg-navy-800 border-slate-200 dark:border-white/10 text-slate-500 dark:text-slate-500' }`}
                             >
                               {AMENITY_ICONS[a] || null}
                               {a}
@@ -1360,22 +1351,16 @@ export const RentalsScreen = ({ t, lang, initialRentalId, onRentalOpened, initia
 
                     {/* Price */}
                     <div>
-                      <label className="block text-xs font-bold mb-1.5" style={{ color: '#B8C2D6' }}>{ar ? 'السعر لكل ليلة (ريال) *' : 'Price per night (SAR) *'}</label>
+                      <label className="block text-xs font-bold mb-1.5 text-slate-400 dark:text-slate-500">{ar ? 'السعر لكل ليلة (ريال) *' : 'Price per night (SAR) *'}</label>
                       <div className="relative">
-                        <span className="absolute left-4 top-1/2 -translate-y-1/2 text-sm font-bold" style={{ color: '#7F8AA3' }}>SAR</span>
+                        <span className="absolute left-4 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-400">SAR</span>
                         <input
                           type="number"
                           min="0"
                           value={hostForm.price}
                           onChange={e => setHostForm(f => ({ ...f, price: e.target.value }))}
                           placeholder="650"
-                          className="w-full rounded-xl pl-14 pr-4 py-3 text-sm text-white outline-none transition-all"
-                          style={{
-                            background: '#101B36',
-                            border: '1px solid rgba(255,255,255,0.10)',
-                          }}
-                          onFocus={e => (e.currentTarget.style.borderColor = 'rgba(124,247,200,0.5)')}
-                          onBlur={e => (e.currentTarget.style.borderColor = 'rgba(255,255,255,0.10)')}
+                          className="w-full bg-slate-50 dark:bg-navy-950 border border-slate-100 dark:border-white/8 rounded-xl pl-14 pr-4 py-3 text-sm text-slate-900 dark:text-white outline-none focus:border-oasis-spring/50 transition-all"
                         />
                       </div>
                     </div>
@@ -1389,24 +1374,18 @@ export const RentalsScreen = ({ t, lang, initialRentalId, onRentalOpened, initia
 
                     {/* Phone */}
                     <div>
-                      <label className="block text-xs font-bold mb-1.5" style={{ color: '#B8C2D6' }}>{ar ? 'رقم التواصل' : 'Contact phone'}</label>
+                      <label className="block text-xs font-bold mb-1.5 text-slate-400 dark:text-slate-500">{ar ? 'رقم التواصل' : 'Contact phone'}</label>
                       <input
                         type="tel"
                         value={hostForm.phone}
                         onChange={e => setHostForm(f => ({ ...f, phone: e.target.value }))}
                         placeholder="+966 5X XXX XXXX"
-                        className="w-full rounded-xl px-4 py-3 text-sm text-white outline-none transition-all"
-                        style={{
-                          background: '#101B36',
-                          border: '1px solid rgba(255,255,255,0.10)',
-                        }}
-                        onFocus={e => (e.currentTarget.style.borderColor = 'rgba(124,247,200,0.5)')}
-                        onBlur={e => (e.currentTarget.style.borderColor = 'rgba(255,255,255,0.10)')}
+                        className="w-full bg-slate-50 dark:bg-navy-950 border border-slate-100 dark:border-white/8 rounded-xl px-4 py-3 text-sm text-slate-900 dark:text-white outline-none focus:border-oasis-spring/50 transition-all"
                       />
                     </div>
 
                     {/* Preview card */}
-                    <div className="rounded-2xl overflow-hidden border" style={{ borderColor: 'rgba(255,255,255,0.10)', background: '#101B36' }}>
+                    <div className="rounded-2xl overflow-hidden border border-slate-100 dark:border-white/10 bg-slate-50 dark:bg-navy-950">
                       <div className="h-28 flex items-center justify-center overflow-hidden" style={{ background: 'rgba(124,247,200,0.07)' }}>
                         {hostImage
                           ? <img src={hostImage} alt="preview" className="w-full h-full object-cover" />
@@ -1415,7 +1394,7 @@ export const RentalsScreen = ({ t, lang, initialRentalId, onRentalOpened, initia
                       </div>
                       <div className="px-4 py-3 space-y-1">
                         <div className="flex items-center justify-between">
-                          <span className="font-black text-white text-sm truncate" style={{ maxWidth: '70%' }}>
+                          <span className="font-black text-slate-900 dark:text-white text-sm truncate" style={{ maxWidth: '70%' }}>
                             {hostForm.title || 'Your place name'}
                           </span>
                           <span className="text-xs font-bold px-2 py-0.5 rounded-full" style={{ background: 'rgba(124,247,200,0.15)', color: '#7CF7C8' }}>
@@ -1423,8 +1402,8 @@ export const RentalsScreen = ({ t, lang, initialRentalId, onRentalOpened, initia
                           </span>
                         </div>
                         <div className="flex items-center gap-1">
-                          <MapPin className="w-3 h-3" style={{ color: '#7F8AA3' }} />
-                          <span className="text-xs" style={{ color: '#7F8AA3' }}>{hostForm.locationName || 'Location'}</span>
+                          <MapPin className="w-3 h-3 text-slate-400" />
+                          <span className="text-xs text-slate-500 dark:text-slate-500">{hostForm.locationName || 'Location'}</span>
                           {hostMapsUrl.trim().startsWith('http') && (
                             <a
                               href={hostMapsUrl.trim()}
@@ -1440,15 +1419,15 @@ export const RentalsScreen = ({ t, lang, initialRentalId, onRentalOpened, initia
                         {hostForm.amenities.length > 0 && (
                           <div className="flex flex-wrap gap-1 pt-1">
                             {hostForm.amenities.slice(0, 4).map(a => (
-                              <span key={a} className="text-xs px-2 py-0.5 rounded-full" style={{ background: 'rgba(255,255,255,0.06)', color: '#B8C2D6' }}>{a}</span>
+                              <span key={a} className="text-xs px-2 py-0.5 rounded-full bg-slate-200 dark:bg-navy-800 text-slate-600 dark:text-slate-400">{a}</span>
                             ))}
                             {hostForm.amenities.length > 4 && (
-                              <span className="text-xs px-2 py-0.5 rounded-full" style={{ background: 'rgba(255,255,255,0.06)', color: '#B8C2D6' }}>+{hostForm.amenities.length - 4}</span>
+                              <span className="text-xs px-2 py-0.5 rounded-full bg-slate-200 dark:bg-navy-800 text-slate-600 dark:text-slate-400">+{hostForm.amenities.length - 4}</span>
                             )}
                           </div>
                         )}
-                        {hostForm.price && (
-                          <p className="font-black text-white text-sm pt-1">{ar ? `${hostForm.price} ريال` : `SAR ${hostForm.price}`} <span className="font-normal text-xs" style={{ color: '#7F8AA3' }}>{ar ? '/ ليلة' : '/ night'}</span></p>
+                         {hostForm.price && (
+                          <p className="font-black text-slate-900 dark:text-white text-sm pt-1">{ar ? `${hostForm.price} ريال` : `SAR ${hostForm.price}`} <span className="font-normal text-xs text-slate-500 dark:text-slate-500">{ar ? '/ ليلة' : '/ night'}</span></p>
                         )}
                       </div>
                     </div>
@@ -1456,36 +1435,26 @@ export const RentalsScreen = ({ t, lang, initialRentalId, onRentalOpened, initia
                 )}
               </div>
 
-              {/* Footer CTA */}
-              <div className="px-5 pt-3 pb-6">
-                {hostStep < 3 ? (
-                  <button
-                    disabled={(hostStep === 1 && !step1Valid) || (hostStep === 2 && !step2Valid)}
-                    onClick={() => setHostStep(s => s + 1)}
-                    className="w-full py-3.5 rounded-full font-black text-sm transition-all disabled:opacity-40 disabled:cursor-not-allowed active:scale-[0.97]"
-                    style={{
-                      background: '#7CF7C8',
-                      color: '#050B1E',
-                      boxShadow: '0 8px 24px -6px rgba(124,247,200,0.45)',
-                    }}
-                  >
-                    {ar ? 'التالي' : 'Continue'}
-                  </button>
-                ) : (
-                  <button
-                    disabled={hostSubmitting}
-                    onClick={handleSubmit}
-                    className="w-full py-3.5 rounded-full font-black text-sm transition-all disabled:opacity-40 disabled:cursor-not-allowed active:scale-[0.97]"
-                    style={{
-                      background: '#7CF7C8',
-                      color: '#050B1E',
-                      boxShadow: '0 8px 24px -6px rgba(124,247,200,0.45)',
-                    }}
-                  >
-                    {hostSubmitting ? (ar ? 'جاري النشر…' : 'Publishing…') : (ar ? 'نشر مكاني' : 'Publish my place')}
-                  </button>
-                )}
-              </div>
+                {/* ── Footer CTA ── */}
+                <div className="px-8 pt-4 pb-10">
+                  {hostStep < 3 ? (
+                    <button
+                      disabled={(hostStep === 1 && !step1Valid) || (hostStep === 2 && !step2Valid)}
+                      onClick={() => setHostStep(s => s + 1)}
+                      className="w-full py-5 bg-oasis-spring text-midnight rounded-[2rem] font-black text-sm uppercase tracking-widest shadow-mint-glow disabled:opacity-30 disabled:shadow-none active:scale-[0.97] transition-all"
+                    >
+                      {ar ? 'التالي' : 'Continue'}
+                    </button>
+                  ) : (
+                    <button
+                      disabled={hostSubmitting}
+                      onClick={handleSubmit}
+                      className="w-full py-5 bg-oasis-spring text-midnight rounded-[2rem] font-black text-sm uppercase tracking-widest shadow-mint-glow disabled:opacity-30 disabled:shadow-none active:scale-[0.97] transition-all"
+                    >
+                      {hostSubmitting ? (ar ? 'جاري النشر…' : 'Publishing…') : (ar ? 'نشر مكاني' : 'Publish my place')}
+                    </button>
+                  )}
+                </div>
             </div>
           </div>
         );

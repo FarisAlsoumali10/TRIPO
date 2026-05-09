@@ -392,6 +392,31 @@ export const communityAPI = {
 
   unsubscribeCommunity: (communityId: string) =>
     api.delete(`/communities/${communityId}/subscribe`).then((r) => r.data),
+
+  getEvents: async () => {
+    const { data } = await api.get('/events');
+    return toList(data, 'events', 'data').map(withId);
+  },
+
+  createEvent: (data: Record<string, unknown>) =>
+    api.post('/events', data).then((r) => r.data),
+
+  toggleJoinEvent: (eventId: string) =>
+    api.post(`/events/${eventId}/toggle-join`).then((r) => r.data),
+
+  getFazaRequests: async () => {
+    const { data } = await api.get('/faza-requests');
+    return toList(data, 'requests', 'data').map(withId);
+  },
+
+  createFazaRequest: (data: Record<string, unknown>) =>
+    api.post('/faza-requests', data).then((r) => r.data),
+
+  answerFaza: (fazaId: string, answerText: string) =>
+    api.post(`/faza-requests/${fazaId}/answer`, { answerText }).then((r) => r.data),
+
+  getJoinedCommunities: () =>
+    api.get('/communities/me/joined').then((r) => r.data),
 };
 
 // ── Event API ─────────────────────────────────────────────────────────────────
@@ -438,13 +463,20 @@ export const fazaAPI = {
 // ── TravelPost API ────────────────────────────────────────────────────────────
 
 export const travelPostAPI = {
-  getPosts: async (communityId?: string) => {
-    const { data } = await api.get('/travel-posts', { params: { communityId } });
-    return toList(data, 'posts', 'data').map(withId);
-  },
+  getPosts: (communityId?: string) =>
+    api
+      .get(`/travel-posts${communityId ? `?communityId=${communityId}` : ''}`)
+      .then((r) => r.data),
 
-  createPost: (payload: AnyRecord) =>
-    api.post('/travel-posts', payload).then((r) => r.data),
+  createPost: (data: {
+    communityId?: string;
+    placeName: string;
+    placeId?: string;
+    date: string;
+    maxGroupSize?: number;
+    description?: string;
+    interests?: string[];
+  }) => api.post('/travel-posts', data).then((r) => r.data),
 
   joinPost: (postId: string) =>
     api.post(`/travel-posts/${postId}/join`).then((r) => r.data),
@@ -453,35 +485,29 @@ export const travelPostAPI = {
 // ── Thread API ────────────────────────────────────────────────────────────────
 
 export const threadAPI = {
-  getThreads: async (communityId: string) => {
-    const { data } = await api.get(`/communities/${communityId}/threads`);
-    return toList(data, 'threads', 'data').map(withId);
-  },
+  getThreads: (communityId: string) =>
+    api.get(`/threads?communityId=${communityId}`).then((r) => r.data),
 
-  createThread: async (communityId: string, payload: AnyRecord) => {
-    const { data } = await api.post(`/communities/${communityId}/threads`, payload);
-    return withId(data.data ?? data);
-  },
+  createThread: (data: {
+    communityId: string;
+    title: string;
+    body?: string;
+    tags?: string[];
+    imageUrl?: string;
+    poll?: { question: string; options: string[] };
+  }) => api.post('/threads', data).then((r) => r.data),
 
-  addReply: async (communityId: string, threadId: string, payload: { text: string; imageUrl?: string }) => {
-    const { data } = await api.post(`/communities/${communityId}/threads/${threadId}/replies`, payload);
-    return withId(data.data ?? data);
-  },
+  replyToThread: (threadId: string, text: string, imageUrl?: string) =>
+    api.post(`/threads/${threadId}/reply`, { text, imageUrl }).then((r) => r.data),
 
-  toggleReaction: async (communityId: string, threadId: string, emoji: string) => {
-    const { data } = await api.post(`/communities/${communityId}/threads/${threadId}/reactions`, { emoji });
-    return withId(data.data ?? data);
-  },
+  toggleReaction: (threadId: string, emoji: string) =>
+    api.post(`/threads/${threadId}/react`, { emoji }).then((r) => r.data),
 
-  votePoll: async (communityId: string, threadId: string, optionIndex: number) => {
-    const { data } = await api.post(`/communities/${communityId}/threads/${threadId}/vote`, { optionIndex });
-    return withId(data.data ?? data);
-  },
+  votePoll: (threadId: string, optionIndex: number) =>
+    api.post(`/threads/${threadId}/vote`, { optionIndex }).then((r) => r.data),
 
-  togglePin: async (communityId: string, threadId: string) => {
-    const { data } = await api.patch(`/communities/${communityId}/threads/${threadId}/pin`);
-    return withId(data.data ?? data);
-  },
+  togglePin: (threadId: string) =>
+    api.patch(`/threads/${threadId}/pin`).then((r) => r.data),
 };
 
 // ── Review API ────────────────────────────────────────────────────────────────
@@ -612,20 +638,40 @@ export const googlePlacesAPI = {
 // ── Payment API — auth required ───────────────────────────────────────────────
 
 export const paymentAPI = {
-  createCheckoutSession: (
+  /** Creates a Moyasar invoice and returns a redirect URL */
+  createInvoice: (
     itemType: 'event' | 'tour' | 'rental',
     itemId: string,
-    quantity = 1,
+    quantity?: number,
     bookingId?: string,
-  ): Promise<{ success: boolean; url: string }> =>
-    api.post('/payments/create-checkout-session', { itemType, itemId, quantity, bookingId }).then((r) => r.data),
+    cardDetails?: {
+      name: string;
+      number: string;
+      cvc: string;
+      month: string;
+      year: string;
+    }
+  ) =>
+    api.post('/payments/create-invoice', { itemType, itemId, quantity, bookingId, cardDetails }).then((r) => r.data),
 
-  verifySession: (sessionId: string): Promise<{ success: boolean; paid: boolean; booking: any; payment: any }> =>
-    api.get('/payments/verify', { params: { session_id: sessionId } }).then((r) => r.data),
+  /** Verifies a payment status after redirect or widget completion */
+  verifyPayment: (paymentId: string): Promise<{ success: boolean; paid: boolean; status?: string; message?: string }> =>
+    api.post('/payments/verify', { paymentId }).then((r) => r.data),
 
   getPaymentHistory: () =>
     api.get('/payments/history').then((r) => r.data),
+
+  /** Executes a mock payment for testing environments */
+  mockPayment: (data: {
+    itemType: 'event' | 'tour' | 'rental';
+    itemId: string;
+    quantity?: number;
+    bookingId?: string;
+    cardNumber: string;
+  }): Promise<{ success: boolean; paid: boolean; paymentId: string; mockPaymentId: string }> =>
+    api.post('/payments/mock-pay', data).then((r) => r.data),
 };
+
 
 // ── Notification API ──────────────────────────────────────────────────────────
 
@@ -647,8 +693,11 @@ export const bookingAPI = {
     return toList(data, 'bookings').map(withId);
   },
 
-  cancel: (id: string) =>
+  cancelBooking: (id: string) =>
     api.patch(`/bookings/${id}/cancel`).then((r) => r.data),
+
+  rateBooking: (id: string, rating: number) =>
+    api.post(`/bookings/${id}/rate`, { rating }).then((r) => r.data),
 };
 
 // ── Wallet API — auth required ────────────────────────────────────────────────

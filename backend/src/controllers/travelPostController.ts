@@ -1,74 +1,70 @@
 import { Request, Response } from 'express';
 import { TravelPost } from '../models/TravelPost';
-import { Notification } from '../models/Notification';
 import { AuthRequest } from '../types';
+import { User } from '../models/User';
 
-/** GET /api/v1/travel-posts?communityId=xxx */
+// GET /api/travel-posts  ?communityId=xxx  (optional)
 export const getTravelPosts = async (req: Request, res: Response) => {
   try {
-    const filter: Record<string, any> = {};
+    const filter: Record<string, unknown> = {};
     if (req.query.communityId) filter.communityId = req.query.communityId;
-    const posts = await TravelPost.find(filter).sort({ createdAt: -1 }).lean();
-    return res.status(200).json({ success: true, count: posts.length, data: posts });
-  } catch (error) {
-    console.error('❌ getTravelPosts error:', error);
-    return res.status(500).json({ success: false, error: 'Server Error' });
+
+    // Only future posts
+    const today = new Date().toISOString().split('T')[0];
+    const posts = await TravelPost.find({
+      ...filter,
+      date: { $gte: today },
+    }).sort({ createdAt: -1 });
+
+    res.json(posts);
+  } catch (err) {
+    res.status(500).json({ message: 'Server error' });
   }
 };
 
-/** POST /api/v1/travel-posts */
+// POST /api/travel-posts
 export const createTravelPost = async (req: AuthRequest, res: Response) => {
   try {
-    const userId = req.user?.userId;
-    if (!userId) return res.status(401).json({ success: false, error: 'Authentication required' });
+    const { communityId, placeName, placeId, date, maxGroupSize, description, interests } =
+      req.body;
+    if (!placeName || !date) return res.status(400).json({ message: 'placeName and date required' });
+
+    const userId = req.user!.userId;
+    const author = await User.findById(userId).select('name avatar').lean();
 
     const post = await TravelPost.create({
-      ...req.body,
-      authorId: userId,
-      authorName: req.body.authorName ?? 'Traveller',
-      joinedBy: [userId],
+      communityId,
+      userId,
+      userName: author?.name ?? 'مسافر',
+      userAvatar: author?.avatar,
+      placeName,
+      placeId,
+      date,
+      maxGroupSize: maxGroupSize ?? 4,
+      description,
+      interests: interests ?? [],
+      members: [userId], // creator auto-joins
     });
-    return res.status(201).json({ success: true, data: post });
-  } catch (error) {
-    console.error('❌ createTravelPost error:', error);
-    return res.status(500).json({ success: false, error: 'Server Error' });
+    res.status(201).json(post);
+  } catch (err) {
+    res.status(500).json({ message: 'Server error' });
   }
 };
 
-/** POST /api/v1/travel-posts/:postId/join */
+// POST /api/travel-posts/:id/join
 export const joinTravelPost = async (req: AuthRequest, res: Response) => {
   try {
-    const userId = req.user?.userId;
-    if (!userId) return res.status(401).json({ success: false, error: 'Authentication required' });
+    const userId = req.user!.userId;
+    const post = await TravelPost.findById(req.params.id);
+    if (!post) return res.status(404).json({ message: 'Post not found' });
+    if (post.members.includes(userId)) return res.status(409).json({ message: 'Already joined' });
+    if (post.members.length >= post.maxGroupSize)
+      return res.status(400).json({ message: 'Group is full' });
 
-    const post = await TravelPost.findById(req.params.postId);
-    if (!post) return res.status(404).json({ success: false, error: 'Post not found' });
-
-    const joined = post.joinedBy.map(String);
-    const alreadyJoined = joined.includes(String(userId));
-
-    if (alreadyJoined) {
-      post.joinedBy = post.joinedBy.filter((id) => String(id) !== String(userId)) as any;
-    } else {
-      if (post.joinedBy.length >= post.maxSize) {
-        return res.status(400).json({ success: false, error: 'Group is full' });
-      }
-      post.joinedBy.push(userId as any);
-    }
-
+    post.members.push(userId);
     await post.save();
-
-    // Notify post author when someone new joins (skip if author joins their own post)
-    if (!alreadyJoined && post.authorId && post.authorId.toString() !== userId) {
-      const payload = { postId: post._id, placeName: post.placeName, joinerId: userId };
-      await Notification.create({ userId: post.authorId, type: 'new_joiner', payload, read: false });
-      const io = (req as any).app?.get('io');
-      if (io) io.to(`user:${post.authorId.toString()}`).emit('notification', { type: 'new_joiner', payload });
-    }
-
-    return res.status(200).json({ success: true, data: post, joined: !alreadyJoined });
-  } catch (error) {
-    console.error('❌ joinTravelPost error:', error);
-    return res.status(500).json({ success: false, error: 'Server Error' });
+    res.json(post);
+  } catch (err) {
+    res.status(500).json({ message: 'Server error' });
   }
 };

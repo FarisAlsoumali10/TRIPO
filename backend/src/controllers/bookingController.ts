@@ -41,6 +41,7 @@ export const getMyBookings = async (req: AuthRequest, res: Response) => {
             departureLocation: tour?.departureLocation || '',
             duration: tour?.totalDuration || 0,
             bookedAt: new Date(b.createdAt).getTime(),
+            rating: b.rating,
           };
         }
 
@@ -52,7 +53,7 @@ export const getMyBookings = async (req: AuthRequest, res: Response) => {
             id: b._id,
             tourId: String(b.targetId),
             tourTitle: rental?.title || details.rentalTitle || 'Rental',
-            tourImage: rental?.images?.[0] || (rental as any)?.image || '',
+            tourImage: rental?.images?.[0] || rental?.image || '',
             guideName: rental?.locationName || '',
             date: details.date || '',
             guests: details.nightsOrHours || 1,
@@ -63,6 +64,7 @@ export const getMyBookings = async (req: AuthRequest, res: Response) => {
             departureLocation: rental?.locationName || '',
             duration: details.nightsOrHours || 1,
             bookedAt: new Date(b.createdAt).getTime(),
+            rating: b.rating,
           };
         }
 
@@ -122,16 +124,16 @@ export const cancelMyBooking = async (req: AuthRequest, res: Response) => {
         if (booking.targetType === 'tour') {
           const tour = await Tour.findById(booking.targetId).select('ownerId commissionRate');
           if (tour?.ownerId) {
-            const fee = (tour as any).commissionRate ?? PLATFORM_FEE_RATE;
+            const fee = tour.commissionRate ?? PLATFORM_FEE_RATE;
             await User.findByIdAndUpdate(tour.ownerId, {
               $inc: { walletBalance: -(amountInSAR * (1 - fee)) },
             });
           }
         } else if (booking.targetType === 'rental') {
           const rental = await Rental.findById(booking.targetId).select('hostId commissionRate');
-          if ((rental as any)?.hostId) {
-            const fee = (rental as any).commissionRate ?? PLATFORM_FEE_RATE;
-            await User.findByIdAndUpdate((rental as any).hostId, {
+          if (rental?.hostId) {
+            const fee = rental.commissionRate ?? PLATFORM_FEE_RATE;
+            await User.findByIdAndUpdate(rental.hostId, {
               $inc: { walletBalance: -(amountInSAR * (1 - fee)) },
             });
           }
@@ -149,16 +151,16 @@ export const cancelMyBooking = async (req: AuthRequest, res: Response) => {
     if (booking.targetType === 'tour') {
       const tour = await Tour.findById(booking.targetId).select('ownerId title');
       if (tour?.ownerId && tour.ownerId.toString() !== userId) {
-        const payload = { bookingId: booking._id, tourTitle: (tour as any).title, guestId: userId };
+        const payload = { bookingId: booking._id, tourTitle: tour.title, guestId: userId };
         await Notification.create({ userId: tour.ownerId, type: 'booking_cancelled', payload, read: false });
         if (io) io.to(`user:${tour.ownerId.toString()}`).emit('notification', { type: 'booking_cancelled', payload });
       }
     } else if (booking.targetType === 'rental') {
       const rental = await Rental.findById(booking.targetId).select('hostId title');
-      if ((rental as any)?.hostId) {
-        const payload = { bookingId: booking._id, rentalTitle: rental?.title, guestId: userId };
-        await Notification.create({ userId: (rental as any).hostId, type: 'booking_cancelled', payload, read: false });
-        if (io) io.to(`user:${(rental as any).hostId.toString()}`).emit('notification', { type: 'booking_cancelled', payload });
+      if (rental?.hostId) {
+        const payload = { bookingId: booking._id, rentalTitle: rental.title, guestId: userId };
+        await Notification.create({ userId: rental.hostId, type: 'booking_cancelled', payload, read: false });
+        if (io) io.to(`user:${rental.hostId.toString()}`).emit('notification', { type: 'booking_cancelled', payload });
       }
     }
 
@@ -166,5 +168,27 @@ export const cancelMyBooking = async (req: AuthRequest, res: Response) => {
   } catch (error: any) {
     console.error('❌ cancelMyBooking error:', error);
     res.status(500).json({ error: 'Failed to cancel booking' });
+  }
+};
+
+export const rateBooking = async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user?.userId;
+    const { rating } = req.body;
+
+    if (!rating || rating < 1 || rating > 5) {
+      return res.status(400).json({ error: 'Rating must be between 1 and 5' });
+    }
+
+    const booking = await Booking.findOne({ _id: req.params.id, userId });
+    if (!booking) return res.status(404).json({ error: 'Booking not found' });
+
+    booking.rating = rating;
+    await booking.save();
+
+    res.json({ success: true, rating: booking.rating });
+  } catch (error: any) {
+    console.error('❌ rateBooking error:', error);
+    res.status(500).json({ error: 'Failed to save rating' });
   }
 };

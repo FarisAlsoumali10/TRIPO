@@ -137,12 +137,12 @@ export const MyTripsScreen = ({ currentUser, onOpenTrip, lang }: Props) => {
   const lightboxNext = () => setLightboxIdx(i => i !== null ? (i + 1) % allSlides.length : null);
 
   return (
-    <div className="flex flex-col h-full bg-slate-50/50">
+    <div className="flex flex-col h-full bg-slate-50/50 dark:bg-navy-950 transition-colors duration-300">
       {/* Header - Sticky with Backdrop Blur */}
-      <div className="sticky top-0 z-20 bg-white/80 backdrop-blur-xl border-b border-slate-200/60 px-6 py-4 flex items-center justify-between">
+      <div className="sticky top-0 z-20 bg-white/80 dark:bg-navy-900/80 backdrop-blur-xl border-b border-slate-200/60 dark:border-white/10 px-6 py-4 flex items-center justify-between transition-colors">
         <div>
-          <h1 className="text-xl font-black text-slate-900 tracking-tight">{ar ? 'رحلاتي الخاصة' : 'Private Trips'}</h1>
-          <p className="text-xs font-medium text-slate-500 mt-0.5">{ar ? 'خطط وقسّم المصاريف مع أصدقائك' : 'Plan and split expenses with friends'}</p>
+          <h1 className="text-xl font-black text-slate-900 dark:text-white tracking-tight">{ar ? 'رحلاتي الخاصة' : 'Private Trips'}</h1>
+          <p className="text-xs font-medium text-slate-500 dark:text-slate-400 mt-0.5">{ar ? 'خطط وقسّم المصاريف مع أصدقائك' : 'Plan and split expenses with friends'}</p>
         </div>
         <button
           onClick={() => setShowCreate(true)}
@@ -155,7 +155,7 @@ export const MyTripsScreen = ({ currentUser, onOpenTrip, lang }: Props) => {
 
       {/* Memory Slideshow */}
       {!isLoading && allSlides.length > 0 && (
-        <div className="relative h-56 mx-4 mt-4 rounded-3xl overflow-hidden shadow-sm border border-slate-200/60 group">
+        <div className="relative h-56 mx-4 mt-4 rounded-3xl overflow-hidden shadow-sm border border-slate-200/60 dark:border-white/10 group">
           {allSlides.map((slide, i) => (
             <button
               key={slide.photo.id}
@@ -201,30 +201,30 @@ export const MyTripsScreen = ({ currentUser, onOpenTrip, lang }: Props) => {
         {isLoading ? (
           <div className="space-y-3">
             {[1, 2, 3].map(i => (
-              <div key={i} className="w-full bg-white rounded-3xl border border-slate-100 p-4 flex items-center gap-4">
-                <div className="w-14 h-14 bg-slate-100 animate-pulse rounded-2xl shrink-0" />
+              <div key={i} className="w-full bg-white dark:bg-navy-900 rounded-3xl border border-slate-100 dark:border-white/5 p-4 flex items-center gap-4">
+                <div className="w-14 h-14 bg-slate-100 dark:bg-navy-800 animate-pulse rounded-2xl shrink-0" />
                 <div className="flex-1 space-y-2">
-                  <div className="h-4 bg-slate-100 animate-pulse rounded-md w-1/3" />
-                  <div className="h-3 bg-slate-100 animate-pulse rounded-md w-1/2" />
+                  <div className="h-4 bg-slate-100 dark:bg-navy-800 animate-pulse rounded-md w-1/3" />
+                  <div className="h-3 bg-slate-100 dark:bg-navy-800 animate-pulse rounded-md w-1/2" />
                 </div>
               </div>
             ))}
           </div>
         ) : trips.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-24 text-center px-4">
-            <div className="w-20 h-20 bg-emerald-50 rounded-3xl flex items-center justify-center mb-5 rotate-3 shadow-inner">
-              <Lock className="w-8 h-8 text-emerald-500 -rotate-3" />
+          <div className="flex flex-col items-center justify-center py-20 text-center px-4">
+            <div className="w-24 h-24 bg-emerald-50 dark:bg-emerald-900/20 rounded-[40px] flex items-center justify-center mb-6 rotate-6 shadow-sm border border-emerald-100/50 dark:border-emerald-800/30">
+              <Lock className="w-10 h-10 text-emerald-500 dark:text-emerald-400 -rotate-6" />
             </div>
-            <h3 className="font-black text-slate-900 text-lg mb-2">{ar ? 'لا توجد رحلات خاصة بعد' : 'No private trips yet'}</h3>
-            <p className="text-slate-500 text-sm max-w-[260px] leading-relaxed mb-8">
-              {ar ? 'أنشئ رحلة خاصة لتنظيم المسارات والدردشة وتقسيم المصاريف مع أصدقائك.' : 'Create an invite-only trip to organize itineraries, chat, and split expenses securely with friends.'}
+            <h3 className="font-black text-slate-900 dark:text-white text-xl mb-2">{ar ? 'لا توجد رحلات خاصة بعد' : 'No private trips yet'}</h3>
+            <p className="text-slate-500 dark:text-slate-400 text-sm max-w-[280px] leading-relaxed mb-10">
+              {ar ? 'أنشئ رحلة خاصة لتنظيم المسارات والدردشة وتقسيم المصاريف مع أصدقائك في مكان واحد آمن.' : 'Create an invite-only trip to organize itineraries, chat, and split expenses securely with friends.'}
             </p>
             <button
               onClick={() => setShowCreate(true)}
-              className="flex items-center gap-2 bg-slate-900 hover:bg-slate-800 text-white px-6 py-3.5 rounded-2xl text-sm font-bold transition-all active:scale-95"
+              className="flex items-center gap-3 bg-emerald-600 hover:bg-emerald-700 text-white px-8 py-4 rounded-2xl text-sm font-black transition-all active:scale-95 shadow-lg shadow-emerald-600/20"
             >
-              <Plus className="w-4 h-4" />
-              {ar ? 'إنشاء أول رحلة' : 'Create First Trip'}
+              <Plus className="w-5 h-5" />
+              {ar ? 'ابدأ رحلتك الأولى' : 'Start Your First Trip'}
             </button>
           </div>
         ) : (
@@ -233,15 +233,15 @@ export const MyTripsScreen = ({ currentUser, onOpenTrip, lang }: Props) => {
               <button
                 key={trip.id}
                 onClick={() => onOpenTrip(trip)}
-                className="group w-full bg-white rounded-3xl border border-slate-200/60 shadow-sm p-4 flex items-center gap-4 text-left hover:border-emerald-500/30 hover:shadow-md hover:shadow-emerald-500/5 transition-all"
+                className="group w-full bg-white dark:bg-navy-900 rounded-3xl border border-slate-200/60 dark:border-white/5 shadow-sm p-4 flex items-center gap-4 text-left hover:border-emerald-500/30 dark:hover:border-emerald-500/30 hover:shadow-md hover:shadow-emerald-500/5 transition-all"
               >
-                <div className="w-14 h-14 bg-slate-50 rounded-2xl flex items-center justify-center shrink-0 group-hover:bg-emerald-50 transition-colors">
-                  <Lock className="w-6 h-6 text-slate-400 group-hover:text-emerald-600 transition-colors" />
+                <div className="w-14 h-14 bg-slate-50 dark:bg-navy-800 rounded-2xl flex items-center justify-center shrink-0 group-hover:bg-emerald-50 dark:group-hover:bg-emerald-900/20 transition-colors">
+                  <Lock className="w-6 h-6 text-slate-400 dark:text-slate-500 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors" />
                 </div>
 
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between mb-1.5">
-                    <h3 className="font-bold text-slate-900 text-base truncate pr-2 group-hover:text-emerald-700 transition-colors">
+                    <h3 className="font-bold text-slate-900 dark:text-white text-base truncate pr-2 group-hover:text-emerald-700 dark:group-hover:text-emerald-400 transition-colors">
                       {trip.title}
                     </h3>
                   </div>
@@ -249,7 +249,7 @@ export const MyTripsScreen = ({ currentUser, onOpenTrip, lang }: Props) => {
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2 flex-wrap text-xs font-medium">
                       {(trip.startDate || trip.endDate) && (
-                        <span className="flex items-center gap-1.5 bg-slate-50 text-slate-500 px-2 py-1 rounded-lg">
+                        <span className="flex items-center gap-1.5 bg-slate-50 dark:bg-navy-800 text-slate-500 dark:text-slate-400 px-2 py-1 rounded-lg">
                           <Calendar className="w-3.5 h-3.5" />
                           {formatDate(trip.startDate)}
                           {trip.endDate && trip.endDate !== trip.startDate && ` – ${formatDate(trip.endDate)}`}
@@ -267,7 +267,7 @@ export const MyTripsScreen = ({ currentUser, onOpenTrip, lang }: Props) => {
                           <img
                             key={m.id}
                             src={m.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${m.id}`}
-                            className="w-7 h-7 rounded-full border-2 border-white bg-slate-100 object-cover"
+                            className="w-7 h-7 rounded-full border-2 border-white dark:border-navy-900 bg-slate-100 dark:bg-navy-800 object-cover"
                             alt={m.name}
                           />
                         ))}

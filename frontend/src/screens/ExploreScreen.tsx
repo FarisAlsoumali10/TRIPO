@@ -7,37 +7,59 @@ import {
   Percent, Tag, Bookmark, Info, LayoutGrid, ChevronRight,
 } from 'lucide-react';
 import { Place } from '../types/index';
-import L from 'leaflet';
-import 'leaflet/dist/leaflet.css';
 import { PlaceDetailModal } from '../components/PlaceDetailModal';
 import { placeAPI } from '../services/api';
 import { showToast } from '../components/Toast';
-import { Skeleton } from '../components/ui';
+import { Skeleton, SafeImage } from '../components/ui';
 
 import { addPlaceToList } from './PersonalListsScreen';
 
-// ── Category config ────────────────────────────────────────────────────────
-const CATEGORIES = [
-  { id: '', label: 'الكل', emoji: '🗺️', color: '#0f172a' },
-  { id: 'nature', label: 'طبيعة', emoji: '🌿', color: '#10b981' },
-  { id: 'sports', label: 'رياضة', emoji: '⚽', color: '#3b82f6' },
-  { id: 'restaurant', label: 'مطاعم', emoji: '🍽️', color: '#f97316' },
-  { id: 'cafe', label: 'كافيهات', emoji: '☕', color: '#92400e' },
-  { id: 'park', label: 'حدائق', emoji: '🌳', color: '#22c55e' },
-  { id: 'beach', label: 'شواطئ', emoji: '🏖️', color: '#0ea5e9' },
-  { id: 'food_truck', label: 'فود ترك', emoji: '🚚', color: '#f59e0b' },
-  { id: 'tours', label: 'جولات ورحلات', emoji: '🧭', color: '#8b5cf6' },
-  { id: 'heritage', label: 'تراث', emoji: '🏛️', color: '#d97706' },
-  { id: 'shopping', label: 'تسوق', emoji: '🛍️', color: '#ec4899' },
-  { id: 'chalet', label: 'شاليهات', emoji: '🏕️', color: '#64748b' },
+const TripMap = React.lazy(() => import('../components/TripMap'));
+
+const getCategories = (isRTL: boolean) => [
+  { id: '',           label: isRTL ? 'الكل'        : 'All',           emoji: '🌍', color: '#1a1a1a' },
+  { id: 'nature',     label: isRTL ? 'طبيعة'       : 'Nature',        emoji: '🌿', color: '#10b981' },
+  { id: 'sports',     label: isRTL ? 'رياضة'       : 'Sports',        emoji: '⚽', color: '#3b82f6' },
+  { id: 'restaurant', label: isRTL ? 'مطاعم'       : 'Restaurants',   emoji: '🍽️', color: '#f97316' },
+  { id: 'cafe',       label: isRTL ? 'مقاهي'       : 'Cafés',         emoji: '☕', color: '#92400e' },
+  { id: 'park',       label: isRTL ? 'حدائق'       : 'Parks',         emoji: '🌳', color: '#22c55e' },
+  { id: 'beach',      label: isRTL ? 'شواطئ'       : 'Beaches',       emoji: '🏖️', color: '#0ea5e9' },
+  { id: 'heritage',   label: isRTL ? 'تراث'        : 'Heritage',      emoji: '🏛️', color: '#d97706' },
+  { id: 'tours',      label: isRTL ? 'جولات'       : 'Tours',         emoji: '🧭', color: '#8b5cf6' },
+  { id: 'shopping',   label: isRTL ? 'تسوق'        : 'Shopping',      emoji: '🛍️', color: '#ec4899' },
+  { id: 'chalet',     label: isRTL ? 'شاليهات'     : 'Chalets',       emoji: '🏕️', color: '#64748b' },
+  { id: 'food_truck', label: isRTL ? 'فود ترك'     : 'Food Trucks',   emoji: '🚚', color: '#f59e0b' },
 ];
 
-const CAT_COLOR: Record<string, string> = Object.fromEntries(
-  CATEGORIES.filter(c => c.id).map(c => [c.id, c.color])
-);
-const CAT_EMOJI: Record<string, string> = Object.fromEntries(
-  CATEGORIES.filter(c => c.id).map(c => [c.id, c.emoji])
-);
+const CAT_COLOR: Record<string, string> = {
+  '': '#1a1a1a',
+  'nature': '#10b981',
+  'sports': '#3b82f6',
+  'restaurant': '#f97316',
+  'cafe': '#92400e',
+  'park': '#22c55e',
+  'beach': '#0ea5e9',
+  'heritage': '#d97706',
+  'tours': '#8b5cf6',
+  'shopping': '#ec4899',
+  'chalet': '#64748b',
+  'food_truck': '#f59e0b',
+};
+
+const CAT_EMOJI: Record<string, string> = {
+  '': '🌍',
+  'nature': '🌿',
+  'sports': '⚽',
+  'restaurant': '🍽️',
+  'cafe': '☕',
+  'park': '🌳',
+  'beach': '🏖️',
+  'heritage': '🏛️',
+  'tours': '🧭',
+  'shopping': '🛍️',
+  'chalet': '🏕️',
+  'food_truck': '🚚',
+};
 
 function getCategoryId(place: Place): string {
   const tags = (place.categoryTags || []).map(t => t.toLowerCase());
@@ -51,19 +73,6 @@ function getCategoryId(place: Place): string {
   return '';
 }
 
-// ── Helpers ─────────────────────────────────────────────────────────────
-function makeIcon(color: string, emoji: string, isSelected: boolean): L.DivIcon {
-  const size = isSelected ? 42 : 34;
-  const ring = isSelected ? `box-shadow:0 0 0 4px ${color}40;` : '';
-  return L.divIcon({
-    className: '',
-    iconAnchor: [size / 2, size],
-    html: `<div style="width:${size}px;height:${size}px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);background:${color};border:2px solid #fff;${ring}box-shadow:0 2px 8px rgba(0,0,0,0.3);display:flex;align-items:center;justify-content:center;">
-      <span style="transform:rotate(45deg);font-size:${isSelected ? 18 : 14}px;display:block;line-height:1;">${emoji}</span>
-    </div>`,
-  });
-}
-
 function distKm(lat1: number, lng1: number, lat2: number, lng2: number) {
   const R = 6371;
   const dLat = (lat2 - lat1) * Math.PI / 180;
@@ -73,21 +82,214 @@ function distKm(lat1: number, lng1: number, lat2: number, lng2: number) {
 }
 
 const ACCESS_CONFIG = {
-  free: { label: 'مجاني', color: 'bg-emerald-100 text-emerald-700' },
-  ticketed: { label: 'بتذكرة', color: 'bg-blue-100 text-blue-700' },
-  entry_fee: { label: 'رسوم دخول', color: 'bg-amber-100 text-amber-700' },
+  free:      { label: 'مجاني',     color: 'bg-oasis-spring/15 text-oasis-spring border border-oasis-spring/20' },
+  ticketed:  { label: 'بتذكرة',  color: 'bg-blue-500/15 text-blue-300 border border-blue-500/20' },
+  entry_fee: { label: 'رسوم دخول', color: 'bg-karam/15 text-karam border border-karam/20' },
 };
 
 const PRICE_LABEL = ['', 'مجاني', 'اقتصادي', 'متوسط', 'فاخر'];
-const PRICE_COLOR = ['', 'text-emerald-600', 'text-teal-600', 'text-amber-600', 'text-red-500'];
+const PRICE_COLOR = ['', 'text-oasis-spring', 'text-oasis-deep', 'text-karam', 'text-waypoint'];
+
+const PlaceCard = ({
+  place,
+  compact = false,
+  isRTL,
+  savedIds,
+  handleSaveToggle,
+  showListMenu,
+  setShowListMenu,
+  userPos,
+  selectedItem,
+  setSelectedItem,
+  viewMode,
+  setShowBottomSheet,
+  handleAddToList
+}: {
+  place: Place;
+  compact?: boolean;
+  isRTL: boolean;
+  savedIds: Set<string>;
+  handleSaveToggle: (e: React.MouseEvent, id: string) => void;
+  showListMenu: string | null;
+  setShowListMenu: React.Dispatch<React.SetStateAction<string | null>>;
+  userPos: { lat: number; lng: number } | null;
+  selectedItem: Place | null;
+  setSelectedItem: React.Dispatch<React.SetStateAction<Place | null>>;
+  viewMode: string;
+  setShowBottomSheet: React.Dispatch<React.SetStateAction<boolean>>;
+  handleAddToList: (e: React.MouseEvent, place: Place, listId: import('../types/index').PersonalListType) => void;
+  key?: React.Key;
+}) => {
+  const id = place._id || place.id || '';
+  const img = place.photos?.[0] || place.image;
+  const rating = place.ratingSummary?.avgRating ?? place.rating;
+  const price = place.priceRange;
+  const isSaved = savedIds.has(id);
+  const tags = (place.categoryTags || []).map(t => t.toLowerCase());
+  const cat = (place.category || '').toLowerCase();
+  const all = [...tags, cat];
+  let catId = '';
+  for (const c of ['nature', 'sports', 'restaurant', 'cafe', 'park', 'beach', 'heritage', 'tours', 'shopping', 'chalet', 'food_truck']) {
+    if (all.some(t => t.includes(c) || c.includes(t))) { catId = c; break; }
+  }
+  const catEmoji = CAT_EMOJI[catId] || '📍';
+  const accessCfg = place.accessType ? ACCESS_CONFIG[place.accessType as keyof typeof ACCESS_CONFIG] : null;
+  const isListMenuOpen = showListMenu === id;
+
+  const distKm = (lat1: number, lng1: number, lat2: number, lng2: number) => {
+    const R = 6371;
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLng = (lng2 - lng1) * Math.PI / 180;
+    const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLng / 2) ** 2;
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  };
+
+  const inProximity = userPos && place.coordinates
+    ? distKm(userPos.lat, userPos.lng, place.coordinates.lat, place.coordinates.lng)
+    : null;
+
+  const pName = isRTL && (place as any).nameAr ? (place as any).nameAr : place.name;
+  const pCity = isRTL && (place as any).cityAr ? (place as any).cityAr : place.city;
+
+  return (
+    <div
+      id={`place-card-${id}`}
+      onClick={() => {
+        setSelectedItem(place);
+        if (viewMode === 'map') setShowBottomSheet(true);
+      }}
+      className={`bg-slate-50 dark:bg-chamber rounded-[1.75rem] border border-slate-100 dark:border-white/10 shadow-lg overflow-hidden cursor-pointer active:scale-[0.98] transition-all ${(selectedItem?._id === id || selectedItem?.id === id) ? 'ring-2 ring-oasis-spring' : ''} ${compact ? 'flex gap-3 p-3' : ''}`}
+    >
+      {compact ? (
+        <>
+          <div className="relative w-20 h-20 shrink-0">
+            <SafeImage
+              src={img}
+              className="w-full h-full rounded-2xl object-cover"
+              alt={pName}
+              fallbackType="placeholder"
+              seed={pName}
+            />
+          </div>
+          <div className="flex-1 min-w-0 flex flex-col justify-center">
+            <div className="flex items-start justify-between gap-2">
+              <p className="font-black text-slate-900 dark:text-white text-sm truncate uppercase tracking-tight">{pName}</p>
+              <button onClick={e => handleSaveToggle(e, id)} className="p-1">
+                <Heart className={`w-4 h-4 ${isSaved ? 'fill-rose-500 text-rose-500' : 'text-slate-300 dark:text-moon/20'}`} />
+              </button>
+            </div>
+            <p className="text-[10px] text-slate-500 dark:text-moon/60 font-bold uppercase tracking-widest mt-0.5">{pCity}</p>
+            <div className="flex items-center gap-2 mt-2 flex-wrap">
+              {rating !== undefined && <span className="flex items-center gap-1 text-[10px] font-black text-amber-500"><Star className="w-2.5 h-2.5 fill-amber-500" />{rating.toFixed(1)}</span>}
+              {price !== undefined && price > 0 && <span className={`text-[10px] font-black ${PRICE_COLOR[price]}`}>{PRICE_LABEL[price]}</span>}
+              {inProximity !== null && inProximity < 50 && <span className="text-[10px] text-blue-400 font-black tracking-tighter">📍 {inProximity.toFixed(1)} KM</span>}
+            </div>
+          </div>
+        </>
+      ) : (
+        <>
+          <div className="relative h-44">
+            <SafeImage
+              src={img}
+              className="w-full h-full object-cover"
+              alt={place.name}
+              fallbackType="placeholder"
+              seed={place.name}
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-white/80 dark:from-midnight/80 via-transparent to-transparent" />
+
+            <div className="absolute top-3 start-3 flex flex-col gap-1.5">
+              {place.isTrending && (
+                <span className="text-[9px] bg-red-500/80 backdrop-blur-md text-white px-2 py-1 rounded-lg font-black uppercase tracking-widest shadow-lg">🔥 RATING</span>
+              )}
+              {place.isFamilySuitable && (
+                <span className="text-[9px] bg-oasis-spring/80 backdrop-blur-md text-midnight px-2 py-1 rounded-lg font-black uppercase tracking-widest shadow-lg">👨‍👩‍👧 FAMILY</span>
+              )}
+            </div>
+
+            <div className="absolute top-3 end-3 flex flex-col gap-2">
+              <button onClick={e => handleSaveToggle(e, id)} className="w-9 h-9 bg-white/60 dark:bg-midnight/60 backdrop-blur-md border border-slate-200/20 dark:border-white/10 rounded-xl flex items-center justify-center active:scale-90 transition-transform">
+                <Heart className={`w-4 h-4 ${isSaved ? 'fill-rose-500 text-rose-500' : 'text-slate-600 dark:text-white/60'}`} />
+              </button>
+              <button
+                onClick={e => { e.stopPropagation(); setShowListMenu(prev => prev === id ? null : id); }}
+                className="w-9 h-9 bg-white/60 dark:bg-midnight/60 backdrop-blur-md border border-slate-200/20 dark:border-white/10 rounded-xl flex items-center justify-center active:scale-90 transition-transform"
+              >
+                <Bookmark className="w-4 h-4 text-slate-600 dark:text-white/60" />
+              </button>
+            </div>
+
+            <div className="absolute bottom-3 start-3 flex items-center gap-1.5 bg-white/60 dark:bg-midnight/60 backdrop-blur-md border border-slate-200/20 dark:border-white/10 px-2.5 py-1 rounded-xl">
+              <Star className="w-3 h-3 fill-amber-500 text-amber-500" />
+              <span className="text-slate-900 dark:text-white text-[10px] font-black">{rating?.toFixed(1) || '0.0'}</span>
+            </div>
+          </div>
+
+          <div className="p-4 bg-slate-50 dark:bg-chamber">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex-1 min-w-0">
+                <p className="font-black text-slate-900 dark:text-white text-base uppercase tracking-tighter truncate">{pName}</p>
+                <p className="text-[10px] text-slate-400 dark:text-moon/50 font-bold uppercase tracking-[0.2em] mt-1">{pCity}</p>
+              </div>
+              <div className="flex flex-col items-end gap-1 shrink-0">
+                {price !== undefined && price > 0 && <span className={`text-[10px] font-black ${PRICE_COLOR[price]} uppercase tracking-widest`}>{PRICE_LABEL[price]}</span>}
+                {accessCfg && <span className={`text-[9px] font-black px-2 py-1 rounded-lg ${accessCfg.color} uppercase tracking-widest`}>{accessCfg.label}</span>}
+              </div>
+            </div>
+
+            <div className="flex gap-2 mt-4 flex-wrap">
+              {inProximity !== null && inProximity < 20 && (
+                <span className="text-[10px] bg-blue-500/10 text-blue-500 dark:text-blue-400 px-2 py-1 rounded-lg font-black border border-blue-500/20 uppercase tracking-tighter">📍 {inProximity.toFixed(1)} KM</span>
+              )}
+              {(place.categoryTags || []).slice(0, 3).map(tag => (
+                <span key={tag} className="text-[9px] bg-slate-100 dark:bg-lifted text-slate-500 dark:text-moon/60 px-2 py-1 rounded-lg font-black border border-slate-200/10 dark:border-white/5 uppercase tracking-widest">{tag}</span>
+              ))}
+            </div>
+          </div>
+
+          {isListMenuOpen && (
+            <div className="absolute inset-0 bg-white/90 dark:bg-midnight/90 backdrop-blur-md rounded-2xl flex flex-col items-center justify-center gap-3 p-6 z-10" onClick={e => e.stopPropagation()}>
+              <p className="text-slate-900 dark:text-white text-sm font-black uppercase tracking-[0.2em] mb-2">{isRTL ? 'إضافة إلى القائمة' : 'Add to List'}</p>
+              {[
+                { id: 'want_to_go' as const, label: isRTL ? 'أريد الذهاب' : 'Want to Go', emoji: '🔖' },
+                { id: 'been_there' as const, label: isRTL ? 'زرته' : 'Been There', emoji: '✅' },
+                { id: 'going_again' as const, label: isRTL ? 'سأعود' : 'Going Again', emoji: '🔁' },
+                { id: 'avoid' as const, label: isRTL ? 'تجنّب' : 'Avoid', emoji: '🚫' },
+              ].map(l => (
+                <button
+                  key={l.id}
+                  onClick={e => handleAddToList(e, place, l.id)}
+                  className="w-full py-3 bg-slate-50/50 dark:bg-lifted/50 hover:bg-slate-100 dark:hover:bg-lifted text-slate-900 dark:text-white text-xs font-black rounded-2xl border border-slate-200 dark:border-white/10 flex items-center justify-center gap-3 transition-all"
+                >
+                  <span className="text-lg">{l.emoji}</span> {l.label.toUpperCase()}
+                </button>
+              ))}
+              <button onClick={e => { e.stopPropagation(); setShowListMenu(null); }} className="mt-2 text-slate-400 dark:text-moon/40 text-[10px] font-black uppercase tracking-widest hover:text-slate-900 dark:hover:text-white transition-colors">CANCEL</button>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+};
 
 // ── Main Component ────────────────────────────────────────────────────────
-export const ExploreScreen = ({ t, onOpenPlace, initialNearMe = false, onNearMeHandled }: {
+export const ExploreScreen = ({ t, onOpenPlace, lang = 'en', initialNearMe = false, onNearMeHandled }: {
   t: any;
   onOpenPlace: (p: Place) => void;
+  lang?: 'en' | 'ar';
   initialNearMe?: boolean;
   onNearMeHandled?: () => void;
 }) => {
+  const isRTL = lang === 'ar';
+  const CATEGORIES = useMemo(() => getCategories(isRTL), [isRTL]);
+
+  const placeName = (p: Place) =>
+    isRTL && (p as any).nameAr ? (p as any).nameAr : p.name;
+
+  const placeCity = (p: Place) =>
+    isRTL && (p as any).cityAr ? (p as any).cityAr : p.city;
+
   const [places, setPlaces] = useState<Place[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedItem, setSelectedItem] = useState<Place | null>(null);
@@ -113,13 +315,8 @@ export const ExploreScreen = ({ t, onOpenPlace, initialNearMe = false, onNearMeH
   const [sortBy, setSortBy] = useState<'rating' | 'price_asc' | 'price_desc' | 'proximity'>('rating');
   const [filterGroupOffer, setFilterGroupOffer] = useState(false);
 
-  const mapContainerRef = useRef<HTMLDivElement>(null);
-  const mapInstanceRef = useRef<L.Map | null>(null);
-  const markersLayerRef = useRef<L.LayerGroup | null>(null);
-  const markersRef = useRef<Record<string, L.Marker>>({});
   const listRef = useRef<HTMLDivElement>(null);
 
-  // 1. Unified Async Load (No localStorage)
   useEffect(() => {
     let isMounted = true;
     const fetchRealData = async () => {
@@ -153,12 +350,11 @@ export const ExploreScreen = ({ t, onOpenPlace, initialNearMe = false, onNearMeH
     return () => { isMounted = false; };
   }, []);
 
-  // ── Open Now Check ──────────────────────────────────────────────────────
   function isOpenNow(p: Place): boolean | null {
     if (!p.openingHours) return null;
     const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
     const day = days[new Date().getDay()];
-    const h = p.openingHours[day];
+    const h = p.openingHours[day] || p.openingHours['everyday'];
     if (!h || h.closed) return false;
     const [oh, om] = h.open.split(':').map(Number);
     const [ch, cm] = h.close.split(':').map(Number);
@@ -168,18 +364,6 @@ export const ExploreScreen = ({ t, onOpenPlace, initialNearMe = false, onNearMeH
     return now >= open && now < close;
   }
 
-  // ── Seasonal active check ────────────────────────────────────────────────
-  function isSeasonallyActive(p: Place): boolean {
-    if (!p.seasonalDates?.openDate) return true;
-    const now = new Date();
-    const open = new Date(p.seasonalDates.openDate);
-    const close = p.seasonalDates.closeDate ? new Date(p.seasonalDates.closeDate) : null;
-    if (now < open) return false;
-    if (close && now > close) return false;
-    return true;
-  }
-
-  // ── Filters & Sorting ─────────────────────────────────────────────
   const filtered = useMemo(() => {
     let result = places.filter(p => {
       const catId = getCategoryId(p);
@@ -233,23 +417,6 @@ export const ExploreScreen = ({ t, onOpenPlace, initialNearMe = false, onNearMeH
     filterFamilyOnly, filterTrending, filterAccessType, filterFoodTruck, filterGender, filterGroupOffer,
     sortBy, userPos]);
 
-  const familyDeals = useMemo(() =>
-    filtered.filter(p => p.isFamilySuitable && (p.priceRange ?? 3) <= 2).slice(0, 3),
-    [filtered]);
-
-  const categoryThumbs = useMemo(() => {
-    const map: Record<string, string[]> = {};
-    for (const cat of CATEGORIES) {
-      if (!cat.id) continue;
-      const imgs = places
-        .filter(p => getCategoryId(p) === cat.id)
-        .map(p => p.photos?.[0] || p.image)
-        .filter(Boolean) as string[];
-      map[cat.id] = imgs.slice(0, 4);
-    }
-    return map;
-  }, [places]);
-
   const smartCounts = useMemo(() => ({
     open: places.filter(p => isOpenNow(p) === true).length,
     trending: places.filter(p => p.isTrending).length,
@@ -263,65 +430,6 @@ export const ExploreScreen = ({ t, onOpenPlace, initialNearMe = false, onNearMeH
       : null,
   }), [places, userPos]);
 
-  // ── Init Map ─────────────────────────────────────────────────────────────
-  useEffect(() => {
-    if (!mapContainerRef.current || mapInstanceRef.current || isLoading) return;
-
-    const map = L.map(mapContainerRef.current, { zoomControl: false, attributionControl: false })
-      .setView([24.7136, 46.6753], 12);
-
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', { maxZoom: 19 }).addTo(map);
-    L.control.zoom({ position: 'bottomright' }).addTo(map);
-
-    const layer = L.layerGroup().addTo(map);
-    markersLayerRef.current = layer;
-    mapInstanceRef.current = map;
-
-    map.on('dragstart', () => setShowBottomSheet(false));
-  }, [isLoading]);
-
-  // ── Update Markers ────────────────────────────────────────────────────────
-  useEffect(() => {
-    if (!markersLayerRef.current || !mapInstanceRef.current) return;
-
-    markersLayerRef.current.clearLayers();
-    markersRef.current = {};
-
-    filtered.forEach(p => {
-      const lat = p.coordinates?.lat ?? p.lat ?? 24.7136;
-      const lng = p.coordinates?.lng ?? p.lng ?? 46.6753;
-      const id = p._id || p.id || p.name;
-      const catId = getCategoryId(p);
-      const color = CAT_COLOR[catId] || '#0f172a';
-      const emoji = CAT_EMOJI[catId] || '📍';
-      const isSelected = selectedItem && (selectedItem._id || selectedItem.id) === id;
-
-      const marker = L.marker([lat, lng], { icon: makeIcon(color, emoji, !!isSelected) });
-      marker.addTo(markersLayerRef.current!);
-      marker.bindTooltip(p.name || 'Place', { direction: 'top', offset: [0, -36], className: 'leaflet-tooltip-custom' });
-      marker.on('click', () => {
-        setSelectedItem(p);
-        setShowBottomSheet(true);
-        mapInstanceRef.current?.panTo([lat, lng], { animate: true, duration: 0.4 });
-      });
-      if (id) markersRef.current[String(id)] = marker;
-    });
-  }, [filtered, selectedItem]);
-
-  // ── Scroll to List Item ──────────────────────────────────────────────
-  useEffect(() => {
-    if (!selectedItem || viewMode !== 'list') return;
-    const id = selectedItem._id || selectedItem.id;
-    if (!id) return;
-    document.getElementById(`place-card-${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-  }, [selectedItem, viewMode]);
-
-  useEffect(() => () => {
-    mapInstanceRef.current?.remove();
-    mapInstanceRef.current = null;
-    markersLayerRef.current = null;
-  }, []);
-
   const handleNearMe = (targetView: 'map' | 'list' = 'map') => {
     if (!navigator.geolocation) { showToast('الجهاز لا يدعم تحديد الموقع', 'error'); return; }
     setIsLocating(true);
@@ -330,12 +438,6 @@ export const ExploreScreen = ({ t, onOpenPlace, initialNearMe = false, onNearMeH
         setIsLocating(false);
         const { latitude: lat, longitude: lng } = pos.coords;
         setUserPos({ lat, lng });
-        if (targetView === 'map' && mapInstanceRef.current) {
-          mapInstanceRef.current.setView([lat, lng], 15);
-          L.circleMarker([lat, lng], {
-            radius: 10, fillColor: '#3b82f6', color: '#fff', weight: 3, fillOpacity: 1,
-          }).addTo(mapInstanceRef.current).bindTooltip('أنت هنا', { permanent: true });
-        }
         setSortBy('proximity');
         setViewMode(targetView);
       },
@@ -344,7 +446,6 @@ export const ExploreScreen = ({ t, onOpenPlace, initialNearMe = false, onNearMeH
     );
   };
 
-  // Trigger near-me on mount when coming from the homepage map
   useEffect(() => {
     if (!initialNearMe) return;
     onNearMeHandled?.();
@@ -352,12 +453,10 @@ export const ExploreScreen = ({ t, onOpenPlace, initialNearMe = false, onNearMeH
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // 2. Optimistic Favorite Sync
   const handleSaveToggle = async (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
     if (!id) return;
 
-    // Optimistic Update
     setSavedIds(prev => {
       const next = new Set(prev);
       if (next.has(id)) {
@@ -370,12 +469,10 @@ export const ExploreScreen = ({ t, onOpenPlace, initialNearMe = false, onNearMeH
       return next;
     });
 
-    // Background Sync
     try {
       await placeAPI.toggleSavedPlace(id);
     } catch (err) {
       showToast('حدث خطأ أثناء المزامنة', 'error');
-      // Revert if failed
       setSavedIds(prev => {
         const next = new Set(prev);
         next.has(id) ? next.delete(id) : next.add(id);
@@ -409,650 +506,295 @@ export const ExploreScreen = ({ t, onOpenPlace, initialNearMe = false, onNearMeH
     setFilterGender(''); setFilterGroupOffer(false); setSortBy('rating');
   };
 
-  // ── Place Card Subcomponent ────────────────────────────────────────────────
-  const PlaceCard = ({ place, compact = false }: { place: Place; compact?: boolean }) => {
-    const id = place._id || place.id || '';
-    const img = place.photos?.[0] || place.image;
-    const rating = place.ratingSummary?.avgRating ?? place.rating;
-    const price = place.priceRange;
-    const isSaved = savedIds.has(id);
-    const catId = getCategoryId(place);
-    const catColor = CAT_COLOR[catId] || '#0f172a';
-    const catEmoji = CAT_EMOJI[catId] || '📍';
-    const accessCfg = place.accessType ? ACCESS_CONFIG[place.accessType as keyof typeof ACCESS_CONFIG] : null;
-    const isListMenuOpen = showListMenu === id;
-    const inProximity = userPos && place.coordinates
-      ? distKm(userPos.lat, userPos.lng, place.coordinates.lat, place.coordinates.lng)
-      : null;
-
-    return (
-      <div
-        id={`place-card-${id}`}
-        onClick={() => {
-          setSelectedItem(place);
-          if (viewMode === 'map') {
-            setShowBottomSheet(true);
-            const lat = place.coordinates?.lat ?? place.lat ?? 24.7136;
-            const lng = place.coordinates?.lng ?? place.lng ?? 46.6753;
-            mapInstanceRef.current?.panTo([lat, lng], { animate: true });
-          }
-        }}
-        className={`bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden cursor-pointer active:scale-[0.98] transition-all ${(selectedItem?._id === id || selectedItem?.id === id) ? 'ring-2 ring-emerald-500' : ''} ${compact ? 'flex gap-3 p-3' : ''}`}
-      >
-        {compact ? (
-          <>
-            {img
-              ? <img src={img} loading="lazy" className="w-16 h-16 rounded-xl object-cover shrink-0" alt={place.name} />
-              : <div className="w-16 h-16 rounded-xl bg-slate-100 shrink-0 flex items-center justify-center text-2xl">{catEmoji}</div>
-            }
-            <div className="flex-1 min-w-0">
-              <div className="flex items-start gap-1">
-                <p className="font-black text-slate-900 text-sm truncate flex-1">{place.name}</p>
-                {place.isFoodTruck && <span className="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full font-black shrink-0">متجول</span>}
-                {place.isTrending && <span className="text-[10px] bg-red-100 text-red-600 px-1.5 py-0.5 rounded-full font-black shrink-0">🔥</span>}
-              </div>
-              <p className="text-[10px] text-slate-400 truncate mt-0.5">{place.city}</p>
-              <div className="flex items-center gap-2 mt-1 flex-wrap">
-                {rating !== undefined && <span className="flex items-center gap-0.5 text-[10px] font-bold text-amber-500"><Star className="w-2.5 h-2.5 fill-amber-400" />{rating.toFixed(1)}</span>}
-                {price !== undefined && price > 0 && <span className={`text-[10px] font-bold ${PRICE_COLOR[price]}`}>{PRICE_LABEL[price]}</span>}
-                {accessCfg && <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${accessCfg.color}`}>{accessCfg.label}</span>}
-                {place.isFamilySuitable && <span className="text-[9px] bg-emerald-50 text-emerald-600 px-1.5 py-0.5 rounded-full font-black">👨‍👩‍👧 عائلي</span>}
-                {inProximity !== null && inProximity < 50 && <span className="text-[9px] text-blue-500 font-bold">{inProximity.toFixed(1)} كم</span>}
-              </div>
-            </div>
-            <button onClick={e => handleSaveToggle(e, id)} className="shrink-0 p-1 active:scale-90 transition-transform">
-              <Heart className={`w-4 h-4 ${isSaved ? 'fill-rose-500 text-rose-500' : 'text-slate-300'}`} />
-            </button>
-          </>
-        ) : (
-          <>
-            <div className="relative h-36">
-              {img
-                ? <img src={img} loading="lazy" className="w-full h-full object-cover" alt={place.name} />
-                : <div className="w-full h-full flex items-center justify-center text-5xl" style={{ background: `${catColor}20` }}>{catEmoji}</div>
-              }
-              <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
-
-              {/* Badges top-left */}
-              <div className="absolute top-2 left-2 flex flex-col gap-1">
-                {place.isTrending && (
-                  <span className="text-[9px] bg-red-500 text-white px-1.5 py-0.5 rounded-full font-black drop-shadow-sm">🔥 رائج</span>
-                )}
-                {place.isFoodTruck && (
-                  <span className="text-[9px] bg-amber-500 text-white px-1.5 py-0.5 rounded-full font-black drop-shadow-sm">🚚 متجول</span>
-                )}
-                {place.partnerVenue && place.appDiscount && (
-                  <span className="text-[9px] bg-emerald-500 text-white px-1.5 py-0.5 rounded-full font-black drop-shadow-sm">
-                    <Percent className="w-2 h-2 inline" /> خصم {place.appDiscount}%
-                  </span>
-                )}
-                {place.groupOffer?.available && (
-                  <span className="text-[9px] bg-blue-500 text-white px-1.5 py-0.5 rounded-full font-black drop-shadow-sm">
-                    <Users className="w-2 h-2 inline" /> عرض جماعي
-                  </span>
-                )}
-              </div>
-
-              {/* Save + list buttons top-right */}
-              <div className="absolute top-2 right-2 flex flex-col gap-1">
-                <button onClick={e => handleSaveToggle(e, id)} className="w-7 h-7 bg-white/90 rounded-full flex items-center justify-center active:scale-90 transition-transform shadow-sm">
-                  <Heart className={`w-3.5 h-3.5 ${isSaved ? 'fill-rose-500 text-rose-500' : 'text-slate-400'}`} />
-                </button>
-                <button
-                  onClick={e => { e.stopPropagation(); setShowListMenu(prev => prev === id ? null : id); }}
-                  className="w-7 h-7 bg-white/90 rounded-full flex items-center justify-center active:scale-90 transition-transform shadow-sm"
-                >
-                  <Bookmark className="w-3.5 h-3.5 text-slate-400" />
-                </button>
-              </div>
-
-              {/* Rating */}
-              {rating !== undefined && (
-                <div className="absolute bottom-2 left-2 flex items-center gap-1 bg-black/60 px-2 py-0.5 rounded-full backdrop-blur-sm">
-                  <Star className="w-3 h-3 fill-amber-400 text-amber-400" />
-                  <span className="text-white text-[10px] font-black">{rating.toFixed(1)}</span>
-                </div>
-              )}
-
-              {/* Seasonal indicator */}
-              {place.seasonalDates && !isSeasonallyActive(place) && (
-                <div className="absolute bottom-2 right-2 bg-slate-700/80 px-2 py-0.5 rounded-full backdrop-blur-sm">
-                  <span className="text-white text-[9px] font-black">موسمي — مغلق</span>
-                </div>
-              )}
-            </div>
-
-            <div className="p-3 bg-white">
-              <div className="flex items-start justify-between gap-2">
-                <div className="flex-1 min-w-0">
-                  <p className="font-black text-slate-900 text-sm truncate">{place.name}</p>
-                  <p className="text-[10px] text-slate-400 mt-0.5 truncate">{place.city}</p>
-                </div>
-                <div className="flex flex-col items-end gap-1 shrink-0">
-                  {price !== undefined && price > 0 && <span className={`text-[10px] font-bold ${PRICE_COLOR[price]}`}>{PRICE_LABEL[price]}</span>}
-                  {accessCfg && <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${accessCfg.color}`}>{accessCfg.label}</span>}
-                </div>
-              </div>
-
-              {/* Seasonal date range */}
-              {place.seasonalDates?.openDate && (
-                <p className="text-[9px] text-orange-500 font-bold mt-1">
-                  📅 مفتوح: {place.seasonalDates.openDate} — {place.seasonalDates.closeDate || '...'}
-                </p>
-              )}
-
-              {/* Tags */}
-              <div className="flex gap-1 mt-2 flex-wrap">
-                {place.isFamilySuitable && <span className="text-[9px] bg-emerald-50 text-emerald-600 px-1.5 py-0.5 rounded-full font-black">👨‍👩‍👧</span>}
-                {place.gender === 'women_only' && <span className="text-[9px] bg-pink-50 text-pink-600 px-1.5 py-0.5 rounded-full font-black">👩 نسائي</span>}
-                {place.hasSportsFacilities && <span className="text-[9px] bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded-full font-black">🏅 رياضي</span>}
-                {place.cuisineType && <span className="text-[9px] bg-orange-50 text-orange-600 px-1.5 py-0.5 rounded-full font-black">{place.cuisineType}</span>}
-                {inProximity !== null && inProximity < 20 && (
-                  <span className="text-[9px] bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded-full font-black">📍 {inProximity.toFixed(1)}km</span>
-                )}
-                {(place.categoryTags || []).slice(0, 2).map(tag => (
-                  <span key={tag} className="text-[9px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded-full font-black">{tag}</span>
-                ))}
-              </div>
-            </div>
-
-            {/* List menu overlay */}
-            {isListMenuOpen && (
-              <div className="absolute inset-0 bg-black/70 backdrop-blur-sm rounded-2xl flex flex-col items-center justify-center gap-2 p-3 z-10" onClick={e => e.stopPropagation()}>
-                <p className="text-white text-xs font-black mb-1">أضف إلى قائمة</p>
-                {[
-                  { id: 'want_to_go' as const, label: 'أريد الذهاب', emoji: '🔖' },
-                  { id: 'been_there' as const, label: 'زرته', emoji: '✅' },
-                  { id: 'going_again' as const, label: 'سأعود', emoji: '🔁' },
-                  { id: 'avoid' as const, label: 'تجنّب', emoji: '🚫' },
-                ].map(l => (
-                  <button
-                    key={l.id}
-                    onClick={e => handleAddToList(e, place, l.id)}
-                    className="w-full py-2 bg-white/20 hover:bg-white/30 text-white text-xs font-black rounded-xl flex items-center justify-center gap-1 transition-colors"
-                  >
-                    {l.emoji} {l.label}
-                  </button>
-                ))}
-                <button onClick={e => { e.stopPropagation(); setShowListMenu(null); }} className="w-full py-1.5 text-white/60 text-[10px] hover:text-white transition-colors">إلغاء</button>
-              </div>
-            )}
-          </>
-        )}
-      </div>
-    );
-  };
 
   return (
-    <div className="h-full flex flex-col bg-slate-50 relative">
+    <div className="h-full flex flex-col bg-white dark:bg-midnight relative transition-colors duration-500 no-scrollbar overflow-x-hidden">
 
       {/* ── Top bar ─────────────────────────────────────────────────────── */}
-      <div className="absolute top-0 left-0 right-0 z-20 px-3 pt-3 flex items-center gap-2 pointer-events-none">
-        <div className="flex-1 flex items-center gap-2 bg-white/95 backdrop-blur-md border border-slate-200 rounded-2xl px-3 py-2.5 shadow-md pointer-events-auto transition-shadow focus-within:shadow-lg">
-          <Search className="w-4 h-4 text-slate-400 shrink-0" />
+      <div className="absolute top-0 start-0 end-0 z-20 px-4 pt-4 flex items-center gap-3 pointer-events-none">
+        <div className="flex-1 flex items-center gap-3 bg-white/80 dark:bg-chamber/80 backdrop-blur-xl border border-slate-100 dark:border-white/10 rounded-2xl px-4 py-3.5 shadow-2xl pointer-events-auto transition-all focus-within:bg-white dark:focus-within:bg-chamber focus-within:ring-2 focus-within:ring-oasis-spring/30">
+          <Search className="w-5 h-5 text-slate-400 dark:text-moon shrink-0" />
           <input
-            className="flex-1 bg-transparent text-sm text-slate-800 placeholder-slate-400 outline-none font-medium"
-            placeholder="ابحث: مطعم، شاطئ، بادل..."
+            className="flex-1 bg-transparent text-sm text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-moon/40 outline-none font-black uppercase tracking-widest"
+            placeholder={isRTL ? 'بحث...' : 'Search...'}
             value={searchQuery}
             onChange={e => { setSearchQuery(e.target.value); if (e.target.value && viewMode === 'tiles') setViewMode('list'); }}
           />
-          {searchQuery && (
-            <button onClick={() => setSearchQuery('')} className="text-slate-400 active:scale-90 transition-transform">
-              <X className="w-4 h-4" />
-            </button>
-          )}
         </div>
 
-        {/* View toggle */}
-        <div className="flex bg-white/95 backdrop-blur-md border border-slate-200 rounded-2xl shadow-md overflow-hidden pointer-events-auto shrink-0">
-          <button onClick={() => { setViewMode('tiles'); setActiveCategory(''); }} className={`flex items-center gap-1 px-2.5 py-2 transition-colors ${viewMode === 'tiles' ? 'bg-emerald-600 text-white' : 'text-slate-400 hover:bg-slate-50'}`}>
-            <LayoutGrid className="w-4 h-4" />
-            {viewMode === 'tiles' && <span className="text-[11px] font-black">الفئات</span>}
-          </button>
-          <button onClick={() => setViewMode('map')} className={`flex items-center gap-1 px-2.5 py-2 transition-colors ${viewMode === 'map' ? 'bg-emerald-600 text-white' : 'text-slate-400 hover:bg-slate-50'}`}>
-            <MapIcon className="w-4 h-4" />
-            {viewMode === 'map' && <span className="text-[11px] font-black">خريطة</span>}
-          </button>
-          <button onClick={() => setViewMode('list')} className={`flex items-center gap-1 px-2.5 py-2 transition-colors ${viewMode === 'list' ? 'bg-emerald-600 text-white' : 'text-slate-400 hover:bg-slate-50'}`}>
-            <List className="w-4 h-4" />
-            {viewMode === 'list' && <span className="text-[11px] font-black">قائمة</span>}
-          </button>
+        <div className="flex bg-white/80 dark:bg-chamber/80 backdrop-blur-xl border border-slate-100 dark:border-white/10 rounded-2xl shadow-2xl overflow-hidden pointer-events-auto shrink-0">
+          {[
+            { id: 'tiles', icon: LayoutGrid },
+            { id: 'map', icon: MapIcon },
+            { id: 'list', icon: List }
+          ].map(btn => (
+            <button
+              key={btn.id}
+              onClick={() => { setViewMode(btn.id as any); if (btn.id === 'tiles') setActiveCategory(''); }}
+              className={`p-3.5 transition-all duration-300 ${viewMode === btn.id ? 'bg-oasis-spring text-midnight shadow-mint-glow' : 'text-slate-400 dark:text-moon/40 hover:bg-slate-50 dark:hover:bg-navy-900/5'}`}
+            >
+              <btn.icon className="w-5 h-5" />
+            </button>
+          ))}
         </div>
       </div>
 
       {/* ── Category pills ────────────────────────────────────────────── */}
       {viewMode !== 'tiles' && (
-        <div className="absolute top-16 left-0 right-0 z-20 pointer-events-none">
-          <div className="flex gap-2 overflow-x-auto no-scrollbar px-3 pb-2 pt-1 pointer-events-auto">
-            {/* Back to categories chip */}
+        <div className="absolute top-20 start-0 end-0 z-20 pointer-events-none">
+          <div className="flex gap-2.5 overflow-x-auto no-scrollbar px-4 pb-4 pt-1 pointer-events-auto">
             <button
               onClick={() => { setViewMode('tiles'); setActiveCategory(''); }}
-              className="shrink-0 flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-black border shadow-sm bg-slate-800 text-white border-slate-700 active:scale-95 transition-all"
+              className="shrink-0 flex items-center gap-2 px-5 py-2.5 rounded-2xl text-[10px] font-black bg-white dark:bg-chamber border border-slate-100 dark:border-white/10 text-slate-900 dark:text-white uppercase tracking-widest active:scale-95 transition-all shadow-xl"
             >
-              <ChevronRight className="w-3.5 h-3.5" />
-              الفئات
+              <ChevronRight className={`w-4 h-4 ${isRTL ? '' : 'rotate-180'}`} />
+              {isRTL ? 'الفئات' : 'Categories'}
             </button>
 
-            {/* Quick-filter pills */}
-            <button
-              onClick={() => { setFilterTrending(v => !v); setViewMode('list'); }}
-              className={`shrink-0 flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-black border shadow-sm transition-all active:scale-95 ${filterTrending ? 'text-white border-transparent bg-red-500' : 'bg-white/95 text-slate-700 border-slate-200 backdrop-blur-sm hover:bg-slate-50'}`}
-            >
-              🔥 رائج
-            </button>
-            <button
-              onClick={() => { setFilterOpenNow(v => !v); setViewMode('list'); }}
-              className={`shrink-0 flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-black border shadow-sm transition-all active:scale-95 ${filterOpenNow ? 'text-white border-transparent bg-emerald-500' : 'bg-white/95 text-slate-700 border-slate-200 backdrop-blur-sm hover:bg-slate-50'}`}
-            >
-              🕒 مفتوح الآن
-            </button>
-            <button
-              onClick={() => { setFilterFamilyOnly(v => !v); setViewMode('list'); }}
-              className={`shrink-0 flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-black border shadow-sm transition-all active:scale-95 ${filterFamilyOnly ? 'text-white border-transparent bg-violet-500' : 'bg-white/95 text-slate-700 border-slate-200 backdrop-blur-sm hover:bg-slate-50'}`}
-            >
-              👨‍👩‍👧 عائلي
-            </button>
+            {[
+              { id: 'trend', icon: '🔥', label: isRTL ? 'رائج' : 'Trending', on: filterTrending, set: setFilterTrending, bg: 'bg-red-500' },
+              { id: 'open', icon: '🕒', label: isRTL ? 'مفتوح' : 'Open', on: filterOpenNow, set: setFilterOpenNow, bg: 'bg-oasis-spring' },
+              { id: 'fam', icon: '👨‍👩‍👧', label: isRTL ? 'عائلي' : 'Family', on: filterFamilyOnly, set: setFilterFamilyOnly, bg: 'bg-purple-500' }
+            ].map(pill => (
+              <button
+                key={pill.id}
+                onClick={() => { pill.set(v => !v); setViewMode('list'); }}
+                className={`shrink-0 flex items-center gap-2 px-5 py-2.5 rounded-2xl text-[10px] font-black border uppercase tracking-widest transition-all active:scale-95 shadow-xl ${pill.on ? `${pill.bg} text-midnight border-transparent shadow-lg` : 'bg-white/80 dark:bg-chamber/80 backdrop-blur-xl text-slate-500 dark:text-moon border-slate-100 dark:border-white/10'}`}
+              >
+                <span>{pill.icon}</span> {pill.label}
+              </button>
+            ))}
 
-            {/* Category pills */}
             {CATEGORIES.map(cat => (
               <button
                 key={cat.id}
                 onClick={() => { setActiveCategory(cat.id); if (cat.id !== '') setViewMode('map'); }}
-                className={`shrink-0 flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-black border shadow-sm transition-all active:scale-95 ${activeCategory === cat.id ? 'text-white border-transparent' : 'bg-white/95 text-slate-700 border-slate-200 backdrop-blur-sm hover:bg-slate-50'}`}
+                className={`shrink-0 flex items-center gap-2 px-5 py-2.5 rounded-2xl text-[10px] font-black border uppercase tracking-widest transition-all active:scale-95 shadow-xl ${activeCategory === cat.id ? 'text-white border-transparent' : 'bg-white/80 dark:bg-chamber/80 backdrop-blur-xl text-slate-500 dark:text-moon border-slate-100 dark:border-white/10'}`}
                 style={activeCategory === cat.id ? { background: cat.color, borderColor: cat.color } : {}}
               >
-                <span>{cat.emoji}</span>{cat.label}
+                <span>{cat.emoji}</span> {cat.label}
               </button>
             ))}
           </div>
         </div>
       )}
 
-      {/* ── Right controls ────────────────────────────────────────────── */}
-      {viewMode !== 'tiles' && <div className="absolute top-28 right-3 z-20 flex flex-col gap-2 pointer-events-auto">
-        {/* Near me */}
-        <button
-          onClick={handleNearMe}
-          disabled={isLocating}
-          className="w-10 h-10 bg-white/95 backdrop-blur-sm border border-slate-200 rounded-2xl shadow-md flex items-center justify-center text-emerald-600 disabled:opacity-60 active:scale-90 transition-transform hover:bg-slate-50"
-        >
-          {isLocating
-            ? <div className="w-4 h-4 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
-            : <Navigation className="w-4 h-4" />
-          }
-        </button>
-
-        {/* Sort */}
-        <button
-          onClick={() => {
-            const opts: typeof sortBy[] = ['rating', 'price_asc', 'price_desc', 'proximity'];
-            const idx = opts.indexOf(sortBy);
-            setSortBy(opts[(idx + 1) % opts.length]);
-          }}
-          className="w-10 h-10 bg-white/95 backdrop-blur-sm border border-slate-200 rounded-2xl shadow-md flex items-center justify-center text-slate-600 active:scale-90 transition-transform hover:bg-slate-50"
-          title={sortBy}
-        >
-          <ArrowUpDown className="w-4 h-4" />
-        </button>
-
-        {/* Filters */}
-        <button
-          onClick={() => setShowFilters(v => !v)}
-          className="relative w-10 h-10 bg-white/95 backdrop-blur-sm border border-slate-200 rounded-2xl shadow-md flex items-center justify-center text-slate-600 active:scale-90 transition-transform hover:bg-slate-50"
-        >
-          <SlidersHorizontal className="w-4 h-4" />
-          {activeFiltersCount > 0 && (
-            <span className="absolute -top-1 -right-1 w-4 h-4 bg-emerald-600 text-white text-[9px] font-black rounded-full flex items-center justify-center shadow-sm">
-              {activeFiltersCount}
-            </span>
-          )}
-        </button>
-      </div>}
-
-      {/* ── Sort badge ────────────────────────────────────────────────── */}
-      {viewMode !== 'tiles' && sortBy !== 'rating' && (
-        <div className="absolute top-28 left-3 z-20 pointer-events-none">
-          <div className="bg-emerald-600 text-white text-[10px] font-black px-3 py-1.5 rounded-2xl shadow-md">
-            {sortBy === 'price_asc' && '↑ الأرخص أولاً'}
-            {sortBy === 'price_desc' && '↓ الأغلى أولاً'}
-            {sortBy === 'proximity' && '📍 الأقرب أولاً'}
-          </div>
-        </div>
-      )}
-
-      {/* ── Place count (when rating sort) ────────────────────────────── */}
-      {viewMode !== 'tiles' && sortBy === 'rating' && (
-        <div className="absolute top-28 left-3 z-20 pointer-events-none">
-          <div className="bg-white/95 backdrop-blur-sm border border-slate-200 rounded-2xl shadow-md px-3 py-2">
-            <p className="text-xs font-black text-slate-700">{filtered.length} مكان</p>
-          </div>
-        </div>
-      )}
-
-      {/* ── Filter panel ─────────────────────────────────────────────── */}
-      {showFilters && (
-        <div className="absolute top-44 right-3 z-30 w-64 bg-white rounded-2xl shadow-2xl border border-slate-100 p-4 pointer-events-auto max-h-[70vh] overflow-y-auto animate-in fade-in slide-in-from-top-2">
-          <div className="flex items-center justify-between mb-3">
-            <p className="font-black text-slate-800 text-sm">فلاتر البحث</p>
-            <button onClick={resetFilters} className="text-[10px] text-emerald-600 font-black hover:underline">إعادة ضبط</button>
-          </div>
-
-          <div className="space-y-4">
-            {/* Sort */}
-            <div>
-              <p className="text-[10px] font-black text-slate-500 mb-1.5 uppercase tracking-wider">الترتيب</p>
-              <div className="grid grid-cols-2 gap-1">
-                {[
-                  { id: 'rating', label: 'الأعلى تقييماً' },
-                  { id: 'price_asc', label: '↑ أرخص أولاً' },
-                  { id: 'price_desc', label: '↓ أغلى أولاً' },
-                  { id: 'proximity', label: '📍 الأقرب' },
-                ].map(opt => (
-                  <button
-                    key={opt.id}
-                    onClick={() => setSortBy(opt.id as typeof sortBy)}
-                    className={`py-1.5 rounded-xl text-[10px] font-black transition-colors ${sortBy === opt.id ? 'bg-emerald-500 text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}
-                  >
-                    {opt.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Price max */}
-            <div>
-              <p className="text-[10px] font-black text-slate-500 mb-1.5 uppercase tracking-wider">السعر الأقصى</p>
-              <div className="flex gap-1">
-                {[1, 2, 3, 4].map(p => (
-                  <button
-                    key={p}
-                    onClick={() => setFilterPriceMax(filterPriceMax === p ? 4 : p)}
-                    className={`flex-1 py-1.5 rounded-xl text-[10px] font-black transition-colors ${filterPriceMax < p ? 'bg-slate-50 text-slate-300 hover:bg-slate-100' : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'}`}
-                  >
-                    {'$'.repeat(p)}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Toggle switches */}
-            <div className="space-y-2.5 pt-2 border-t border-slate-100">
-              {[
-                { label: '👨‍👩‍👧 عائلي فقط', value: filterFamilyOnly, set: setFilterFamilyOnly },
-                { label: '🚚 فود ترك فقط', value: filterFoodTruck, set: setFilterFoodTruck },
-                { label: '🕒 مفتوح الآن', value: filterOpenNow, set: setFilterOpenNow },
-                { label: '👥 عروض جماعية', value: filterGroupOffer, set: setFilterGroupOffer },
-              ].map(item => (
-                <div key={item.label} className="flex items-center justify-between">
-                  <p className="text-xs font-black text-slate-700">{item.label}</p>
-                  <button
-                    onClick={() => item.set(v => !v)}
-                    className={`w-11 h-6 rounded-full transition-colors relative focus:outline-none ${item.value ? 'bg-emerald-500' : 'bg-slate-200 hover:bg-slate-300'}`}
-                  >
-                    <div className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow-sm transition-all duration-300 ${item.value ? 'right-0.5 translate-x-0' : 'left-0.5 translate-x-0'}`} />
-                  </button>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ── TILES VIEW ───────────────────────────────────────────────── */}
-      {viewMode === 'tiles' && (
-        <div className="absolute inset-0 overflow-y-auto pt-16 pb-24 px-3 bg-slate-50">
-
-          {/* Smart context tiles — promoted to top */}
-          {(() => {
-            const hour = new Date().getHours();
-            const emphasisId = userPos ? 'near' : (hour >= 17 && hour < 23) ? 'open' : 'trending';
-            const tiles = [
-              {
-                id: 'near', label: 'بالقرب مني', emoji: '📍',
-                subtitle: userPos ? 'أماكن حولك الآن' : 'اكتشف ما يقترب منك',
-                bg: 'linear-gradient(135deg, #3b82f6, #1d4ed8)',
-                count: smartCounts.near !== null ? `${smartCounts.near} مكان قريب` : 'تفعيل الموقع ←',
-                onTap: () => handleNearMe('map'),
-              },
-              {
-                id: 'open', label: 'مفتوح الآن', emoji: '🕒',
-                subtitle: 'لا وقت للبحث، ادخل مباشرة',
-                bg: 'linear-gradient(135deg, #10b981, #047857)',
-                count: `${smartCounts.open} مكان متاح`,
-                onTap: () => { setFilterOpenNow(true); setViewMode('list'); },
-              },
-              {
-                id: 'trending', label: 'رائج اليوم', emoji: '🔥',
-                subtitle: 'الأكثر زيارةً هذا الأسبوع',
-                bg: 'linear-gradient(135deg, #ef4444, #b91c1c)',
-                count: `${smartCounts.trending} مكان رائج`,
-                onTap: () => { setFilterTrending(true); setViewMode('list'); },
-              },
-              {
-                id: 'family', label: 'عائلي', emoji: '👨‍👩‍👧',
-                subtitle: 'مناسب للعائلة والأطفال',
-                bg: 'linear-gradient(135deg, #8b5cf6, #6d28d9)',
-                count: `${smartCounts.family} خيار عائلي`,
-                onTap: () => { setFilterFamilyOnly(true); setViewMode('list'); },
-              },
-            ];
-            return (
-              <div className="mb-3">
-                <p className="text-xs font-black text-slate-400 uppercase tracking-widest text-right mb-2.5">اقتراحات سريعة</p>
-                {isLoading ? (
-                  <div className="grid grid-cols-2 gap-3">
-                    {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-28 rounded-2xl" />)}
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-2 gap-3">
-                    {tiles.map(tile => {
-                      const isEmphasized = tile.id === emphasisId;
-                      return (
-                        <button
-                          key={tile.id}
-                          onClick={tile.onTap}
-                          className={`h-28 rounded-2xl shadow-lg active:scale-[0.97] transition-all overflow-hidden relative flex flex-col justify-between p-3.5 ${isEmphasized ? 'ring-2 ring-white/50 shadow-xl scale-[1.02]' : ''}`}
-                          style={{ background: tile.bg }}
-                        >
-                          <div className="flex items-start justify-between">
-                            <span className="text-white/30 text-[10px] font-black">›</span>
-                            <span className="text-3xl">{tile.emoji}</span>
-                          </div>
-                          <div className="text-right">
-                            <p className="text-white font-black text-sm leading-tight">{tile.label}</p>
-                            <p className="text-white/70 text-[10px] font-semibold mt-0.5 leading-snug">{tile.subtitle}</p>
-                            <p className="text-white/50 text-[9px] font-black mt-1">{tile.count}</p>
-                          </div>
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            );
-          })()}
-
-          {/* All places hero — demoted, quieter */}
+      {/* ── Control Buttons (Floating) ─────────────────────────────────── */}
+      {viewMode !== 'tiles' && (
+        <div className="absolute top-36 end-4 z-20 flex flex-col gap-3 pointer-events-auto">
           <button
-            onClick={() => { setActiveCategory(''); setViewMode('map'); }}
-            className="w-full h-16 mb-3 rounded-2xl shadow-sm active:scale-[0.97] transition-transform overflow-hidden relative flex items-center px-4 gap-3"
-            style={{ background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)' }}
+            onClick={handleNearMe}
+            disabled={isLocating}
+            className="w-12 h-12 bg-white/80 dark:bg-chamber/80 backdrop-blur-xl border border-slate-100 dark:border-white/10 rounded-2xl shadow-2xl flex items-center justify-center text-oasis-spring active:scale-90 transition-all hover:bg-slate-50 dark:hover:bg-navy-900/5"
           >
-            <span className="text-2xl">🗺️</span>
-            <div className="text-right flex-1">
-              <p className="text-white font-black text-base leading-tight">كل الأماكن</p>
-              <p className="text-white/50 text-[10px] font-semibold mt-0.5">
-                {isLoading ? '...' : `${places.length} مكان`}
-              </p>
-            </div>
-            <span className="text-white/30 text-sm font-black">›</span>
+            {isLocating ? <div className="w-5 h-5 border-2 border-oasis-spring border-t-transparent rounded-full animate-spin" /> : <Navigation className="w-5 h-5" />}
           </button>
 
-          {/* Category grid */}
-          {isLoading ? (
-            <div className="grid grid-cols-2 gap-3">
-              {Array.from({ length: 6 }).map((_, i) => (
-                <div key={i}><Skeleton className="h-40 rounded-2xl" /></div>
-              ))}
-            </div>
-          ) : (
-            <div className="grid grid-cols-2 gap-3">
-              {CATEGORIES.filter(c => c.id).map(cat => {
-                const count = places.filter(p => getCategoryId(p) === cat.id).length;
-                const thumbs = categoryThumbs[cat.id] || [];
-                return (
-                  <button
-                    key={cat.id}
-                    onClick={() => { setActiveCategory(cat.id); setViewMode('map'); }}
-                    className="h-40 rounded-2xl shadow-md active:scale-[0.97] transition-transform overflow-hidden relative"
-                    style={{ backgroundColor: cat.color }}
-                  >
-                    {thumbs.length >= 2 ? (
-                      <>
-                        <div className="absolute inset-0 grid grid-cols-2 grid-rows-2">
-                          {Array.from({ length: 4 }).map((_, i) => (
-                            thumbs[i]
-                              ? <img key={i} src={thumbs[i]} loading="lazy" className="w-full h-full object-cover" alt="" />
-                              : <div key={i} style={{ background: `${cat.color}aa` }} />
-                          ))}
-                        </div>
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
-                      </>
-                    ) : (
-                      <div className="absolute inset-0 flex items-start justify-end p-4" style={{ background: `linear-gradient(135deg, ${cat.color} 0%, ${cat.color}cc 100%)` }}>
-                        <span className="text-5xl opacity-90">{cat.emoji}</span>
-                      </div>
-                    )}
-                    <div className="absolute bottom-0 left-0 right-0 p-3 text-right">
-                      <p className="text-white font-black text-base leading-tight drop-shadow-sm">{cat.label}</p>
-                      <p className="text-white/75 text-xs font-semibold mt-0.5 drop-shadow-sm">{count} مكان</p>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          )}
+          <button
+            onClick={() => setShowFilters(v => !v)}
+            className={`w-12 h-12 rounded-2xl shadow-2xl flex items-center justify-center active:scale-90 transition-all relative border border-slate-100 dark:border-white/10 ${showFilters ? 'bg-oasis-spring text-midnight shadow-mint-glow' : 'bg-white/80 dark:bg-chamber/80 backdrop-blur-xl text-slate-400 dark:text-moon hover:bg-slate-50 dark:hover:bg-navy-900/5'}`}
+          >
+            <SlidersHorizontal className="w-5 h-5" />
+            {activeFiltersCount > 0 && (
+              <span className="absolute -top-1 -end-1 w-5 h-5 bg-oasis-spring text-midnight text-[10px] font-black rounded-lg flex items-center justify-center border-2 border-midnight">
+                {activeFiltersCount}
+              </span>
+            )}
+          </button>
         </div>
       )}
 
-      {/* ── MAP VIEW ─────────────────────────────────────────────────── */}
-      <div className={`absolute inset-0 ${viewMode === 'list' || viewMode === 'tiles' ? 'hidden' : ''}`}>
-        {isLoading && (
-          <div className="absolute inset-0 z-20 flex items-center justify-center bg-white/60 backdrop-blur-sm">
-            <div className="w-8 h-8 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+      {/* ── Main View Area ─────────────────────────────────────────────── */}
+      <div className="flex-1 relative overflow-hidden">
+        {viewMode === 'map' ? (
+          <div className="w-full h-full">
+            <React.Suspense fallback={<div className="w-full h-full bg-midnight animate-pulse" />}>
+              <TripMap
+                places={filtered}
+                userPos={userPos}
+                selectedPlace={selectedItem}
+                onMarkerPress={(p) => { setSelectedItem(p); setShowBottomSheet(true); }}
+                onMapPress={() => setShowBottomSheet(false)}
+              />
+            </React.Suspense>
           </div>
-        )}
-        <div ref={mapContainerRef} className="w-full h-full outline-none" />
-
-        {!selectedItem && !showBottomSheet && !isLoading && (
-          <div className="absolute bottom-24 left-1/2 -translate-x-1/2 z-10 animate-in fade-in slide-in-from-bottom-2">
-            <button
-              onClick={() => setViewMode('list')}
-              className="flex items-center gap-2 px-5 py-3 rounded-full bg-slate-900 text-white font-black text-sm shadow-2xl active:scale-95 transition-transform"
-            >
-              <List className="w-4 h-4" />
-              إظهار القائمة
-              <span className="bg-white/20 text-white text-xs font-black px-2 py-0.5 rounded-full">{filtered.length}</span>
-            </button>
+        ) : viewMode === 'list' ? (
+          <div className="w-full h-full overflow-y-auto pt-36 pb-24 px-4 space-y-4 no-scrollbar">
+            {isLoading ? (
+              Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-44 rounded-[1.75rem]" />)
+            ) : filtered.length > 0 ? (
+              filtered.map(p => (
+                <PlaceCard 
+                  key={p._id ?? p.id} 
+                  place={p} 
+                  isRTL={isRTL}
+                  savedIds={savedIds}
+                  handleSaveToggle={handleSaveToggle}
+                  showListMenu={showListMenu}
+                  setShowListMenu={setShowListMenu}
+                  userPos={userPos}
+                  selectedItem={selectedItem}
+                  setSelectedItem={setSelectedItem}
+                  viewMode={viewMode}
+                  setShowBottomSheet={setShowBottomSheet}
+                  handleAddToList={handleAddToList}
+                />
+              ))
+            ) : (
+              <div className="flex flex-col items-center justify-center py-20 text-center">
+                <div className="w-20 h-20 bg-slate-100 dark:bg-lifted rounded-full flex items-center justify-center mb-6 text-4xl shadow-xl">🏝️</div>
+                <p className="font-black text-slate-900 dark:text-white text-lg uppercase tracking-widest">{isRTL ? 'لا توجد نتائج' : 'No places found'}</p>
+                <p className="text-slate-400 dark:text-moon/40 text-xs font-bold mt-2 uppercase tracking-widest">{isRTL ? 'جرب تغيير معايير البحث' : 'Try adjusting your filters'}</p>
+              </div>
+            )}
           </div>
-        )}
-
-        {/* Bottom sheet */}
-        {showBottomSheet && selectedItem && (
-          <div className="absolute bottom-0 left-0 right-0 z-30 px-3 pb-24 animate-in slide-in-from-bottom-10">
-            <div className="bg-white rounded-3xl shadow-2xl border border-slate-100 overflow-hidden">
-              <div className="flex items-center justify-between px-4 pt-3 pb-1">
-                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">اضغط للتفاصيل</p>
-                <button onClick={() => setShowBottomSheet(false)} className="p-1.5 bg-slate-100 rounded-full active:scale-90 hover:bg-slate-200 transition-colors">
-                  <X className="w-3.5 h-3.5 text-slate-500" />
-                </button>
-              </div>
-              <div className="px-3 pb-3">
-                <PlaceCard place={selectedItem} compact />
-              </div>
-              <div className="px-3 pb-4">
-                <button
-                  onClick={() => onOpenPlace(selectedItem)}
-                  className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-sm rounded-2xl active:scale-95 transition-all shadow-md shadow-emerald-200"
-                >
-                  عرض التفاصيل الكاملة
-                </button>
-              </div>
+        ) : (
+          <div className="w-full h-full overflow-y-auto pt-24 pb-32 px-4 no-scrollbar bg-white dark:bg-midnight">
+            <div className="grid grid-cols-2 gap-4">
+              {isLoading ? (
+                Array.from({ length: 10 }).map((_, i) => <Skeleton key={i} className="h-40 rounded-3xl" />)
+              ) : (
+                CATEGORIES.map(cat => {
+                  const count = places.filter(p => getCategoryId(p) === cat.id).length;
+                  return (
+                    <button
+                      key={cat.id}
+                      onClick={() => { setActiveCategory(cat.id); setViewMode('map'); }}
+                      className="h-44 rounded-[2rem] bg-slate-50 dark:bg-chamber border border-slate-100 dark:border-white/5 overflow-hidden relative group active:scale-95 transition-all shadow-xl"
+                    >
+                      <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                      <div className="absolute top-5 start-5 text-4xl grayscale group-hover:grayscale-0 transition-all duration-500">
+                        {cat.emoji}
+                      </div>
+                      <div className="absolute bottom-5 start-5 text-start">
+                        <p className="text-slate-900 dark:text-white font-black text-lg tracking-tighter uppercase leading-tight">{cat.label}</p>
+                        <p className="text-slate-400 dark:text-moon/40 text-[9px] font-black uppercase tracking-widest mt-1">{count} ITEMS</p>
+                      </div>
+                      <div className="absolute top-5 end-5 w-8 h-8 rounded-full bg-white dark:bg-lifted border border-slate-100 dark:border-white/5 flex items-center justify-center text-oasis-spring opacity-0 group-hover:opacity-100 transition-all shadow-md">
+                        <ChevronRight className={`w-4 h-4 ${isRTL ? 'rotate-180' : ''}`} />
+                      </div>
+                    </button>
+                  );
+                })
+              )}
             </div>
           </div>
         )}
       </div>
 
-      {/* ── LIST VIEW ────────────────────────────────────────────────── */}
-      {viewMode === 'list' && (
-        <div
-          ref={listRef}
-          className={`absolute inset-0 overflow-y-auto pb-24 px-3 bg-slate-50 ${familyDeals.length > 0 ? 'pt-52' : 'pt-36'}`}
-        >
-          {isLoading ? (
-            <div className="flex items-center justify-center pt-20">
-              <div className="w-8 h-8 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin" />
-            </div>
-          ) : filtered.length === 0 ? (
-            <div className="text-center pt-20 animate-in fade-in">
-              <p className="text-4xl mb-3 opacity-80">🔍</p>
-              <p className="font-black text-slate-600 text-lg">لا توجد أماكن</p>
-              <p className="text-sm text-slate-400 mt-1">جرب تغيير الفلاتر أو الفئة</p>
-              <button onClick={resetFilters} className="mt-6 px-6 py-3 bg-emerald-600 hover:bg-emerald-700 transition-colors text-white text-sm font-black rounded-2xl shadow-md active:scale-95">
-                إعادة الضبط
+      {/* ── Bottom Sheet (for Map View) ────────────────────────────────── */}
+      {viewMode === 'map' && selectedItem && showBottomSheet && (
+        <div className="absolute bottom-0 start-0 end-0 z-50 p-4 animate-in slide-in-from-bottom-full duration-500">
+          <div className="bg-white/95 dark:bg-chamber/95 backdrop-blur-2xl border border-slate-200 dark:border-white/10 rounded-[2.5rem] shadow-[0_-10px_40px_rgba(0,0,0,0.2)] dark:shadow-[0_-10px_40px_rgba(0,0,0,0.5)] p-5 relative overflow-hidden group">
+            <div className="absolute top-3 left-1/2 -translate-x-1/2 w-12 h-1.5 bg-slate-200 dark:bg-navy-900/10 rounded-full" />
+            <div className="mt-4">
+              <PlaceCard 
+                place={selectedItem} 
+                compact 
+                isRTL={isRTL}
+                savedIds={savedIds}
+                handleSaveToggle={handleSaveToggle}
+                showListMenu={showListMenu}
+                setShowListMenu={setShowListMenu}
+                userPos={userPos}
+                selectedItem={selectedItem}
+                setSelectedItem={setSelectedItem}
+                viewMode={viewMode}
+                setShowBottomSheet={setShowBottomSheet}
+                handleAddToList={handleAddToList}
+              />
+              <button
+                onClick={() => onOpenPlace(selectedItem)}
+                className="w-full mt-5 py-4 bg-oasis-spring text-midnight rounded-2xl font-black text-xs uppercase tracking-widest shadow-mint-glow active:scale-95 transition-all flex items-center justify-center gap-2"
+              >
+                {isRTL ? 'عرض التفاصيل الكاملة' : 'View Full Details'} <ChevronRight className={`w-4 h-4 ${isRTL ? 'rotate-180' : ''}`} />
               </button>
             </div>
-          ) : (
-            <div className="relative pb-8">
-              {/* Food trucks trending section */}
-              {(activeCategory === '' || activeCategory === 'food_truck') && filtered.some(p => p.isFoodTruck && p.isTrending) && (
-                <div className="mb-6">
-                  <p className="text-xs font-black text-slate-500 mb-3 uppercase tracking-wider flex items-center gap-1">
-                    🔥 فود ترك رائج الآن
-                  </p>
-                  <div className="flex gap-3 overflow-x-auto no-scrollbar pb-2 px-1 -mx-1">
-                    {filtered.filter(p => p.isFoodTruck && p.isTrending).map(p => (
-                      <div key={p._id || p.id} className="shrink-0 w-48">
-                        <PlaceCard place={p} />
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
+          </div>
+        </div>
+      )}
 
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
-                {filtered.map(p => (
-                  <div key={p._id || p.id || p.name} className="relative">
-                    <PlaceCard place={p} />
-                  </div>
+      {/* ── Full Screen Filters Modal ─────────────────────────────────── */}
+      {showFilters && (
+        <div className="fixed inset-0 z-[100] bg-slate-900/40 dark:bg-midnight/80 backdrop-blur-md flex items-center justify-center p-6 animate-in fade-in duration-300">
+          <div className="bg-white dark:bg-chamber border border-slate-100 dark:border-white/10 rounded-[2.5rem] p-8 w-full max-w-sm shadow-2xl animate-in zoom-in-95 duration-300 overflow-y-auto max-h-[80vh] no-scrollbar">
+            <div className="flex items-center justify-between mb-8">
+              <h3 className="font-black text-2xl text-slate-900 dark:text-white tracking-tighter uppercase">{isRTL ? 'الفلاتر' : 'Filters'}</h3>
+              <button onClick={() => setShowFilters(false)} className="w-10 h-10 bg-slate-50 dark:bg-lifted rounded-full flex items-center justify-center border border-slate-100 dark:border-white/5">
+                <X className="w-5 h-5 text-slate-400 dark:text-moon" />
+              </button>
+            </div>
+
+            <div className="space-y-8">
+              <div>
+                <p className="text-[10px] font-black text-slate-400 dark:text-moon/40 uppercase tracking-[0.2em] mb-4">SORT BY</p>
+                <div className="grid grid-cols-2 gap-3">
+                  {[
+                    { id: 'rating', label: isRTL ? 'الأعلى تقييماً' : 'RATING' },
+                    { id: 'proximity', label: isRTL ? 'الأقرب' : 'NEARBY' },
+                    { id: 'price_asc', label: isRTL ? 'الأرخص' : 'LOW PRICE' },
+                    { id: 'price_desc', label: isRTL ? 'الأغلى' : 'HIGH PRICE' },
+                  ].map(opt => (
+                    <button
+                      key={opt.id}
+                      onClick={() => setSortBy(opt.id as any)}
+                      className={`py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest border transition-all ${sortBy === opt.id ? 'bg-oasis-spring text-midnight border-oasis-spring' : 'bg-slate-50 dark:bg-lifted text-slate-400 dark:text-moon/60 border-slate-100 dark:border-white/5'}`}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <p className="text-[10px] font-black text-slate-400 dark:text-moon/40 uppercase tracking-[0.2em] mb-4">PRICE LIMIT</p>
+                <div className="flex gap-2">
+                  {[1, 2, 3, 4].map(p => (
+                    <button
+                      key={p}
+                      onClick={() => setFilterPriceMax(p)}
+                      className={`flex-1 py-3 rounded-2xl text-xs font-black transition-all border ${filterPriceMax === p ? 'bg-oasis-spring text-midnight border-oasis-spring shadow-mint-glow' : 'bg-slate-50 dark:bg-lifted text-slate-400 dark:text-moon/60 border-slate-100 dark:border-white/5'}`}
+                    >
+                      {'$'.repeat(p)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="space-y-4 pt-4 border-t border-slate-100 dark:border-white/5">
+                {[
+                  { label: isRTL ? 'مفتوح الآن' : 'OPEN NOW', val: filterOpenNow, set: setFilterOpenNow, icon: Clock },
+                  { label: isRTL ? 'مناسب للعائلة' : 'FAMILY SUITABLE', val: filterFamilyOnly, set: setFilterFamilyOnly, icon: Users },
+                  { label: isRTL ? 'رائج' : 'TRENDING', val: filterTrending, set: setFilterTrending, icon: Star },
+                ].map(item => (
+                  <button
+                    key={item.label}
+                    onClick={() => item.set(v => !v)}
+                    className="w-full flex items-center justify-between p-4 bg-slate-50 dark:bg-lifted/30 rounded-2xl border border-slate-100 dark:border-white/5 group active:scale-95 transition-all"
+                  >
+                    <div className="flex items-center gap-3">
+                      <item.icon className={`w-5 h-5 ${item.val ? 'text-oasis-spring' : 'text-slate-200 dark:text-moon/20'}`} />
+                      <span className={`text-[11px] font-black uppercase tracking-widest ${item.val ? 'text-slate-900 dark:text-white' : 'text-slate-400 dark:text-moon/40'}`}>{item.label}</span>
+                    </div>
+                    <div className={`w-12 h-7 rounded-full transition-all duration-500 relative border border-slate-200 dark:border-white/10 ${item.val ? 'bg-oasis-spring' : 'bg-slate-200 dark:bg-midnight'}`}>
+                      <div className={`absolute top-0.5 w-6 h-6 bg-white dark:bg-navy-900 rounded-full shadow-lg transition-all duration-500 ${item.val ? (isRTL ? 'left-0.5' : 'right-0.5') : (isRTL ? 'right-0.5' : 'left-0.5')}`} />
+                    </div>
+                  </button>
                 ))}
               </div>
+
+              <button
+                onClick={resetFilters}
+                className="w-full py-4 bg-slate-50 dark:bg-navy-900/5 text-slate-400 dark:text-moon/60 rounded-2xl font-black text-[10px] uppercase tracking-[0.3em] hover:text-slate-900 dark:hover:text-white transition-colors"
+              >
+                {isRTL ? 'إعادة تعيين' : 'RESET ALL'}
+              </button>
             </div>
-          )}
+          </div>
         </div>
-      )}
-
-      {/* ── Show-map floating pill (list view) ──────────────────────── */}
-      {viewMode === 'list' && !isLoading && filtered.length > 0 && (
-        <div className="absolute bottom-24 left-1/2 -translate-x-1/2 z-10 pointer-events-auto animate-in fade-in slide-in-from-bottom-2">
-          <button
-            onClick={() => setViewMode('map')}
-            className="flex items-center gap-2 px-5 py-3 rounded-full bg-slate-900 text-white font-black text-sm shadow-2xl active:scale-95 transition-transform"
-          >
-            <MapIcon className="w-4 h-4" />
-            إظهار الخريطة
-          </button>
-        </div>
-      )}
-
-      {/* Place Detail Modal */}
-      {selectedItem && (
-        <PlaceDetailModal
-          place={selectedItem}
-          onClose={() => { setSelectedItem(null); setShowBottomSheet(false); }}
-          t={t}
-        />
       )}
     </div>
   );
 };
+
+export default ExploreScreen;

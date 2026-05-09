@@ -1,25 +1,34 @@
-import { IPaymentProvider, CreateSessionInput, RefundInput } from '../interfaces/IPaymentProvider';
-import { StripeProvider } from './providers/StripeProvider';
+import {
+  createPayment,
+  getPayment,
+  refundPayment,
+  type CreatePaymentInput,
+  type RefundPaymentInput,
+  type MoyasarPayment,
+} from './providers/MoyasarProvider';
 
-if (!process.env.STRIPE_SECRET_KEY) {
-  console.warn('⚠️ [Payment] STRIPE_SECRET_KEY is not set. Payment features will be non-functional.');
+if (!process.env.MOYASAR_SECRET_KEY) {
+  console.warn('⚠️ [Payment] MOYASAR_SECRET_KEY is not set. Payment features will be non-functional.');
 }
-
-function buildProvider(): IPaymentProvider {
-  const name = (process.env.PAYMENT_PROVIDER || 'stripe').toLowerCase();
-  if (name === 'stripe') return new StripeProvider();
-  throw new Error(`Unknown PAYMENT_PROVIDER: "${name}". Supported: stripe`);
-}
-
-// Singleton — one provider instance for the process lifetime.
-let _provider: IPaymentProvider | null = null;
-const getProvider = (): IPaymentProvider => {
-  if (!_provider) _provider = buildProvider();
-  return _provider;
-};
 
 export const PaymentService = {
-  createSession:  (input: CreateSessionInput)               => getProvider().createSession(input),
-  verifyWebhook:  (rawBody: Buffer, signature: string)      => getProvider().verifyWebhook(rawBody, signature),
-  refund:         (input: RefundInput)                      => getProvider().refund(input),
+  /**
+   * Create a Moyasar payment and return the redirect URL.
+   * Frontend should do: window.location.href = result.redirectUrl
+   */
+  createPayment: (input: CreatePaymentInput): Promise<MoyasarPayment> =>
+    createPayment(input),
+
+  /**
+   * Fetch a payment by ID for server-side verification.
+   * Call after the user returns from the payment page.
+   */
+  verifyPaymentById: (paymentId: string): Promise<MoyasarPayment> =>
+    getPayment(paymentId),
+
+  /**
+   * Issue a full or partial refund.
+   */
+  refund: (input: RefundPaymentInput): Promise<MoyasarPayment> =>
+    refundPayment(input),
 };

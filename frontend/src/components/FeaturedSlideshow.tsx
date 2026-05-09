@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Star, MapPin, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Star, MapPin, ChevronLeft, ChevronRight, Shield } from 'lucide-react';
 import gsap from 'gsap';
 import { useGSAP } from '@gsap/react';
+import { SafeImage } from './ui';
 
 export interface SlideItem {
   id: string;
@@ -12,19 +13,23 @@ export interface SlideItem {
   rating?: number;
   badge: string;
   badgeColor: string;
+  isOfficial?: boolean;
 }
 
 const SLIDE_MS = 5000;
 
 export const FeaturedSlideshow = ({
   items,
-  onPress,
+  onSelect,
+  lang = 'en',
   height = 'h-72',
 }: {
   items: SlideItem[];
-  onPress: (item: SlideItem) => void;
+  onSelect: (id: string) => void;
+  lang?: 'en' | 'ar';
   height?: string;
 }) => {
+  const isRTL = lang === 'ar';
   const [cur, setCur] = useState(0);
   const [prev, setPrev] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -126,76 +131,81 @@ export const FeaturedSlideshow = ({
       {items.map((item) => (
         <div
           key={item.id}
-          className="slide-bg absolute inset-0 bg-cover bg-center will-change-transform opacity-0 invisible"
-          style={{ backgroundImage: `url(${item.image})` }}
-        />
+          className="slide-bg absolute inset-0 will-change-transform opacity-0 invisible"
+        >
+          <SafeImage src={item.image} alt={item.name} className="w-full h-full object-cover" fallbackType="placeholder" seed={item.id} />
+        </div>
       ))}
 
       {/* 🌫️ Gradient Overlay */}
-      <div className="absolute inset-0 z-10 pointer-events-none bg-gradient-to-t from-navy-950/95 dark:from-navy-950 via-black/40 to-black/20" />
+      <div className="absolute inset-0 z-10 pointer-events-none bg-gradient-to-t from-midnight/95 via-midnight/40 to-transparent" />
 
       {/* 🖱️ Clickable Area */}
-      <button className="absolute inset-0 w-full h-full z-20" onClick={() => onPress(active)} />
+      <button className="absolute inset-0 w-full h-full z-20 cursor-pointer" onClick={() => onSelect(active.id)} />
 
       {/* 🏷️ Badge */}
-      <div className="absolute top-4 left-4 z-30 pointer-events-none">
+      <div className={`absolute top-4 ${isRTL ? 'right-4' : 'left-4'} z-30 pointer-events-none flex flex-col gap-2 items-${isRTL ? 'end' : 'start'}`}>
         <span
-          className="text-[10px] font-bold px-3 py-1.5 rounded-full text-white uppercase tracking-wider shadow-lg backdrop-blur-md border border-white/20"
+          className="text-[10px] font-black px-3 py-1.5 rounded-full text-midnight uppercase tracking-widest shadow-lg backdrop-blur-md border border-white/20 w-fit"
           style={{ backgroundColor: active.badgeColor }}
         >
           {active.badge}
         </span>
+        {active.isOfficial && (
+          <div className="bg-oasis-spring/90 backdrop-blur-sm px-2 py-1 rounded-lg flex items-center gap-1 shadow-sm border border-oasis-spring/20">
+            <Shield className="w-3 h-3 text-midnight" />
+            <span className="text-[10px] font-black text-midnight uppercase tracking-tighter">{isRTL ? 'رسمي' : 'Official'}</span>
+          </div>
+        )}
       </div>
 
       {/* ⭐ Rating */}
       {active.rating != null && (
-        <div className="absolute top-4 right-4 z-30 flex items-center gap-1.5 bg-black/50 backdrop-blur-md border border-white/10 px-3 py-1.5 rounded-full pointer-events-none shadow-lg">
-          <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
-          <span className="text-white text-xs font-bold">{Number(active.rating).toFixed(1)}</span>
+        <div className={`absolute top-4 ${isRTL ? 'left-4' : 'right-4'} z-30 flex items-center gap-1.5 bg-midnight/50 backdrop-blur-md border border-white/10 px-3 py-1.5 rounded-full pointer-events-none shadow-lg`}>
+          <Star className="w-3.5 h-3.5 fill-karam text-karam" />
+          <span className="text-white text-xs font-black">{Number(active.rating).toFixed(1)}</span>
         </div>
       )}
 
-      {/* ⬅️ Left Arrow */}
+      {/* ⬅️ Navigation Arrows */}
       {items.length > 1 && (
-        <button
-          onClick={e => { e.stopPropagation(); prevSlide(); }}
-          className="absolute left-3 top-1/2 -translate-y-1/2 w-10 h-10 bg-black/30 backdrop-blur-md border border-white/10 rounded-full flex items-center justify-center text-white hover:bg-black/60 transition-all z-30"
-        >
-          <ChevronLeft className="w-5 h-5" />
-        </button>
-      )}
-
-      {/* ➡️ Right Arrow */}
-      {items.length > 1 && (
-        <button
-          onClick={e => { e.stopPropagation(); nextSlide(); }}
-          className="absolute right-3 top-1/2 -translate-y-1/2 w-10 h-10 bg-black/30 backdrop-blur-md border border-white/10 rounded-full flex items-center justify-center text-white hover:bg-black/60 transition-all z-30"
-        >
-          <ChevronRight className="w-5 h-5" />
-        </button>
+        <>
+          <button
+            onClick={e => { e.stopPropagation(); isRTL ? nextSlide() : prevSlide(); }}
+            className={`absolute ${isRTL ? 'right-3' : 'left-3'} top-1/2 -translate-y-1/2 w-10 h-10 bg-midnight/30 backdrop-blur-md border border-white/10 rounded-full flex items-center justify-center text-white hover:bg-midnight/60 transition-all z-30 active:scale-90`}
+          >
+            {isRTL ? <ChevronRight className="w-5 h-5" /> : <ChevronLeft className="w-5 h-5" />}
+          </button>
+          <button
+            onClick={e => { e.stopPropagation(); isRTL ? prevSlide() : nextSlide(); }}
+            className={`absolute ${isRTL ? 'left-3' : 'right-3'} top-1/2 -translate-y-1/2 w-10 h-10 bg-midnight/30 backdrop-blur-md border border-white/10 rounded-full flex items-center justify-center text-white hover:bg-midnight/60 transition-all z-30 active:scale-90`}
+          >
+            {isRTL ? <ChevronLeft className="w-5 h-5" /> : <ChevronRight className="w-5 h-5" />}
+          </button>
+        </>
       )}
 
       {/* 📝 Bottom Info & Pagination */}
-      <div className="absolute bottom-0 left-0 right-0 p-5 z-30 pointer-events-none">
-        <div ref={textContainerRef} className="mb-4">
-          <h2 className="text-white font-black text-2xl tracking-tight drop-shadow-md">
+      <div className={`absolute bottom-0 left-0 right-0 p-6 z-30 pointer-events-none ${isRTL ? 'text-right' : 'text-left'}`}>
+        <div ref={textContainerRef} className="mb-5">
+          <h2 className="text-white font-black text-2xl tracking-tight drop-shadow-2xl">
             {active.name}
           </h2>
-          <div className="flex items-center gap-1.5 mt-1">
-            <MapPin className="w-4 h-4 text-emerald-400 dark:text-mint drop-shadow-md" />
-            <p className="text-gray-200 text-sm font-medium drop-shadow-md">
+          <div className={`flex items-center gap-2 mt-1.5 ${isRTL ? 'flex-row-reverse' : 'flex-row'}`}>
+            <MapPin className="w-4 h-4 text-oasis-spring drop-shadow-lg" />
+            <p className="text-moon text-sm font-bold drop-shadow-lg">
               {active.subtitle}
             </p>
           </div>
         </div>
 
         {/* 🟢 Pagination */}
-        <div className="flex items-center gap-2 pointer-events-auto">
+        <div className={`flex items-center gap-2 pointer-events-auto ${isRTL ? 'justify-end' : 'justify-start'}`}>
           {items.map((_, i) => (
             <button
               key={i}
               onClick={e => { e.stopPropagation(); goTo(i); }}
-              className={`h-1.5 rounded-full transition-all duration-500 ease-out ${i === cur ? 'w-8 bg-emerald-500 dark:bg-mint shadow-[0_0_8px_rgba(16,185,129,0.6)] dark:shadow-[0_0_8px_rgba(124,247,200,0.7)]' : 'w-2 bg-white/40 hover:bg-white/60'
+              className={`h-1.5 rounded-full transition-all duration-500 ease-out ${i === cur ? 'w-8 bg-oasis-spring shadow-mint-glow' : 'w-2 bg-white/20 hover:bg-white/40'
                 }`}
             />
           ))}

@@ -623,7 +623,7 @@ export const PrivateTripScreen = ({
 
   // ─────────────────────────────────────────────────────────────────────────
   return (
-    <div className="flex-1 min-h-0 flex flex-col bg-slate-50 relative">
+    <div className="flex-1 min-h-0 flex flex-col bg-slate-50 dark:bg-navy-950 relative transition-colors duration-300">
 
       {/* ── Hero Header ───────────────────────────────────────────────────── */}
       <div className="px-5 pt-10 pb-4 relative overflow-hidden flex-shrink-0" style={{ background: trip.coverImage ? 'transparent' : undefined }}>
@@ -771,7 +771,7 @@ export const PrivateTripScreen = ({
 
       {/* ── 5-Tab Bar ──────────────────────────────────────────────────────── */}
       <div className="flex-shrink-0 px-4 pt-3 pb-1">
-        <div className="bg-white rounded-2xl shadow-md border border-slate-100 p-1 flex gap-0.5">
+        <div className="bg-white dark:bg-navy-900 rounded-2xl shadow-md border border-slate-100 dark:border-white/10 p-1 flex gap-0.5 transition-colors">
           {([
             { id: 'chat',      label: ar ? 'دردشة'    : 'Chat',     Icon: MessageCircle },
             { id: 'split',     label: ar ? 'التكاليف' : 'Split',    Icon: Receipt },
@@ -781,7 +781,7 @@ export const PrivateTripScreen = ({
           ] as const).map(({ id, label, Icon }) => (
             <button key={id} type="button" onClick={() => setActiveTab(id)}
               className={`flex-1 flex flex-col items-center justify-center gap-0.5 py-2 rounded-xl transition-all ${
-                activeTab === id ? 'bg-emerald-600 text-white shadow-sm shadow-emerald-200' : 'text-slate-400 hover:text-slate-600'
+                activeTab === id ? 'bg-emerald-600 text-white shadow-sm shadow-emerald-200 dark:shadow-none' : 'text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300'
               }`}
             >
               <Icon className="w-4 h-4" />
@@ -1108,9 +1108,9 @@ export const PrivateTripScreen = ({
 
             {/* Category Breakdown */}
             {categoryBreakdown.length > 0 && (
-              <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4">
+              <div className="bg-white dark:bg-navy-900 rounded-2xl border border-slate-100 dark:border-white/10 shadow-sm p-4 transition-colors">
                 <div className="flex items-center justify-between mb-3">
-                  <h3 className="font-bold text-slate-900 text-sm flex items-center gap-1.5">
+                  <h3 className="font-bold text-slate-900 dark:text-white text-sm flex items-center gap-1.5">
                     <BarChart2 className="w-4 h-4 text-emerald-600" /> By Category
                   </h3>
                   <button type="button" onClick={handleExport} className="flex items-center gap-1 text-xs text-emerald-600 font-bold hover:text-emerald-700">
@@ -1123,14 +1123,14 @@ export const PrivateTripScreen = ({
                       <div className="flex items-center justify-between mb-1">
                         <div className="flex items-center gap-2">
                           <span className="text-base">{c.emoji}</span>
-                          <span className="text-sm font-semibold text-slate-700">{c.label}</span>
+                          <span className="text-sm font-semibold text-slate-700 dark:text-slate-300">{c.label}</span>
                         </div>
                         <div className="text-right">
-                          <span className="text-sm font-bold text-slate-900">{c.total.toFixed(0)}</span>
-                          <span className="text-xs text-slate-400 ml-1">SAR · {c.pct.toFixed(0)}%</span>
+                          <span className="text-sm font-bold text-slate-900 dark:text-white">{c.total.toFixed(0)}</span>
+                          <span className="text-xs text-slate-400 dark:text-slate-500 ml-1">SAR · {c.pct.toFixed(0)}%</span>
                         </div>
                       </div>
-                      <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+                      <div className="h-2 bg-slate-100 dark:bg-navy-800 rounded-full overflow-hidden">
                         <div className="h-full rounded-full transition-all" style={{ width: `${c.pct}%`, backgroundColor: c.barColor }} />
                       </div>
                     </div>
@@ -1141,12 +1141,12 @@ export const PrivateTripScreen = ({
 
             {/* Settlements */}
             {settlements.length > 0 && (
-              <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
-                <div className="px-4 py-3 border-b border-slate-50">
-                  <h3 className="font-bold text-slate-900 text-sm">Suggested Payments</h3>
-                  <p className="text-xs text-slate-400 mt-0.5">Minimum transactions to settle up</p>
+              <div className="bg-white dark:bg-navy-900 rounded-2xl border border-slate-100 dark:border-white/10 shadow-sm overflow-hidden transition-colors">
+                <div className="px-4 py-3 border-b border-slate-50 dark:border-white/5">
+                  <h3 className="font-bold text-slate-900 dark:text-white text-sm">Suggested Payments</h3>
+                  <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">Minimum transactions to settle up</p>
                 </div>
-                <div className="divide-y divide-slate-50">
+                <div className="divide-y divide-slate-50 dark:divide-white/5">
                   {settlements.map((s, i) => {
                     const key = `${s.from.id}-${s.to.id}-${s.amount}`;
                     const settled = settledKeys.has(key);
@@ -1155,14 +1155,14 @@ export const PrivateTripScreen = ({
                         <div className="flex items-center gap-3 mb-2.5">
                           <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-700 text-sm font-bold flex-shrink-0">{s.from.name?.charAt(0).toUpperCase()}</div>
                           <div className="flex-1 min-w-0">
-                            <p className={`text-sm font-semibold ${settled ? 'line-through text-slate-400' : 'text-slate-900'}`}>
-                              {s.from.name.split(' ')[0]}<ArrowRight className="w-3.5 h-3.5 inline mx-1 text-slate-400" />{s.to.name.split(' ')[0]}
+                            <p className={`text-sm font-semibold ${settled ? 'line-through text-slate-400 dark:text-slate-600' : 'text-slate-900 dark:text-white'}`}>
+                              {s.from.name.split(' ')[0]}<ArrowRight className="w-3.5 h-3.5 inline mx-1 text-slate-400 dark:text-slate-600" />{s.to.name.split(' ')[0]}
                             </p>
-                            <p className="text-xs text-slate-500">{s.amount} SAR</p>
+                            <p className="text-xs text-slate-500 dark:text-slate-400">{s.amount} SAR</p>
                           </div>
                           {settled
                             ? <div className="flex items-center gap-1 text-emerald-600"><CheckCircle2 className="w-5 h-5" /><span className="text-xs font-bold">Paid</span></div>
-                            : <span className="font-bold text-slate-900 flex-shrink-0">{s.amount} SAR</span>
+                            : <span className="font-bold text-slate-900 dark:text-white flex-shrink-0">{s.amount} SAR</span>
                           }
                         </div>
                         {!settled && (
@@ -1170,7 +1170,7 @@ export const PrivateTripScreen = ({
                             <button onClick={() => setStcPaySheet(s)} className="flex-1 flex items-center justify-center gap-1.5 py-2 bg-[#6B1D8A] hover:bg-[#5a1875] text-white text-xs font-bold rounded-xl transition-colors">
                               <Smartphone className="w-3.5 h-3.5" /> STC Pay
                             </button>
-                            <button onClick={() => markSettled(key)} className="flex items-center justify-center gap-1.5 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition-colors">
+                            <button onClick={() => markSettled(key)} className="flex items-center justify-center gap-1.5 px-3 py-2 bg-slate-100 dark:bg-navy-800 hover:bg-slate-200 dark:hover:bg-navy-700 text-slate-700 dark:text-slate-300 text-xs font-bold rounded-xl transition-colors">
                               <CheckCircle2 className="w-3.5 h-3.5" /> Paid
                             </button>
                           </div>
@@ -1183,20 +1183,20 @@ export const PrivateTripScreen = ({
             )}
 
             {settlements.length === 0 && totalExpenses > 0 && (
-              <div className="bg-emerald-50 border border-emerald-100 rounded-2xl p-4 flex items-center gap-3">
-                <div className="w-10 h-10 bg-emerald-100 rounded-xl flex items-center justify-center flex-shrink-0"><Users className="w-5 h-5 text-emerald-600" /></div>
-                <div><p className="font-bold text-emerald-800 text-sm">All settled up! 🎉</p><p className="text-xs text-emerald-600">Everyone has paid their fair share.</p></div>
+              <div className="bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-100 dark:border-emerald-800/30 rounded-2xl p-4 flex items-center gap-3 transition-colors">
+                <div className="w-10 h-10 bg-emerald-100 dark:bg-emerald-900/40 rounded-xl flex items-center justify-center flex-shrink-0"><Users className="w-5 h-5 text-emerald-600 dark:text-emerald-400" /></div>
+                <div><p className="font-bold text-emerald-800 dark:text-emerald-400 text-sm">All settled up! 🎉</p><p className="text-xs text-emerald-600 dark:text-emerald-500">Everyone has paid their fair share.</p></div>
               </div>
             )}
 
             {/* Expense list */}
             <div>
-              <h3 className="font-bold text-slate-900 mb-3">All Expenses</h3>
+              <h3 className="font-bold text-slate-900 dark:text-white mb-3">All Expenses</h3>
               {trip.expenses.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-12 text-center bg-white rounded-2xl border border-slate-100">
-                  <div className="w-14 h-14 bg-slate-50 rounded-2xl flex items-center justify-center mb-3"><Wallet className="w-7 h-7 text-slate-300" /></div>
-                  <p className="text-slate-500 font-semibold text-sm">No expenses yet</p>
-                  <p className="text-slate-400 text-xs mt-1">Add your first expense to start tracking</p>
+                <div className="flex flex-col items-center justify-center py-12 text-center bg-white dark:bg-navy-900 rounded-2xl border border-slate-100 dark:border-white/10 transition-colors">
+                  <div className="w-14 h-14 bg-slate-50 dark:bg-navy-800 rounded-2xl flex items-center justify-center mb-3 transition-colors"><Wallet className="w-7 h-7 text-slate-300 dark:text-slate-600" /></div>
+                  <p className="text-slate-500 dark:text-slate-400 font-semibold text-sm">No expenses yet</p>
+                  <p className="text-slate-400 dark:text-slate-500 text-xs mt-1">Add your first expense to start tracking</p>
                   <button onClick={() => setShowAddExpense(true)} className="mt-4 px-4 py-2 bg-emerald-600 text-white text-sm font-bold rounded-xl hover:bg-emerald-700 transition">Add First Expense</button>
                 </div>
               ) : (
@@ -1206,16 +1206,16 @@ export const PrivateTripScreen = ({
                     const cat   = catMap[e.category || 'other'] || catMap['other'];
                     const splitParts = customSplitsMap[e.id];
                     return (
-                      <div key={e.id} className="bg-white rounded-2xl border border-slate-100 p-3.5 flex items-center gap-3 shadow-sm">
-                        <div className={`w-11 h-11 rounded-xl ${cat.bg} flex items-center justify-center text-xl flex-shrink-0`}>{cat.emoji}</div>
+                      <div key={e.id} className="bg-white dark:bg-navy-900 rounded-2xl border border-slate-100 dark:border-white/10 p-3.5 flex items-center gap-3 shadow-sm transition-colors">
+                        <div className={`w-11 h-11 rounded-xl ${cat.bg} dark:bg-opacity-20 flex items-center justify-center text-xl flex-shrink-0`}>{cat.emoji}</div>
                         <div className="flex-1 min-w-0">
-                          <p className="font-bold text-slate-900 text-sm truncate">{e.description}</p>
-                          <p className="text-xs text-slate-400 mt-0.5">
+                          <p className="font-bold text-slate-900 dark:text-white text-sm truncate">{e.description}</p>
+                          <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">
                             {cat.label} · Paid by {payer?.name.split(' ')[0] || 'Unknown'}
                             {splitParts && ` · split ${splitParts.length}`}
                           </p>
                         </div>
-                        <span className="font-extrabold text-slate-900 flex-shrink-0">{e.amount} <span className="text-xs font-normal text-slate-400">SAR</span></span>
+                        <span className="font-extrabold text-slate-900 dark:text-white flex-shrink-0">{e.amount} <span className="text-xs font-normal text-slate-400 dark:text-slate-600">SAR</span></span>
                       </div>
                     );
                   })}
@@ -1340,21 +1340,21 @@ export const PrivateTripScreen = ({
           <div className="h-full overflow-y-auto px-4 pt-3 pb-24 space-y-4">
 
             {/* Trip Notes */}
-            <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+            <div className="bg-white dark:bg-navy-900 rounded-2xl border border-slate-100 dark:border-white/10 shadow-sm overflow-hidden transition-colors">
               <button type="button" onClick={() => setNotesExpanded(v => !v)} className="w-full px-4 py-3.5 flex items-center justify-between">
                 <div className="flex items-center gap-2 min-w-0">
                   <FileText className="w-4 h-4 text-emerald-600 flex-shrink-0" />
-                  <span className="font-bold text-slate-900 text-sm">Trip Notes</span>
+                  <span className="font-bold text-slate-900 dark:text-white text-sm">Trip Notes</span>
                   {tripNotes && !notesExpanded && (
-                    <span className="text-xs text-slate-400 truncate">{tripNotes.slice(0, 40)}{tripNotes.length > 40 ? '…' : ''}</span>
+                    <span className="text-xs text-slate-400 dark:text-slate-500 truncate">{tripNotes.slice(0, 40)}{tripNotes.length > 40 ? '…' : ''}</span>
                   )}
                 </div>
-                {notesExpanded ? <ChevronUp className="w-4 h-4 text-slate-400 flex-shrink-0" /> : <ChevronDown className="w-4 h-4 text-slate-400 flex-shrink-0" />}
+                {notesExpanded ? <ChevronUp className="w-4 h-4 text-slate-400 dark:text-slate-600 flex-shrink-0" /> : <ChevronDown className="w-4 h-4 text-slate-400 dark:text-slate-600 flex-shrink-0" />}
               </button>
               {notesExpanded && (
                 <div className="px-4 pb-4">
                   <textarea
-                    className="w-full bg-slate-50 rounded-xl px-3 py-2.5 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-400 resize-none border border-slate-100"
+                    className="w-full bg-slate-50 dark:bg-navy-800 rounded-xl px-3 py-2.5 text-sm text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-400 resize-none border border-slate-100 dark:border-white/5 transition-colors"
                     rows={5}
                     placeholder="Hotel: Hilton, Floor 8 · WiFi: Trip2025 · Emergency: 911…"
                     value={tripNotes}
@@ -1367,31 +1367,31 @@ export const PrivateTripScreen = ({
 
             {/* Saved itineraries from PlacesScreen */}
             <div>
-              <h3 className="font-bold text-slate-900 mb-3 flex items-center gap-2">
+              <h3 className="font-bold text-slate-900 dark:text-white mb-3 flex items-center gap-2">
                 <MapPin className="w-4 h-4 text-emerald-600" /> Saved Trip Plans
               </h3>
               {savedTrips.length === 0 ? (
-                <div className="bg-white rounded-2xl border border-slate-100 p-6 text-center">
-                  <div className="w-14 h-14 bg-emerald-50 rounded-2xl flex items-center justify-center mx-auto mb-3">
-                    <MapPin className="w-7 h-7 text-emerald-300" />
+                <div className="bg-white dark:bg-navy-900 rounded-2xl border border-slate-100 dark:border-white/10 p-6 text-center transition-colors">
+                  <div className="w-14 h-14 bg-emerald-50 dark:bg-emerald-900/20 rounded-2xl flex items-center justify-center mx-auto mb-3 transition-colors">
+                    <MapPin className="w-7 h-7 text-emerald-300 dark:text-emerald-700" />
                   </div>
-                  <p className="font-semibold text-slate-700 text-sm mb-1">No trip plans yet</p>
-                  <p className="text-slate-400 text-xs">Save places to a trip from the Explore tab to see them here.</p>
+                  <p className="font-semibold text-slate-700 dark:text-slate-300 text-sm mb-1">No trip plans yet</p>
+                  <p className="text-slate-400 dark:text-slate-500 text-xs">Save places to a trip from the Explore tab to see them here.</p>
                 </div>
               ) : (
                 <div className="space-y-2">
                   {savedTrips.map(t => (
-                    <div key={t.id} className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4 flex items-center gap-3">
-                      <div className="w-11 h-11 bg-emerald-100 rounded-xl flex items-center justify-center flex-shrink-0">
-                        <MapPin className="w-5 h-5 text-emerald-600" />
+                    <div key={t.id} className="bg-white dark:bg-navy-900 rounded-2xl border border-slate-100 dark:border-white/10 shadow-sm p-4 flex items-center gap-3 transition-colors">
+                      <div className="w-11 h-11 bg-emerald-100 dark:bg-emerald-900/40 rounded-xl flex items-center justify-center flex-shrink-0">
+                        <MapPin className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="font-bold text-slate-900 text-sm truncate">{t.name}</p>
-                        <p className="text-xs text-slate-400 mt-0.5">{t.placeIds.length} place{t.placeIds.length !== 1 ? 's' : ''}</p>
+                        <p className="font-bold text-slate-900 dark:text-white text-sm truncate">{t.name}</p>
+                        <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">{t.placeIds.length} place{t.placeIds.length !== 1 ? 's' : ''}</p>
                       </div>
-                      <div className="bg-emerald-50 border border-emerald-100 rounded-full px-2.5 py-1 flex items-center gap-1">
-                        <span className="text-xs font-bold text-emerald-700">{t.placeIds.length}</span>
-                        <MapPin className="w-3 h-3 text-emerald-600" />
+                      <div className="bg-emerald-50 dark:bg-emerald-900/40 border border-emerald-100 dark:border-emerald-800/50 rounded-full px-2.5 py-1 flex items-center gap-1 transition-colors">
+                        <span className="text-xs font-bold text-emerald-700 dark:text-emerald-400">{t.placeIds.length}</span>
+                        <MapPin className="w-3 h-3 text-emerald-600 dark:text-emerald-500" />
                       </div>
                     </div>
                   ))}

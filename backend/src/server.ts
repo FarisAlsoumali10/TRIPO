@@ -2,6 +2,7 @@ import 'dotenv/config';
 import express, { Request, Response } from 'express';
 import { createServer } from 'http';
 import { Server, Socket } from 'socket.io';
+import path from 'path';
 import cors, { CorsOptions } from 'cors'; // ✅ استيراد نوع CorsOptions صراحةً
 import helmet from 'helmet';
 import morgan from 'morgan';
@@ -12,7 +13,8 @@ import { connectDatabase } from './config/database';
 import routes from './routes';
 import { errorHandler, notFound } from './middleware/errorHandler';
 import { verifyToken } from './utils/jwt';
-import { handleWebhook } from './controllers/paymentController';
+import { handleMoyasarWebhook } from './controllers/paymentController';
+import photoRoutes from './routes/photoRoutes';
 
 const app = express();
 
@@ -64,10 +66,10 @@ app.use(compression());
 app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev'));
 
 // ==========================================
-// 💳 Stripe Webhook — MUST be BEFORE express.json()
-// express.raw preserves the raw Buffer Stripe needs for signature verification
+// 💳 Moyasar Webhook — MUST be BEFORE express.json()
+// express.raw preserves the raw body needed for secret_token verification
 // ==========================================
-app.post('/api/v1/payments/webhook', express.raw({ type: 'application/json' }), handleWebhook as any);
+app.post('/api/v1/payments/webhook', express.raw({ type: 'application/json' }), handleMoyasarWebhook as any);
 
 // ✅ حماية السيرفر من هجمات الـ Payload الضخمة
 app.use(express.json({ limit: '10mb' }));
@@ -104,7 +106,11 @@ app.get('/health', (req: Request, res: Response) => {
 // ✅ جعل الـ Socket متاحاً داخل الـ Controllers
 app.set('io', io);
 
+// ✅ Serve static files from the public folder (for local images)
+app.use('/images', express.static(path.join(__dirname, '../../public/images')));
+
 app.use('/api/v1', routes);
+app.use('/api/photos', photoRoutes);
 
 // ==========================================
 // 🚨 Error Handling (معالجة الأخطاء)
