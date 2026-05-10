@@ -58,6 +58,7 @@ interface TripMapProps {
   lang?: 'en' | 'ar';
   height?: string;
   centerOnSelected?: boolean;
+  userPos?: { lat: number; lng: number } | null;
 }
 
 // ─── Helper: fly to selected marker ──────────────────────────────────────────
@@ -83,6 +84,40 @@ function MapResizer() {
   return null;
 }
 
+// ─── Helper: تحريك الخريطة لموقع المستخدم ─────────────────────────────────
+function LocationMarker({ position }: { position: { lat: number; lng: number } | null }) {
+  const map = useMap();
+
+  useEffect(() => {
+    if (position) {
+      map.flyTo([position.lat, position.lng], 14, {
+        animate: true,
+        duration: 1.5,
+      });
+    }
+  }, [map, position]);
+
+  if (!position) return null;
+
+  return (
+    <Marker
+      position={[position.lat, position.lng]}
+      icon={L.divIcon({
+        className: '',
+        html: `<div style="
+          background:#3b82f6; border:3px solid white;
+          border-radius:50%; width:18px; height:18px;
+          box-shadow:0 0 0 6px rgba(59,130,246,0.3);
+        "></div>`,
+        iconSize: [18, 18],
+        iconAnchor: [9, 9],
+      })}
+    >
+      <Popup>📍 أنت هنا</Popup>
+    </Marker>
+  );
+}
+
 // ─── Main Component ───────────────────────────────────────────────────────────
 export const TripMap: React.FC<TripMapProps> = ({
   places,
@@ -91,6 +126,7 @@ export const TripMap: React.FC<TripMapProps> = ({
   lang = 'en',
   height = '400px',
   centerOnSelected = true,
+  userPos = null,
 }) => {
   const isRTL = lang === 'ar';
 
@@ -122,6 +158,9 @@ export const TripMap: React.FC<TripMapProps> = ({
         
         {/* Force size invalidation to fix grey map rendering */}
         <MapResizer />
+
+        {/* Location Marker to center map dynamically */}
+        <LocationMarker position={userPos} />
 
         {/* Fly to selected */}
         {centerOnSelected && (
