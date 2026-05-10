@@ -64,10 +64,22 @@ interface TripMapProps {
 function FlyToSelected({ place }: { place: MapPlace | undefined }) {
   const map = useMap();
   useEffect(() => {
-    if (!place) return;
+    if (!place?.location?.coordinates || place.location.coordinates.length < 2) return;
     const [lng, lat] = place.location.coordinates;
     map.flyTo([lat, lng], 13, { duration: 1.2 });
   }, [place, map]);
+  return null;
+}
+
+// ─── Helper: Force map resize update (fixes grey map in Modals/Tabs) ─────────
+function MapResizer() {
+  const map = useMap();
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      map.invalidateSize();
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [map]);
   return null;
 }
 
@@ -82,11 +94,16 @@ export const TripMap: React.FC<TripMapProps> = ({
 }) => {
   const isRTL = lang === 'ar';
 
+  // ✅ فلتر آمن قبل أي شيء
+  const safePlaces = (places ?? []).filter(
+    p => p?.location?.coordinates?.length === 2
+  );
+
   // Default center: Saudi Arabia
   const defaultCenter: [number, number] = [24.7136, 46.6753];
   const defaultZoom = 5;
 
-  const selectedPlace = places.find(p => (p.id || p._id) === selectedId);
+  const selectedPlace = safePlaces.find(p => (p.id || p._id) === selectedId);
 
   return (
     <div style={{ height, width: '100%', borderRadius: '16px', overflow: 'hidden' }}>
@@ -102,6 +119,9 @@ export const TripMap: React.FC<TripMapProps> = ({
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/">CARTO</a>'
           url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
         />
+        
+        {/* Force size invalidation to fix grey map rendering */}
+        <MapResizer />
 
         {/* Fly to selected */}
         {centerOnSelected && (
@@ -109,7 +129,7 @@ export const TripMap: React.FC<TripMapProps> = ({
         )}
 
         {/* Place markers */}
-        {places.map(place => {
+        {safePlaces.map(place => {
           const [lng, lat] = place.location.coordinates;
           const isSelected = (place.id || place._id) === selectedId;
           return (

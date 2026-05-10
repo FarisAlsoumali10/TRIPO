@@ -3,7 +3,7 @@ import { Bell, X, Heart, Users, MessageCircle, Calendar, Star } from 'lucide-rea
 import { io, Socket } from 'socket.io-client';
 import { notificationAPI } from '../services/api';
 
-const SOCKET_URL = (import.meta as any).env?.VITE_API_URL ?? '';
+const SOCKET_URL = 'https://tripo-backend-5voi.onrender.com';
 
 const STORAGE_KEY = 'tripo_notifications';
 
@@ -102,7 +102,8 @@ export const NotificationPanel = ({ lang = 'ar' }: { lang?: 'en' | 'ar' }) => {
 
     const socket = io(SOCKET_URL, {
       auth: { token },
-      transports: ['websocket', 'polling'],
+      transports: ['websocket'],
+      withCredentials: true,
       reconnectionAttempts: 5,
     });
 

@@ -610,7 +610,7 @@ export const ExploreScreen = ({ t, onOpenPlace, lang = 'en', initialNearMe = fal
           <div className="w-full h-full">
             <React.Suspense fallback={<div className="w-full h-full bg-midnight animate-pulse" />}>
               <TripMap
-                places={filtered}
+                places={(filtered ?? []).filter((p: any) => p?.location?.coordinates?.length === 2)}
                 userPos={userPos}
                 selectedPlace={selectedItem}
                 onMarkerPress={(p) => { setSelectedItem(p); setShowBottomSheet(true); }}

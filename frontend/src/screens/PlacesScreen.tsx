@@ -873,7 +873,7 @@ export const PlacesScreen = ({ t, lang, initialPlaceId, onPlaceOpened, initialQu
                     type: 'Point',
                     coordinates: [p.coordinates?.lng ?? (p as any).lng ?? 46.6753, p.coordinates?.lat ?? (p as any).lat ?? 24.7136]
                   }
-                }))}
+                })).filter(p => p?.location?.coordinates?.length === 2)}
                 onSelectPlace={p => {
                   const full = places.find(fp => (fp._id || fp.id || fp.name).toString() === p.id);
                   if (full) setSelectedPlace(full);
