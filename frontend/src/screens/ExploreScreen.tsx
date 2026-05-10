@@ -11,6 +11,7 @@ import { PlaceDetailModal } from '../components/PlaceDetailModal';
 import { placeAPI } from '../services/api';
 import { showToast } from '../components/Toast';
 import { Skeleton, SafeImage } from '../components/ui';
+import { useGeolocation } from '../hooks/useGeolocation';
 
 import { addPlaceToList } from './PersonalListsScreen';
 
@@ -294,14 +295,23 @@ export const ExploreScreen = ({ t, onOpenPlace, lang = 'en', initialNearMe = fal
   const [isLoading, setIsLoading] = useState(true);
   const [selectedItem, setSelectedItem] = useState<Place | null>(null);
   const [activeCategory, setActiveCategory] = useState('');
-  const [isLocating, setIsLocating] = useState(false);
   const [viewMode, setViewMode] = useState<'tiles' | 'map' | 'list'>('tiles');
   const [searchQuery, setSearchQuery] = useState('');
   const [showFilters, setShowFilters] = useState(false);
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
   const [showBottomSheet, setShowBottomSheet] = useState(false);
-  const [userPos, setUserPos] = useState<{ lat: number; lng: number } | null>(null);
   const [showListMenu, setShowListMenu] = useState<string | null>(null);
+
+  // Geolocation Hook
+  const { position: geoPosition, loading: geoLoading, error: geoError, getLocation } = useGeolocation();
+  const [userPos, setUserPos] = useState<{ lat: number; lng: number } | null>(null);
+
+  useEffect(() => {
+    if (geoPosition) {
+      setUserPos(geoPosition);
+      setSortBy('proximity');
+    }
+  }, [geoPosition]);
 
   // Filters
   const [filterMinRating, setFilterMinRating] = useState(0);
@@ -430,26 +440,13 @@ export const ExploreScreen = ({ t, onOpenPlace, lang = 'en', initialNearMe = fal
       : null,
   }), [places, userPos]);
 
-  const handleNearMe = (targetView: 'map' | 'list' = 'map') => {
-    if (!navigator.geolocation) { showToast('الجهاز لا يدعم تحديد الموقع', 'error'); return; }
-    setIsLocating(true);
-    navigator.geolocation.getCurrentPosition(
-      pos => {
-        setIsLocating(false);
-        const { latitude: lat, longitude: lng } = pos.coords;
-        setUserPos({ lat, lng });
-        setSortBy('proximity');
-        setViewMode(targetView);
-      },
-      () => { setIsLocating(false); showToast('تعذّر الحصول على موقعك', 'error'); },
-      { timeout: 8000 }
-    );
-  };
+
 
   useEffect(() => {
     if (!initialNearMe) return;
     onNearMeHandled?.();
-    handleNearMe('map');
+    getLocation();
+    setViewMode('map');
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -582,13 +579,26 @@ export const ExploreScreen = ({ t, onOpenPlace, lang = 'en', initialNearMe = fal
       {/* ── Control Buttons (Floating) ─────────────────────────────────── */}
       {viewMode !== 'tiles' && (
         <div className="absolute top-36 end-4 z-20 flex flex-col gap-3 pointer-events-auto">
-          <button
-            onClick={handleNearMe}
-            disabled={isLocating}
-            className="w-12 h-12 bg-white/80 dark:bg-chamber/80 backdrop-blur-xl border border-slate-100 dark:border-white/10 rounded-2xl shadow-2xl flex items-center justify-center text-oasis-spring active:scale-90 transition-all hover:bg-slate-50 dark:hover:bg-navy-900/5"
-          >
-            {isLocating ? <div className="w-5 h-5 border-2 border-oasis-spring border-t-transparent rounded-full animate-spin" /> : <Navigation className="w-5 h-5" />}
-          </button>
+          <div className="flex flex-col items-center">
+            <button 
+              onClick={() => { getLocation(); setViewMode('map'); }} 
+              disabled={geoLoading}
+              className={`w-12 h-12 rounded-2xl shadow-2xl flex items-center justify-center active:scale-90 transition-all border border-slate-100 dark:border-white/10 ${geoLoading ? 'bg-slate-300 dark:bg-slate-700 text-slate-500' : 'bg-oasis-spring text-midnight shadow-mint-glow hover:bg-oasis-spring/90'}`}
+            >
+              {geoLoading ? (
+                <span className="w-5 h-5 border-2 border-current border-t-transparent rounded-full animate-spin" />
+              ) : (
+                <Navigation className="w-5 h-5" />
+              )}
+            </button>
+            
+            {/* عرض رسالة الخطأ إن وجدت أسفل الزر */}
+            {geoError && (
+              <div className="absolute top-full mt-2 w-32 bg-red-500 text-white text-[10px] font-bold px-2 py-1.5 rounded-lg text-center shadow-lg pointer-events-none">
+                {geoError}
+              </div>
+            )}
+          </div>
 
           <button
             onClick={() => setShowFilters(v => !v)}
