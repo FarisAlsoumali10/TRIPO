@@ -632,18 +632,18 @@ export const PlacesScreen = ({ t, lang, initialPlaceId, onPlaceOpened, initialQu
     const { placeId, img, rating, openStatus, isSaved, isVisited, duration, dist } = getCardData(place);
     return (
       <button key={placeId} onClick={() => setSelectedPlace(place)}
-        className="bg-chamber rounded-3xl overflow-hidden shadow-xl border border-white/5 hover:border-white/15 hover:-translate-y-1 transition-all duration-300 text-left group relative active:scale-[0.98]">
+        className="bg-white dark:bg-chamber rounded-3xl overflow-hidden shadow-xl border border-slate-200 dark:border-white/5 hover:border-slate-300 dark:hover:border-white/15 hover:-translate-y-1 transition-all duration-300 text-left group relative active:scale-[0.98]">
         {isVisited && <div className="absolute inset-0 z-10 pointer-events-none rounded-3xl ring-2 ring-oasis-spring/60" />}
-        <div className="h-44 bg-midnight relative overflow-hidden">
+        <div className="h-44 bg-slate-100 dark:bg-midnight relative overflow-hidden">
           {img
             ? <SafeImage src={img} className={`w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ${isVisited ? 'opacity-40' : ''}`} alt={place.name} fallbackType="placeholder" />
-            : <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-chamber to-midnight"><MapPin className="w-10 h-10 text-white/5" /></div>
+            : <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-slate-100 dark:from-chamber to-slate-200 dark:to-midnight"><MapPin className="w-10 h-10 text-slate-300 dark:text-white/5" /></div>
           }
-          <div className="absolute inset-0 bg-gradient-to-t from-midnight/90 via-midnight/20 to-transparent" />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/60 dark:from-midnight/90 via-black/10 dark:via-midnight/20 to-transparent" />
           {rating && (
-            <div className="absolute top-3 right-3 flex items-center gap-1 bg-midnight/70 backdrop-blur-md px-2.5 py-1.5 rounded-xl border border-white/10 shadow-xl">
+            <div className="absolute top-3 right-3 flex items-center gap-1 bg-white/80 dark:bg-midnight/70 backdrop-blur-md px-2.5 py-1.5 rounded-xl border border-white/50 dark:border-white/10 shadow-xl">
               <Star className="w-3 h-3 fill-amber-400 text-amber-400" />
-              <span className="text-[10px] font-black text-white">{Number(rating).toFixed(1)}</span>
+              <span className="text-[10px] font-black text-slate-900 dark:text-white">{Number(rating).toFixed(1)}</span>
             </div>
           )}
           {openStatus !== null && (
@@ -657,7 +657,7 @@ export const PlacesScreen = ({ t, lang, initialPlaceId, onPlaceOpened, initialQu
             </div>
           )}
           {place.categoryTags?.[0] && (
-            <div className="absolute bottom-3 left-3 bg-black/50 backdrop-blur-md text-moon text-[8px] font-black px-2.5 py-1 rounded-lg uppercase tracking-widest border border-white/10">
+            <div className="absolute bottom-3 left-3 bg-white/80 dark:bg-black/50 backdrop-blur-md text-slate-700 dark:text-moon text-[8px] font-black px-2.5 py-1 rounded-lg uppercase tracking-widest border border-white/50 dark:border-white/10">
               {place.categoryTags[0]}
             </div>
           )}
@@ -665,23 +665,23 @@ export const PlacesScreen = ({ t, lang, initialPlaceId, onPlaceOpened, initialQu
             role="button" tabIndex={0}
             onClick={e => toggleSaved(placeId, e as any)}
             onKeyDown={e => e.key === 'Enter' && toggleSaved(placeId, e as any)}
-            className={`absolute bottom-3 right-3 w-8 h-8 rounded-full flex items-center justify-center transition-all cursor-pointer border border-white/10 ${isSaved ? 'bg-red-500 shadow-xl' : 'bg-black/40 hover:bg-midnight backdrop-blur-md'}`}>
-            <Bookmark className={`w-3.5 h-3.5 transition-colors ${isSaved ? 'fill-white text-white' : 'text-moon'}`} />
+            className={`absolute bottom-3 right-3 w-8 h-8 rounded-full flex items-center justify-center transition-all cursor-pointer border border-white/50 dark:border-white/10 ${isSaved ? 'bg-red-500 shadow-xl' : 'bg-white/80 dark:bg-black/40 hover:bg-white dark:hover:bg-midnight backdrop-blur-md'}`}>
+            <Bookmark className={`w-3.5 h-3.5 transition-colors ${isSaved ? 'fill-white text-white' : 'text-slate-600 dark:text-moon'}`} />
           </div>
         </div>
         <div className="p-4">
-          <p className="font-black text-white text-sm leading-tight truncate group-hover:text-oasis-spring transition-colors">{place.name}</p>
-          <p className="text-[11px] text-moon flex items-center gap-1.5 mt-1.5">
+          <p className="font-black text-slate-900 dark:text-white text-sm leading-tight truncate group-hover:text-oasis-spring transition-colors">{place.name}</p>
+          <p className="text-[11px] text-slate-500 dark:text-moon flex items-center gap-1.5 mt-1.5">
             <MapPin className="w-3 h-3 text-oasis-spring/60 flex-shrink-0" />
             <span className="truncate">{place.city || 'Saudi Arabia'}</span>
             {dist && <span className="ml-auto text-oasis-spring font-black text-[10px]">{dist}</span>}
           </p>
-          <div className="flex items-center gap-2 mt-3 pt-3 border-t border-white/5">
+          <div className="flex items-center gap-2 mt-3 pt-3 border-t border-slate-200 dark:border-white/5">
             {place.ratingSummary?.reviewCount != null && (
-              <p className="text-[10px] text-dusk font-bold">{place.ratingSummary.reviewCount} {t.reviewsCount || 'reviews'}</p>
+              <p className="text-[10px] text-slate-400 dark:text-dusk font-bold">{place.ratingSummary.reviewCount} {t.reviewsCount || 'reviews'}</p>
             )}
             {duration && (
-              <span className="flex items-center gap-1 text-[10px] text-dusk font-bold ml-auto">
+              <span className="flex items-center gap-1 text-[10px] text-slate-400 dark:text-dusk font-bold ml-auto">
                 <Clock className="w-3 h-3 text-oasis-spring/60" />{duration}
               </span>
             )}
@@ -696,12 +696,12 @@ export const PlacesScreen = ({ t, lang, initialPlaceId, onPlaceOpened, initialQu
     const { placeId, img, rating, openStatus, isSaved, isVisited, duration, dist } = getCardData(place);
     return (
       <button key={placeId} onClick={() => setSelectedPlace(place)}
-        className="bg-chamber rounded-2xl overflow-hidden shadow-xl border border-white/5 hover:border-white/15 transition-all text-left flex active:scale-[0.98] group relative">
+        className="bg-white dark:bg-chamber rounded-2xl overflow-hidden shadow-xl border border-slate-200 dark:border-white/5 hover:border-slate-300 dark:hover:border-white/15 transition-all text-left flex active:scale-[0.98] group relative">
         {isVisited && <div className="absolute inset-0 z-10 pointer-events-none rounded-2xl ring-1 ring-oasis-spring/60" />}
-        <div className="w-28 flex-shrink-0 bg-midnight relative overflow-hidden">
+        <div className="w-28 flex-shrink-0 bg-slate-100 dark:bg-midnight relative overflow-hidden">
           {img
             ? <SafeImage src={img} className={`w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ${isVisited ? 'opacity-40' : ''}`} alt={place.name} fallbackType="placeholder" />
-            : <div className="w-full h-full flex items-center justify-center"><MapPin className="w-8 h-8 text-white/5" /></div>
+            : <div className="w-full h-full flex items-center justify-center"><MapPin className="w-8 h-8 text-slate-300 dark:text-white/5" /></div>
           }
           <div className="absolute inset-0 bg-gradient-to-r from-black/20 via-transparent to-transparent" />
           {openStatus !== null && (
@@ -711,21 +711,21 @@ export const PlacesScreen = ({ t, lang, initialPlaceId, onPlaceOpened, initialQu
             role="button" tabIndex={0}
             onClick={e => toggleSaved(placeId, e as any)}
             onKeyDown={e => e.key === 'Enter' && toggleSaved(placeId, e as any)}
-            className={`absolute bottom-2 right-2 w-6 h-6 rounded-full flex items-center justify-center border border-white/10 ${isSaved ? 'bg-red-500' : 'bg-midnight/60'}`}>
-            <Bookmark className={`w-3 h-3 ${isSaved ? 'fill-white text-white' : 'text-moon'}`} />
+            className={`absolute bottom-2 right-2 w-6 h-6 rounded-full flex items-center justify-center border border-white/50 dark:border-white/10 ${isSaved ? 'bg-red-500' : 'bg-white/80 dark:bg-midnight/60'}`}>
+            <Bookmark className={`w-3 h-3 ${isSaved ? 'fill-white text-white' : 'text-slate-600 dark:text-moon'}`} />
           </div>
         </div>
         <div className="flex-1 p-3.5 min-w-0 flex flex-col justify-center">
           <div className="flex justify-between items-start gap-2">
-            <p className="font-black text-white text-sm leading-tight truncate group-hover:text-oasis-spring transition-colors">{place.name}</p>
+            <p className="font-black text-slate-900 dark:text-white text-sm leading-tight truncate group-hover:text-oasis-spring transition-colors">{place.name}</p>
             {rating && (
-              <div className="flex items-center gap-0.5 flex-shrink-0 bg-midnight/60 px-2 py-1 rounded-lg">
+              <div className="flex items-center gap-0.5 flex-shrink-0 bg-slate-100 dark:bg-midnight/60 px-2 py-1 rounded-lg">
                 <Star className="w-2.5 h-2.5 fill-amber-400 text-amber-400" />
-                <span className="text-[10px] font-black text-white">{Number(rating).toFixed(1)}</span>
+                <span className="text-[10px] font-black text-slate-900 dark:text-white">{Number(rating).toFixed(1)}</span>
               </div>
             )}
           </div>
-          <p className="text-[10px] text-moon flex items-center gap-1 mt-1.5">
+          <p className="text-[10px] text-slate-500 dark:text-moon flex items-center gap-1 mt-1.5">
             <MapPin className="w-2.5 h-2.5 text-oasis-spring/60" />
             <span className="truncate">{place.city || 'Saudi Arabia'}</span>
           </p>
@@ -749,11 +749,11 @@ export const PlacesScreen = ({ t, lang, initialPlaceId, onPlaceOpened, initialQu
 
   // ── Loading ─────────────────────────────────────────────────────────────────
   if (isLoading && places.length === 0) return (
-    <div className="h-full flex flex-col bg-midnight">
+    <div className="h-full flex flex-col bg-slate-50 dark:bg-midnight">
       <div className="px-5 pt-8 pb-4">
-        <div className="h-9 w-2/3 bg-chamber animate-pulse rounded-2xl mb-2" />
-        <div className="h-4 w-1/2 bg-chamber animate-pulse rounded-xl mb-6" />
-        <div className="h-14 bg-chamber animate-pulse rounded-2xl" />
+        <div className="h-9 w-2/3 bg-slate-200 dark:bg-chamber animate-pulse rounded-2xl mb-2" />
+        <div className="h-4 w-1/2 bg-slate-200 dark:bg-chamber animate-pulse rounded-xl mb-6" />
+        <div className="h-14 bg-slate-200 dark:bg-chamber animate-pulse rounded-2xl" />
       </div>
       <div className="flex-1 px-5 py-4 space-y-4 overflow-hidden">
         {[1, 2, 3].map(i => <SkeletonCard key={i} />)}
@@ -763,12 +763,12 @@ export const PlacesScreen = ({ t, lang, initialPlaceId, onPlaceOpened, initialQu
 
   // ── Error ───────────────────────────────────────────────────────────────────
   if (hasNetworkError && places.length === 0) return (
-    <div className="h-full flex flex-col items-center justify-center p-8 bg-midnight text-center">
-      <div className="w-20 h-20 bg-chamber rounded-3xl flex items-center justify-center mb-6 border border-white/5">
-        <WifiOff className="w-9 h-9 text-dusk" />
+    <div className="h-full flex flex-col items-center justify-center p-8 bg-slate-50 dark:bg-midnight text-center">
+      <div className="w-20 h-20 bg-white dark:bg-chamber rounded-3xl flex items-center justify-center mb-6 border border-slate-200 dark:border-white/5">
+        <WifiOff className="w-9 h-9 text-slate-400 dark:text-dusk" />
       </div>
-      <h2 className="text-xl font-black text-white mb-2">{ar ? 'مشكلة في الاتصال' : 'Connection Problem'}</h2>
-      <p className="text-moon text-sm mb-8 max-w-xs leading-relaxed">{ar ? 'لم نتمكن من جلب الأماكن.' : "Couldn't load places. Check your internet connection."}</p>
+      <h2 className="text-xl font-black text-slate-900 dark:text-white mb-2">{ar ? 'مشكلة في الاتصال' : 'Connection Problem'}</h2>
+      <p className="text-slate-500 dark:text-moon text-sm mb-8 max-w-xs leading-relaxed">{ar ? 'لم نتمكن من جلب الأماكن.' : "Couldn't load places. Check your internet connection."}</p>
       <button onClick={fetchPlaces} className="px-8 py-3.5 bg-oasis-spring text-midnight font-black uppercase rounded-2xl active:scale-95 transition-all tracking-widest text-sm">
         {ar ? 'إعادة المحاولة' : 'Try Again'}
       </button>
@@ -777,22 +777,22 @@ export const PlacesScreen = ({ t, lang, initialPlaceId, onPlaceOpened, initialQu
 
   // ── Main ────────────────────────────────────────────────────────────────────
   return (
-    <div className="h-full flex flex-col bg-midnight text-white overflow-hidden">
+    <div className="h-full flex flex-col bg-slate-50 dark:bg-midnight text-slate-900 dark:text-white overflow-hidden transition-colors duration-300">
 
       {/* Header */}
       <div className="flex-shrink-0 pt-6 pb-3 px-5 z-20">
         <div className="flex items-center justify-between mb-5">
           <div>
-            <h1 className="text-2xl font-black tracking-tight text-white">
+            <h1 className="text-2xl font-black tracking-tight text-slate-900 dark:text-white">
               {t.placesTitle || (ar ? 'اكتشف الأماكن' : 'Explore Places')}
             </h1>
-            <p className="text-[10px] text-moon font-bold uppercase tracking-[0.18em] mt-0.5">
+            <p className="text-[10px] text-slate-500 dark:text-moon font-bold uppercase tracking-[0.18em] mt-0.5">
               {ar ? 'أفضل الوجهات في المملكة' : 'Top destinations in KSA'}
             </p>
           </div>
           <button
             onClick={handleSurpriseMe}
-            className="w-10 h-10 bg-chamber border border-white/5 rounded-2xl flex items-center justify-center hover:border-oasis-spring/30 transition-all active:scale-90"
+            className="w-10 h-10 bg-white dark:bg-chamber border border-slate-200 dark:border-white/5 rounded-2xl flex items-center justify-center hover:border-oasis-spring/30 transition-all active:scale-90 shadow-sm dark:shadow-none"
             title={ar ? 'فاجئني!' : 'Surprise me!'}
           >
             <Shuffle className="w-4 h-4 text-oasis-spring" />
@@ -801,7 +801,7 @@ export const PlacesScreen = ({ t, lang, initialPlaceId, onPlaceOpened, initialQu
 
         {/* Search */}
         <div className={`relative transition-all duration-300 ${searchFocused ? 'scale-[1.015]' : ''}`}>
-          <Search className={`absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none transition-colors ${searchFocused ? 'text-oasis-spring' : 'text-dusk'}`} />
+          <Search className={`absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none transition-colors ${searchFocused ? 'text-oasis-spring' : 'text-slate-400 dark:text-dusk'}`} />
           <input
             type="text"
             placeholder={ar ? 'ابحث عن أماكن، مدن، تصنيفات…' : 'Search places, cities, categories…'}
@@ -809,20 +809,20 @@ export const PlacesScreen = ({ t, lang, initialPlaceId, onPlaceOpened, initialQu
             onChange={e => setSearch(e.target.value)}
             onFocus={() => setSearchFocused(true)}
             onBlur={() => setTimeout(() => setSearchFocused(false), 200)}
-            className="w-full bg-chamber border border-white/5 rounded-2xl py-3.5 pl-11 pr-10 text-sm font-medium text-white placeholder-moon/40 focus:outline-none focus:ring-2 focus:ring-oasis-spring/30 focus:border-oasis-spring/40 transition-all"
+            className="w-full bg-white dark:bg-chamber border border-slate-200 dark:border-white/5 rounded-2xl py-3.5 pl-11 pr-10 text-sm font-medium text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-moon/40 focus:outline-none focus:ring-2 focus:ring-oasis-spring/30 focus:border-oasis-spring/40 transition-all shadow-sm dark:shadow-none"
           />
           {search && (
-            <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 rounded-full hover:bg-lifted transition-colors">
-              <X className="w-3.5 h-3.5 text-moon" />
+            <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 rounded-full hover:bg-slate-100 dark:hover:bg-lifted transition-colors">
+              <X className="w-3.5 h-3.5 text-slate-500 dark:text-moon" />
             </button>
           )}
           {searchFocused && suggestions.length > 0 && (
-            <div className="absolute top-full left-0 right-0 mt-2 bg-chamber border border-white/10 rounded-2xl shadow-2xl z-50 overflow-hidden">
+            <div className="absolute top-full left-0 right-0 mt-2 bg-white dark:bg-chamber border border-slate-200 dark:border-white/10 rounded-2xl shadow-2xl z-50 overflow-hidden">
               {suggestions.map((s, i) => (
                 <button key={i} onMouseDown={() => { setSearch(s); saveRecentSearch(s); }}
-                  className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-lifted transition-colors border-b border-white/5 last:border-0">
-                  <Search className="w-3.5 h-3.5 text-dusk flex-shrink-0" />
-                  <span className="text-sm font-semibold text-moon">{s}</span>
+                  className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-slate-50 dark:hover:bg-lifted transition-colors border-b border-slate-100 dark:border-white/5 last:border-0">
+                  <Search className="w-3.5 h-3.5 text-slate-400 dark:text-dusk flex-shrink-0" />
+                  <span className="text-sm font-semibold text-slate-700 dark:text-moon">{s}</span>
                 </button>
               ))}
             </div>
@@ -831,21 +831,21 @@ export const PlacesScreen = ({ t, lang, initialPlaceId, onPlaceOpened, initialQu
 
         {/* View Mode + Cities */}
         <div className="flex items-center gap-3 mt-4 overflow-x-auto pb-1 no-scrollbar">
-          <div className="flex bg-chamber p-1 rounded-xl border border-white/5 shrink-0">
+          <div className="flex bg-white dark:bg-chamber p-1 rounded-xl border border-slate-200 dark:border-white/5 shrink-0 shadow-sm dark:shadow-none">
             {([
               { mode: 'grid' as ViewMode, Icon: LayoutGrid },
               { mode: 'list' as ViewMode, Icon: List },
               { mode: 'map' as ViewMode, Icon: MapIcon },
             ] as const).map(({ mode, Icon }) => (
               <button key={mode} onClick={() => setViewMode(mode)}
-                className={`p-2 rounded-lg transition-all ${viewMode === mode ? 'bg-oasis-spring text-midnight shadow-sm scale-105' : 'text-moon hover:text-white'}`}>
+                className={`p-2 rounded-lg transition-all ${viewMode === mode ? 'bg-oasis-spring text-midnight shadow-sm scale-105' : 'text-slate-500 dark:text-moon hover:text-slate-900 dark:hover:text-white'}`}>
                 <Icon className="w-4 h-4" />
               </button>
             ))}
           </div>
           {CITY_LIST.map(city => (
             <button key={city} onClick={() => setCityFilter(city)}
-              className={`px-3.5 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border transition-all shrink-0 active:scale-95 ${cityFilter === city ? 'bg-oasis-spring text-midnight border-oasis-spring' : 'bg-chamber text-moon border-white/5 hover:border-white/15'}`}>
+              className={`px-3.5 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border transition-all shrink-0 active:scale-95 ${cityFilter === city ? 'bg-oasis-spring text-midnight border-oasis-spring' : 'bg-white dark:bg-chamber text-slate-600 dark:text-moon border-slate-200 dark:border-white/5 hover:border-slate-300 dark:hover:border-white/15 shadow-sm dark:shadow-none'}`}>
               {ar ? CITY_LIST_AR[city] : city}
             </button>
           ))}
@@ -858,7 +858,7 @@ export const PlacesScreen = ({ t, lang, initialPlaceId, onPlaceOpened, initialQu
         {/* Map View */}
         {viewMode === 'map' && (
           <div style={{ height: 'calc(100vh - 220px)' }}>
-            <React.Suspense fallback={<div className="w-full h-full bg-chamber animate-pulse rounded-xl" />}>
+            <React.Suspense fallback={<div className="w-full h-full bg-slate-200 dark:bg-chamber animate-pulse rounded-xl" />}>
               <TripMap
                 places={filtered.map(p => ({
                   id: (p._id || p.id || p.name).toString(),
@@ -914,17 +914,17 @@ export const PlacesScreen = ({ t, lang, initialPlaceId, onPlaceOpened, initialQu
             )}
 
             {/* Filter chips bar */}
-            <div className="flex items-center gap-2 overflow-x-auto no-scrollbar -mx-5 px-5 py-1 sticky top-0 bg-midnight/95 backdrop-blur-md z-10 border-b border-white/5">
+            <div className="flex items-center gap-2 overflow-x-auto no-scrollbar -mx-5 px-5 py-1 sticky top-0 bg-white/95 dark:bg-midnight/95 backdrop-blur-md z-10 border-b border-slate-200 dark:border-white/5">
               <button
                 onClick={() => setShowFilterPanel(true)}
-                className={`flex items-center gap-2 px-3.5 py-2.5 rounded-xl border font-black text-[10px] uppercase tracking-widest transition-all shrink-0 active:scale-95 ${activeFilterCount > 0 ? 'bg-oasis-spring text-midnight border-oasis-spring' : 'bg-chamber text-white border-white/10 hover:border-white/20'}`}>
+                className={`flex items-center gap-2 px-3.5 py-2.5 rounded-xl border font-black text-[10px] uppercase tracking-widest transition-all shrink-0 active:scale-95 ${activeFilterCount > 0 ? 'bg-oasis-spring text-midnight border-oasis-spring' : 'bg-white dark:bg-chamber text-slate-900 dark:text-white border-slate-200 dark:border-white/10 hover:border-slate-300 dark:hover:border-white/20 shadow-sm dark:shadow-none'}`}>
                 <SlidersHorizontal className="w-3.5 h-3.5" />
                 {ar ? 'تصفية' : 'Filters'}
                 {activeFilterCount > 0 && (
-                  <span className="bg-midnight/30 text-midnight px-1.5 py-0.5 rounded-md text-[9px]">{activeFilterCount}</span>
+                  <span className="bg-black/10 dark:bg-midnight/30 text-midnight px-1.5 py-0.5 rounded-md text-[9px]">{activeFilterCount}</span>
                 )}
               </button>
-              <div className="h-4 w-px bg-white/10 shrink-0" />
+              <div className="h-4 w-px bg-slate-300 dark:bg-white/10 shrink-0" />
               {QUICK_FILTERS.map(f => {
                 const on = quickFilters.has(f.id);
                 return (
@@ -938,7 +938,7 @@ export const PlacesScreen = ({ t, lang, initialPlaceId, onPlaceOpened, initialQu
 
             {/* Results header */}
             <div className="flex items-center justify-between">
-              <p className="text-[10px] font-black uppercase tracking-[0.18em] text-moon">
+              <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500 dark:text-moon">
                 {search
                   ? (ar ? `نتائج "${search}"` : `Results for "${search}"`)
                   : (ar ? 'الأماكن المقترحة' : 'Recommended')
