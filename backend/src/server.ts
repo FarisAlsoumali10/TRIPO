@@ -89,14 +89,13 @@ const limiter = rateLimit({
 app.use('/api/', limiter);
 
 // ==========================================
-// 🩺 Health Check (فحص صحة السيرفر)
+// 🛡️ Health Check Endpoint (For Server Monitoring & Preventing Cold Starts)
 // ==========================================
 app.get('/health', (req: Request, res: Response) => {
-  res.status(200).json({
-    status: 'ok',
-    uptime: process.uptime(),
-    timestamp: new Date().toISOString(),
-    environment: process.env.NODE_ENV || 'development'
+  res.status(200).json({ 
+    status: 'success', 
+    message: 'Tripo Backend is awake and running smoothly! 🚀',
+    timestamp: new Date().toISOString()
   });
 });
 

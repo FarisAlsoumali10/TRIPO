@@ -18,6 +18,11 @@ export const SafeImage: React.FC<SafeImageProps> = ({
 }) => {
   const [hasError, setHasError] = useState(false);
 
+  const backendUrl = import.meta.env.VITE_API_URL || '';
+  const imageUrl = src?.startsWith('/api') 
+    ? `${backendUrl}${src}` 
+    : src;
+
   if (hasError || !src) {
     return (
       <div
@@ -35,7 +40,7 @@ export const SafeImage: React.FC<SafeImageProps> = ({
 
   return (
     <img
-      src={src}
+      src={imageUrl}
       alt={alt ?? ''}
       className={className}
       onError={() => setHasError(true)}
