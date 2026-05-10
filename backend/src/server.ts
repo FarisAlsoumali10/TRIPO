@@ -59,7 +59,10 @@ const io = new Server(httpServer, {
 // ==========================================
 // 🛡️ Global Middlewares (دروع الحماية)
 // ==========================================
-app.use(helmet());
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: "cross-origin" }
+}));
+
 app.use(cors(corsOptions)); // استخدام نفس إعدادات CORS للـ Express
 app.options('*', cors(corsOptions)); // FIX: add preflight handler
 app.use(compression());
