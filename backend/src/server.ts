@@ -26,24 +26,12 @@ const httpServer = createServer(app);
 // ==========================================
 // 🛡️ CORS Configuration (TypeScript Proof)
 // ==========================================
-// ✅ النسخة المعتمدة والمفلترة بشكل صارم
-const ALLOWED_ORIGINS = [
-  'http://localhost:5173',
-  'http://127.0.0.1:5173',
-  /^http:\/\/192\.168\.\d{1,3}\.\d{1,3}(:\d+)?$/,  // any LAN IP
-  /^http:\/\/10\.\d{1,3}\.\d{1,3}\.\d{1,3}(:\d+)?$/, // 10.x.x.x subnets
-  process.env.FRONTEND_URL,
-].filter(Boolean);
-
 const corsOptions: CorsOptions = {
-  origin: (origin, callback) => {
-    // Allow requests with no origin (curl, Postman, server-to-server)
-    if (!origin) return callback(null, true);
-    const allowed = ALLOWED_ORIGINS.some(o =>
-      typeof o === 'string' ? o === origin : (o instanceof RegExp ? o.test(origin) : false)
-    );
-    callback(allowed ? null : new Error(`CORS blocked: ${origin}`), allowed);
-  },
+  origin: [
+    'https://tripo-frontend-phi.vercel.app',
+    'https://tripo-frontend-git-main-farisalsoumali10s-projects.vercel.app', // رابط الـ Preview لو احتجته
+    'http://localhost:5173',
+  ],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
