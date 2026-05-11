@@ -82,13 +82,15 @@ function distKm(lat1: number, lng1: number, lat2: number, lng2: number) {
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-const ACCESS_CONFIG = {
-  free:      { label: 'مجاني',     color: 'bg-oasis-spring/15 text-oasis-spring border border-oasis-spring/20' },
-  ticketed:  { label: 'بتذكرة',  color: 'bg-blue-500/15 text-blue-300 border border-blue-500/20' },
-  entry_fee: { label: 'رسوم دخول', color: 'bg-karam/15 text-karam border border-karam/20' },
-};
+const getAccessConfig = (isRTL: boolean) => ({
+  free:      { label: isRTL ? 'مجاني'     : 'Free',      color: 'bg-oasis-spring/15 text-oasis-spring border border-oasis-spring/20' },
+  ticketed:  { label: isRTL ? 'بتذكرة'    : 'Ticketed',  color: 'bg-blue-500/15 text-blue-300 border border-blue-500/20' },
+  entry_fee: { label: isRTL ? 'رسوم دخول' : 'Entry Fee', color: 'bg-karam/15 text-karam border border-karam/20' },
+});
 
-const PRICE_LABEL = ['', 'مجاني', 'اقتصادي', 'متوسط', 'فاخر'];
+const getPriceLabel = (isRTL: boolean) =>
+  isRTL ? ['', 'مجاني', 'اقتصادي', 'متوسط', 'فاخر'] : ['', 'Free', 'Budget', 'Mid-range', 'Premium'];
+
 const PRICE_COLOR = ['', 'text-oasis-spring', 'text-oasis-deep', 'text-karam', 'text-waypoint'];
 
 const PlaceCard = ({
@@ -104,7 +106,8 @@ const PlaceCard = ({
   setSelectedItem,
   viewMode,
   setShowBottomSheet,
-  handleAddToList
+  handleAddToList,
+  onOpenPlace,
 }: {
   place: Place;
   compact?: boolean;
@@ -119,6 +122,7 @@ const PlaceCard = ({
   viewMode: string;
   setShowBottomSheet: React.Dispatch<React.SetStateAction<boolean>>;
   handleAddToList: (e: React.MouseEvent, place: Place, listId: import('../types/index').PersonalListType) => void;
+  onOpenPlace?: (p: Place) => void;
   key?: React.Key;
 }) => {
   const id = place._id || place.id || '';
@@ -134,7 +138,8 @@ const PlaceCard = ({
     if (all.some(t => t.includes(c) || c.includes(t))) { catId = c; break; }
   }
   const catEmoji = CAT_EMOJI[catId] || '📍';
-  const accessCfg = place.accessType ? ACCESS_CONFIG[place.accessType as keyof typeof ACCESS_CONFIG] : null;
+  const accessCfg = place.accessType ? getAccessConfig(isRTL)[place.accessType as 'free' | 'ticketed' | 'entry_fee'] : null;
+  const PRICE_LABEL = getPriceLabel(isRTL);
   const isListMenuOpen = showListMenu === id;
 
   const distKm = (lat1: number, lng1: number, lat2: number, lng2: number) => {
@@ -157,7 +162,11 @@ const PlaceCard = ({
       id={`place-card-${id}`}
       onClick={() => {
         setSelectedItem(place);
-        if (viewMode === 'map') setShowBottomSheet(true);
+        if (viewMode === 'map') {
+          setShowBottomSheet(true);
+        } else if (viewMode === 'list' && onOpenPlace) {
+          onOpenPlace(place);
+        }
       }}
       className={`bg-slate-50 dark:bg-chamber rounded-[1.75rem] border border-slate-100 dark:border-white/10 shadow-lg overflow-hidden cursor-pointer active:scale-[0.98] transition-all ${(selectedItem?._id === id || selectedItem?.id === id) ? 'ring-2 ring-oasis-spring' : ''} ${compact ? 'flex gap-3 p-3' : ''}`}
     >
@@ -265,7 +274,7 @@ const PlaceCard = ({
                   <span className="text-lg">{l.emoji}</span> {l.label.toUpperCase()}
                 </button>
               ))}
-              <button onClick={e => { e.stopPropagation(); setShowListMenu(null); }} className="mt-2 text-slate-400 dark:text-moon/40 text-[10px] font-black uppercase tracking-widest hover:text-slate-900 dark:hover:text-white transition-colors">CANCEL</button>
+              <button onClick={e => { e.stopPropagation(); setShowListMenu(null); }} className="mt-2 text-slate-400 dark:text-moon/40 text-[10px] font-black uppercase tracking-widest hover:text-slate-900 dark:hover:text-white transition-colors">{isRTL ? 'إلغاء' : 'CANCEL'}</button>
             </div>
           )}
         </>
@@ -458,10 +467,10 @@ export const ExploreScreen = ({ t, onOpenPlace, lang = 'en', initialNearMe = fal
       const next = new Set(prev);
       if (next.has(id)) {
         next.delete(id);
-        showToast('تمت الإزالة من المحفوظات', 'success');
+        showToast(isRTL ? 'تمت الإزالة من المحفوظات' : 'Removed from saved', 'success');
       } else {
         next.add(id);
-        showToast('تم الحفظ!', 'success');
+        showToast(isRTL ? 'تم الحفظ!' : 'Saved!', 'success');
       }
       return next;
     });
@@ -469,7 +478,7 @@ export const ExploreScreen = ({ t, onOpenPlace, lang = 'en', initialNearMe = fal
     try {
       await placeAPI.toggleSavedPlace(id);
     } catch (err) {
-      showToast('حدث خطأ أثناء المزامنة', 'error');
+      showToast(isRTL ? 'حدث خطأ أثناء المزامنة' : 'Sync failed, please try again', 'error');
       setSavedIds(prev => {
         const next = new Set(prev);
         next.has(id) ? next.delete(id) : next.add(id);
@@ -488,7 +497,7 @@ export const ExploreScreen = ({ t, onOpenPlace, lang = 'en', initialNearMe = fal
       placeCity: place.city,
       addedAt: new Date().toISOString(),
     });
-    showToast('تمت الإضافة للقائمة ✓', 'success');
+    showToast(isRTL ? 'تمت الإضافة للقائمة ✓' : 'Added to list ✓', 'success');
     setShowListMenu(null);
   };
 
@@ -620,7 +629,12 @@ export const ExploreScreen = ({ t, onOpenPlace, lang = 'en', initialNearMe = fal
           <div className="w-full h-full">
             <React.Suspense fallback={<div className="w-full h-full bg-midnight animate-pulse" />}>
               <TripMap
-                places={(filtered ?? []).filter((p: any) => p?.location?.coordinates?.length === 2)}
+                places={(filtered ?? []).filter((p: any) => {
+                  // Support both location.coordinates[] and coordinates.lat/lng formats
+                  return p?.location?.coordinates?.length === 2 ||
+                    (p?.coordinates?.lat != null && p?.coordinates?.lng != null) ||
+                    (p?.lat != null && p?.lng != null);
+                })}
                 userPos={userPos}
                 selectedPlace={selectedItem}
                 onMarkerPress={(p) => { setSelectedItem(p); setShowBottomSheet(true); }}
@@ -648,6 +662,7 @@ export const ExploreScreen = ({ t, onOpenPlace, lang = 'en', initialNearMe = fal
                   viewMode={viewMode}
                   setShowBottomSheet={setShowBottomSheet}
                   handleAddToList={handleAddToList}
+                  onOpenPlace={onOpenPlace}
                 />
               ))
             ) : (

@@ -5,12 +5,12 @@ import L from 'leaflet';
 // ─── Custom emerald marker ────────────────────────────────────────────────────
 const createCustomIcon = (category: string) => {
   const emoji: Record<string, string> = {
-    Heritage:    '🏛️',
-    Nature:      '🌿',
-    Landmark:    '🗼',
-    Cultural:    '🎭',
-    Adventure:   '🧗',
-    default:     '📍',
+    Heritage: '🏛️',
+    Nature: '🌿',
+    Landmark: '🗼',
+    Cultural: '🎭',
+    Adventure: '🧗',
+    default: '📍',
   };
   const icon = emoji[category] ?? emoji.default;
 
@@ -28,9 +28,9 @@ const createCustomIcon = (category: string) => {
       ">
         <span style="transform: rotate(45deg); font-size: 16px;">${icon}</span>
       </div>`,
-    iconSize:   [36, 36],
+    iconSize: [36, 36],
     iconAnchor: [18, 36],
-    popupAnchor:[0, -38],
+    popupAnchor: [0, -38],
   });
 };
 
@@ -45,29 +45,52 @@ export interface MapPlace {
   category: string;
   ratingSummary?: { avgRating: number; reviewCount: number };
   image?: string;
-  location: {
+  // GeoJSON format (MongoDB)
+  location?: {
     type: 'Point';
     coordinates: [number, number]; // [lng, lat]
   };
+  // Flat format used by some API responses
+  coordinates?: { lat: number; lng: number };
+  lat?: number;
+  lng?: number;
 }
 
 interface TripMapProps {
   places: MapPlace[];
   selectedId?: string;
+  selectedPlace?: MapPlace | null;
   onSelectPlace?: (place: MapPlace) => void;
+  onMarkerPress?: (place: MapPlace) => void;
+  onMapPress?: () => void;
   lang?: 'en' | 'ar';
   height?: string;
   centerOnSelected?: boolean;
   userPos?: { lat: number; lng: number } | null;
 }
 
+// ─── Helper: extract [lat, lng] from a place regardless of coordinate format ──
+function getLatLng(place: MapPlace): [number, number] | null {
+  if (place.location?.coordinates?.length === 2) {
+    const [lng, lat] = place.location.coordinates;
+    return [lat, lng];
+  }
+  if (place.coordinates?.lat != null && place.coordinates?.lng != null) {
+    return [place.coordinates.lat, place.coordinates.lng];
+  }
+  if (place.lat != null && place.lng != null) {
+    return [place.lat as number, place.lng as number];
+  }
+  return null;
+}
+
 // ─── Helper: fly to selected marker ──────────────────────────────────────────
 function FlyToSelected({ place }: { place: MapPlace | undefined }) {
   const map = useMap();
   useEffect(() => {
-    if (!place?.location?.coordinates || place.location.coordinates.length < 2) return;
-    const [lng, lat] = place.location.coordinates;
-    map.flyTo([lat, lng], 13, { duration: 1.2 });
+    const coords = place ? getLatLng(place) : null;
+    if (!coords) return;
+    map.flyTo(coords, 13, { duration: 1.2 });
   }, [place, map]);
   return null;
 }
@@ -122,7 +145,10 @@ function LocationMarker({ position }: { position: { lat: number; lng: number } |
 export const TripMap: React.FC<TripMapProps> = ({
   places,
   selectedId,
+  selectedPlace,
   onSelectPlace,
+  onMarkerPress,
+  onMapPress: _onMapPress,
   lang = 'en',
   height = '400px',
   centerOnSelected = true,
@@ -130,16 +156,18 @@ export const TripMap: React.FC<TripMapProps> = ({
 }) => {
   const isRTL = lang === 'ar';
 
-  // ✅ فلتر آمن قبل أي شيء
+  // ✅ فلتر آمن قبل أي شيء — يقبل كلا تنسيقي الإحداثيات
   const safePlaces = (places ?? []).filter(
-    p => p?.location?.coordinates?.length === 2
+    p => getLatLng(p) !== null
   );
 
   // Default center: Saudi Arabia
   const defaultCenter: [number, number] = [24.7136, 46.6753];
   const defaultZoom = 5;
 
-  const selectedPlace = safePlaces.find(p => (p.id || p._id) === selectedId);
+  const resolvedSelectedId = selectedId || (selectedPlace as any)?._id || (selectedPlace as any)?.id;
+  const selectedPlaceObj = safePlaces.find(p => (p.id || p._id) === resolvedSelectedId);
+  const handleSelect = onSelectPlace || onMarkerPress;
 
   return (
     <div style={{ height, width: '100%', borderRadius: '16px', overflow: 'hidden' }}>
@@ -155,7 +183,7 @@ export const TripMap: React.FC<TripMapProps> = ({
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/">CARTO</a>'
           url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
         />
-        
+
         {/* Force size invalidation to fix grey map rendering */}
         <MapResizer />
 
@@ -164,19 +192,21 @@ export const TripMap: React.FC<TripMapProps> = ({
 
         {/* Fly to selected */}
         {centerOnSelected && (
-          <FlyToSelected place={selectedPlace} />
+          <FlyToSelected place={selectedPlaceObj} />
         )}
 
         {/* Place markers */}
         {safePlaces.map(place => {
-          const [lng, lat] = place.location.coordinates;
-          const isSelected = (place.id || place._id) === selectedId;
+          const coords = getLatLng(place);
+          if (!coords) return null;
+          const [lat, lng] = coords;
+          const isSelected = (place.id || place._id) === resolvedSelectedId;
           return (
             <Marker
               key={place.id || place._id}
               position={[lat, lng]}
               icon={createCustomIcon(place.category || 'default')}
-              eventHandlers={{ click: () => onSelectPlace?.(place) }}
+              eventHandlers={{ click: () => handleSelect?.(place) }}
               zIndexOffset={isSelected ? 1000 : 0}
             >
               <Popup minWidth={200}>
@@ -200,9 +230,9 @@ export const TripMap: React.FC<TripMapProps> = ({
                       ★ {place.ratingSummary.avgRating.toFixed(1)}
                     </span>
                   )}
-                  {onSelectPlace && (
+                  {handleSelect && (
                     <button
-                      onClick={() => onSelectPlace(place)}
+                      onClick={() => handleSelect(place)}
                       style={{
                         display: 'block', width: '100%', marginTop: '8px',
                         background: '#10b981', color: 'white', border: 'none',

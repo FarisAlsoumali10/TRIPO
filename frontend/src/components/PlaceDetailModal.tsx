@@ -580,14 +580,20 @@ export const PlaceDetailModal = ({
       {lightboxIdx !== null && (
         <PhotoLightbox photos={placePhotos} initialIndex={lightboxIdx} onClose={() => setLightboxIdx(null)} />
       )}
-      <div className={mode === 'page'
-        ? "fixed inset-0 z-[100] bg-midnight overflow-y-auto"
-        : "fixed inset-0 z-[100] bg-black/80 backdrop-blur-md flex items-end sm:items-center justify-center p-4 animate-in fade-in duration-200"
-      }>
-        <div className={mode === 'page'
-          ? "relative w-full max-w-2xl mx-auto min-h-full flex flex-col bg-midnight"
-          : "bg-chamber w-full max-w-sm rounded-[2.5rem] overflow-hidden shadow-2xl relative animate-in slide-in-from-bottom duration-300 max-h-[90vh] flex flex-col border border-white/5"
-        }>
+      <div
+        className={mode === 'page'
+          ? "fixed inset-0 z-[100] bg-midnight overflow-y-auto"
+          : "fixed inset-0 z-[100] bg-black/80 backdrop-blur-md flex items-end sm:items-center justify-center p-4 animate-in fade-in duration-200"
+        }
+        onClick={mode === 'modal' ? onClose : undefined}
+      >
+        <div
+          className={mode === 'page'
+            ? "relative w-full max-w-2xl mx-auto min-h-full flex flex-col bg-midnight"
+            : "bg-chamber w-full max-w-2xl rounded-[2.5rem] overflow-hidden shadow-2xl relative animate-in slide-in-from-bottom duration-300 max-h-[90vh] flex flex-col border border-white/5"
+          }
+          onClick={mode === 'modal' ? (e) => e.stopPropagation() : undefined}
+        >
 
           {/* ── CINEMATIC HERO ── */}
           <div className={`${mode === 'page' ? 'h-[55vh]' : 'h-64'} w-full relative bg-slate-900 shrink-0 overflow-hidden`}>
@@ -790,7 +796,7 @@ export const PlaceDetailModal = ({
                 className="flex-shrink-0 flex items-center gap-2 bg-lifted text-white px-5 py-2.5 rounded-2xl text-[11px] font-black border border-white/10 hover:bg-white/15 transition-all uppercase tracking-widest"
               >
                 <FolderPlus className="w-4 h-4" />
-                Add to Trip
+                {t.addToTrip || (lang === 'ar' ? 'أضف للرحلة' : 'Add to Trip')}
               </button>
             )}
           </div>

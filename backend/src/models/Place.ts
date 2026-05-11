@@ -5,6 +5,7 @@ export interface IPlace extends Document {
   name: string;
   nameAr?: string;
   city: string;
+  cityAr?: string;
   description: string;
   descriptionAr?: string;
   categoryTags: string[];
@@ -62,6 +63,10 @@ const placeSchema = new Schema({
     required: true,
     index: true,
     default: 'Riyadh'
+  },
+  cityAr: {
+    type: String,
+    trim: true
   },
   description: {
     type: String,
