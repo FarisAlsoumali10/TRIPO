@@ -180,6 +180,14 @@ export const bookTour = async (req: AuthRequest, res: Response) => {
     const { tourId } = req.params;
     const { date, guests = 1 } = req.body;
 
+    const bookingDate = new Date(date);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    if (bookingDate < today) {
+      return res.status(400).json({ error: 'لا يمكن الحجز في تاريخ ماضٍ' });
+    }
+
     const tour = await Tour.findById(tourId);
     if (!tour) return res.status(404).json({ error: 'Tour not found' });
     if (tour.status !== 'active') return res.status(400).json({ error: 'This tour is not currently available' });

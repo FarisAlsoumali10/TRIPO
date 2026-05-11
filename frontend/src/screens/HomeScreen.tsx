@@ -314,11 +314,11 @@ export const HomeScreen = ({
       .map(p => ({
         id: p._id || p.id || '',
         type: 'place' as const,
-        name: p.name,
+        name: isRTL && (p as any).nameAr ? (p as any).nameAr : p.name,
         image: p.photos?.[0] || p.image || '',
-        subtitle: p.city || p.categoryTags?.[0] || 'Saudi Arabia',
+        subtitle: isRTL && (p as any).cityAr ? (p as any).cityAr : (p.city || 'Saudi Arabia'),
         rating: p.ratingSummary?.avgRating || p.rating,
-        badge: 'Place', badgeColor: '#00f2ea',
+        badge: isRTL ? 'مكان' : 'Place', badgeColor: '#00f2ea',
       }));
 
     const topTours = [...tours]
@@ -327,11 +327,11 @@ export const HomeScreen = ({
       .map(tour => ({
         id: tour.id || (tour as any)._id || '',
         type: 'tour' as const,
-        name: tour.title,
+        name: isRTL && (tour as any).titleAr ? (tour as any).titleAr : tour.title,
         image: tour.heroImage || '',
         subtitle: tour.departureLocation || tour.category || 'Saudi Arabia',
         rating: Number(tour.rating) || undefined,
-        badge: 'Tour', badgeColor: '#00f2ea',
+        badge: isRTL ? 'جولة' : 'Tour', badgeColor: '#00f2ea',
       }));
 
     const topRentals = [...featuredRentals]
@@ -340,11 +340,11 @@ export const HomeScreen = ({
       .map(r => ({
         id: r.id || (r as any)._id || '',
         type: 'rental' as const,
-        name: r.title,
+        name: isRTL && (r as any).titleAr ? (r as any).titleAr : r.title,
         image: r.images?.[0] || r.image || '',
         subtitle: r.locationName || r.type || 'Saudi Arabia',
         rating: Number(r.rating) || undefined,
-        badge: r.type || 'Rental', badgeColor: '#00f2ea',
+        badge: r.type || (isRTL ? 'إيجار' : 'Rental'), badgeColor: '#00f2ea',
       }));
 
     const result: SlideItem[] = [];
@@ -501,10 +501,10 @@ export const HomeScreen = ({
         <div className="flex gap-4 min-w-max pb-2">
           {[
             { id: 'explore', icon: Compass, label: isRTL ? 'خريطة' : 'Map', color: 'text-blue-400' },
-            { id: 'aiplanner', icon: Sparkles, label: isRTL ? 'مخطط' : 'Planner', color: 'text-purple-400' },
+            { id: 'ai_planner', icon: Sparkles, label: isRTL ? 'مخطط' : 'Planner', color: 'text-purple-400' },
             { id: 'create', icon: Plus, label: isRTL ? 'جديد' : 'New', color: 'text-oasis-spring' },
             { id: 'guide', icon: Camera, label: isRTL ? 'واقع معزز' : 'AR Guide', color: 'text-orange-400' },
-            { id: 'mood', icon: Heart, label: isRTL ? 'مزاجي' : 'Mood', color: 'text-pink-400' }
+            { id: 'your_mood', icon: Heart, label: isRTL ? 'مزاجي' : 'Mood', color: 'text-pink-400' }
           ].map((action) => (
             <button
               key={action.id}
@@ -524,7 +524,7 @@ export const HomeScreen = ({
       {/* ── Mood Section (Glass Card) ───────────────────────────────────── */}
       <div className="px-6 mt-8 section-reveal">
         <button
-          onClick={() => onNavigate?.('yourmood')}
+          onClick={() => onNavigate?.('your_mood')}
           className="w-full relative overflow-hidden rounded-[2rem] bg-slate-50 dark:bg-gradient-to-br dark:from-purple-500/10 dark:to-blue-500/10 border border-slate-100 dark:border-white/10 p-6 active:scale-[0.98] transition-all shadow-2xl group"
         >
           <div className="flex items-center gap-5">

@@ -410,6 +410,11 @@ const RentalDetailPage = ({
                     value={bookingDate}
                     onChange={e => setBookingDate(e.target.value)}
                     min={new Date().toISOString().slice(0, 10)}
+                    onClick={(e) => {
+                      if ('showPicker' in HTMLInputElement.prototype) {
+                        (e.currentTarget as HTMLInputElement).showPicker();
+                      }
+                    }}
                     className="w-full bg-slate-50 dark:bg-navy-950 border border-slate-100 dark:border-white/8 rounded-xl px-4 py-3 text-sm text-slate-900 dark:text-white font-bold focus:outline-none focus:ring-2 focus:ring-oasis-spring/30 transition-all"
                   />
                 </div>

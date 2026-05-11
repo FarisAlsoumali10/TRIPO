@@ -96,6 +96,15 @@ export const bookRental = async (req: AuthRequest, res: Response) => {
     }
 
     const { date, nightsOrHours = 1, slot, totalPrice } = req.body;
+
+    const bookingDate = new Date(date);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    if (bookingDate < today) {
+      return res.status(400).json({ success: false, error: 'لا يمكن الحجز في تاريخ ماضٍ' });
+    }
+
     const price = totalPrice ?? (rental.price * (nightsOrHours || 1));
 
     // Persist the booking

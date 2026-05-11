@@ -9,8 +9,9 @@ export interface Booking {
   image: string;
   date: string;
   location: string;
-  status: 'upcoming' | 'completed' | 'cancelled';
   price: number;
+  tourId?: string;
+  paymentStatus?: string;
 }
 
 interface MyBookingsProps {
@@ -44,12 +45,14 @@ export const MyBookingsScreen: React.FC<MyBookingsProps> = ({
         
         const mapped: Booking[] = data.map((b: any) => ({
           id: b.id || b._id,
-          title: b.tourTitle || b.rentalTitle || 'Booking',
+          title: (isRTL && b.tourTitleAr) ? b.tourTitleAr : (b.tourTitle || b.rentalTitle || 'Booking'),
           image: b.tourImage || b.rentalImage || '',
           date: b.date || b.bookedAt,
           location: b.departureLocation || b.location || '',
           status: b.status === 'confirmed' ? 'upcoming' : b.status,
-          price: b.totalPrice || 0
+          price: b.totalPrice || 0,
+          tourId: b.tourId,
+          paymentStatus: b.paymentStatus
         }));
 
         setBookings(mapped);
@@ -63,6 +66,20 @@ export const MyBookingsScreen: React.FC<MyBookingsProps> = ({
 
     fetchBookings();
   }, [initialBookings, isRTL]);
+
+  const handleCancel = async (bookingId: string) => {
+    if (!window.confirm(isRTL ? 'هل أنت متأكد أنك تريد إلغاء هذا الحجز؟' : 'Are you sure you want to cancel this booking?')) return;
+    try {
+      setIsLoading(true);
+      await bookingAPI.cancelBooking(bookingId);
+      setBookings(prev => prev.map(b => b.id === bookingId ? { ...b, status: 'cancelled' } : b));
+    } catch (err) {
+      console.error('Failed to cancel booking:', err);
+      alert(isRTL ? 'فشل إلغاء الحجز' : 'Failed to cancel booking');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const dict = useMemo(() => ({
     title: isRTL ? 'حجوزاتي' : 'My Bookings',
@@ -78,6 +95,7 @@ export const MyBookingsScreen: React.FC<MyBookingsProps> = ({
     },
     bookingId: isRTL ? 'رقم الحجز:' : 'Booking ID:',
     viewTicket: isRTL ? 'عرض التذكرة' : 'View Ticket',
+    cancelBooking: isRTL ? 'إلغاء الحجز' : 'Cancel',
     rebook: isRTL ? 'احجز مجدداً' : 'Book Again',
   }), [isRTL]);
 
@@ -151,7 +169,7 @@ export const MyBookingsScreen: React.FC<MyBookingsProps> = ({
                 {/* Info Section */}
                 <div className={`flex-1 p-4 flex flex-col justify-between ${isRTL ? 'text-right' : 'text-left'}`}>
                   <div>
-                    <h3 className="font-black text-slate-900 dark:text-white text-sm line-clamp-2 leading-tight uppercase tracking-wide">
+                    <h3 className="font-black text-slate-900 dark:text-white text-sm line-clamp-2 leading-tight tracking-wide" style={{ textTransform: isRTL ? 'none' : 'uppercase' }}>
                       {booking.title}
                     </h3>
                     <div className={`flex items-center gap-2 text-[10px] font-bold text-slate-500 dark:text-slate-500 mt-2 ${isRTL ? 'flex-row-reverse' : ''}`}>
@@ -162,11 +180,21 @@ export const MyBookingsScreen: React.FC<MyBookingsProps> = ({
                   
                   <div className={`flex items-center justify-between mt-2 ${isRTL ? 'flex-row-reverse' : ''}`}>
                     <span className="text-[9px] font-black text-slate-500/30 dark:text-slate-500/30 uppercase tracking-widest">
-                      {dict.bookingId} {booking.id}
+                      {dict.bookingId} {booking.id.substring(booking.id.length - 6).toUpperCase()}
                     </span>
-                    <button className="flex items-center justify-center w-9 h-9 bg-slate-100 dark:bg-navy-800 text-oasis-spring rounded-full hover:scale-110 transition-transform shadow-lg">
-                      {isRTL ? <ChevronLeft className="w-5 h-5" /> : <ChevronRight className="w-5 h-5" />}
-                    </button>
+                    <div className="flex gap-2">
+                      {booking.status === 'upcoming' && (
+                        <button onClick={() => handleCancel(booking.id)} className="px-3 py-1 bg-red-100 dark:bg-red-900/30 text-red-500 text-[10px] font-bold rounded-lg hover:scale-105 transition-transform">
+                          {dict.cancelBooking}
+                        </button>
+                      )}
+                      <button 
+                        onClick={() => booking.tourId ? onNavigate('tours', booking.tourId) : null}
+                        className="flex items-center justify-center w-9 h-9 bg-slate-100 dark:bg-navy-800 text-oasis-spring rounded-full hover:scale-110 transition-transform shadow-lg"
+                      >
+                        {isRTL ? <ChevronLeft className="w-5 h-5" /> : <ChevronRight className="w-5 h-5" />}
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>

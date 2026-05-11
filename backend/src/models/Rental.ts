@@ -2,6 +2,7 @@ import mongoose, { Schema, Document, Types } from 'mongoose';
 
 export interface IRental extends Document {
   title: string;
+  titleAr?: string;
   price: number;
   capacity?: number;
   locationName: string;
@@ -27,6 +28,7 @@ export interface IRental extends Document {
 
 const RentalSchema: Schema = new Schema({
   title:        { type: String, required: true },
+  titleAr:      { type: String },
   price:            { type: Number, required: true },
   commissionRate:   { type: Number, min: 0, max: 1 },  // overrides PLATFORM_FEE_RATE when set
   capacity:     { type: Number },

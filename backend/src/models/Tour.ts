@@ -14,6 +14,7 @@ export interface ITourStop {
 
 export interface ITour extends Document {
   title: string;
+  titleAr?: string;
   slug: string;
   description: string;
   highlights: string[];
@@ -63,6 +64,7 @@ const tourStopSchema = new Schema<ITourStop>(
 const tourSchema = new Schema<ITour>(
   {
     title: { type: String, required: true, trim: true },
+    titleAr: { type: String, trim: true },
     slug: { type: String, unique: true, sparse: true, lowercase: true, trim: true },
     description: { type: String, default: '', trim: true },
     highlights: { type: [String], default: [] },

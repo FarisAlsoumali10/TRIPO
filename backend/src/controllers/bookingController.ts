@@ -23,12 +23,13 @@ export const getMyBookings = async (req: AuthRequest, res: Response) => {
 
         if (b.targetType === 'tour') {
           const tour = await Tour.findById(b.targetId).select(
-            'title heroImage guideName guideAvatar departureLocation totalDuration'
+            'title titleAr heroImage guideName guideAvatar departureLocation totalDuration'
           );
           return {
             id: b._id,
             tourId: String(b.targetId),
             tourTitle: tour?.title || details.tourTitle || 'Tour',
+            tourTitleAr: tour?.titleAr || details.tourTitleAr || '',
             tourImage: tour?.heroImage || '',
             guideName: tour?.guideName || 'Guide',
             guideAvatar: tour?.guideAvatar,
@@ -47,12 +48,13 @@ export const getMyBookings = async (req: AuthRequest, res: Response) => {
 
         if (b.targetType === 'rental') {
           const rental = await Rental.findById(b.targetId).select(
-            'title images image locationName'
+            'title titleAr images image locationName'
           );
           return {
             id: b._id,
             tourId: String(b.targetId),
             tourTitle: rental?.title || details.rentalTitle || 'Rental',
+            tourTitleAr: rental?.titleAr || details.rentalTitleAr || '',
             tourImage: rental?.images?.[0] || rental?.image || '',
             guideName: rental?.locationName || '',
             date: details.date || '',
@@ -72,6 +74,7 @@ export const getMyBookings = async (req: AuthRequest, res: Response) => {
           id: b._id,
           tourId: String(b.targetId),
           tourTitle: details.tourTitle || details.rentalTitle || 'Booking',
+          tourTitleAr: details.tourTitleAr || details.rentalTitleAr || '',
           tourImage: '',
           guideName: '',
           date: details.date || '',
