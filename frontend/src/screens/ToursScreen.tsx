@@ -298,7 +298,7 @@ export const ToursScreen: React.FC<ToursScreenProps> = ({ t, lang, onBookingComp
         showToast('Removed from saved', 'success');
       } else {
         next.add(id);
-        showToast('Saved!', 'success');
+        showToast(ar ? 'تم الحفظ!' : 'Saved!', 'success');
       }
       return next;
     });
@@ -306,7 +306,7 @@ export const ToursScreen: React.FC<ToursScreenProps> = ({ t, lang, onBookingComp
     try {
       await tourAPI.toggleSavedTour(id);
     } catch (err) {
-      showToast('Failed to sync save status', 'error');
+      showToast(ar ? 'فشل المزامنة، حاول مجدداً' : 'Failed to sync save status', 'error');
       // Revert if failed
       setSavedIds(prev => {
         const next = new Set(prev);
@@ -319,11 +319,11 @@ export const ToursScreen: React.FC<ToursScreenProps> = ({ t, lang, onBookingComp
   const handleQuickFilter = (f: QuickFilter) => {
     if (f === quickFilter) { setQuickFilter(null); return; }
     if (f === 'near_me') {
-      if (!navigator.geolocation) { showToast('Geolocation not supported by your browser', 'error'); return; }
+      if (!navigator.geolocation) { showToast(ar ? 'الموقع الجغرافي غير مدعوم في متصفحك' : 'Geolocation not supported by your browser', 'error'); return; }
       setLocating(true);
       navigator.geolocation.getCurrentPosition(
         pos => { setUserCoords([pos.coords.latitude, pos.coords.longitude]); setQuickFilter('near_me'); setLocating(false); },
-        () => { showToast('Could not get your location', 'error'); setLocating(false); }
+        () => { showToast(ar ? 'تعذّر تحديد موقعك' : 'Could not get your location', 'error'); setLocating(false); }
       );
       return;
     }
@@ -429,7 +429,7 @@ export const ToursScreen: React.FC<ToursScreenProps> = ({ t, lang, onBookingComp
         chatMessages: [],
         expenses: [],
       };
-      showToast(`Booking confirmed! You've joined the ${bookingTour.title} group!`, 'success');
+      showToast(ar ? `تم تأكيد الحجز! انضممت إلى رحلة ${bookingTour.title}` : `Booking confirmed! You've joined the ${bookingTour.title} group!`, 'success');
       setBookingTour(null);
       setSelectedTour(null);
       onBookingComplete(itinerary, groupTripObj as any);
@@ -582,7 +582,7 @@ export const ToursScreen: React.FC<ToursScreenProps> = ({ t, lang, onBookingComp
                   <div className="relative h-28">
                     <SafeImage src={tour.heroImage} alt={tour.title} className="w-full h-full object-cover" fallbackType="placeholder" seed={tour.title} />
                     <div className="absolute inset-0 bg-gradient-to-t from-white/80 dark:from-midnight/80 to-transparent" />
-                    <span className="absolute top-2 left-2 bg-oasis-spring text-midnight text-[8px] font-black px-2 py-0.5 rounded-full shadow-mint-glow">NEW</span>
+                    <span className="absolute top-2 left-2 bg-oasis-spring text-midnight text-[8px] font-black px-2 py-0.5 rounded-full shadow-mint-glow">{ar ? 'جديد' : 'NEW'}</span>
                   </div>
                   <div className="p-3 text-left">
                     <p className="text-xs font-black text-slate-900 dark:text-white line-clamp-2 leading-tight mb-2">{tour.title}</p>
@@ -706,7 +706,7 @@ export const ToursScreen: React.FC<ToursScreenProps> = ({ t, lang, onBookingComp
       {hasNetworkError && !isLoading && (
         <div className="mx-4 mt-3 flex items-center gap-2 bg-amber-500/10 border border-amber-500/20 rounded-xl px-3 py-2 animate-in fade-in">
           <WifiOff className="w-4 h-4 text-amber-400 flex-shrink-0" />
-          <p className="text-xs font-bold text-amber-200">Check your connection</p>
+          <p className="text-xs font-bold text-amber-200">{ar ? 'تحقق من اتصالك بالإنترنت' : 'Check your connection'}</p>
           <button
             onClick={() => {
               setHasNetworkError(false);
@@ -715,7 +715,7 @@ export const ToursScreen: React.FC<ToursScreenProps> = ({ t, lang, onBookingComp
             }}
             className="ml-auto text-xs font-black text-amber-400 hover:underline"
           >
-            Retry
+            {ar ? 'إعادة المحاولة' : 'Retry'}
           </button>
         </div>
       )}
@@ -730,20 +730,22 @@ export const ToursScreen: React.FC<ToursScreenProps> = ({ t, lang, onBookingComp
           <>
             {(search || quickFilter || category !== 'all' || cityFilter !== 'All Cities' || isFilterActive) && (
               <p className="text-[10px] text-moon font-black uppercase tracking-widest mb-3">
-                {displayedTours.length === 0 ? 'No tours found' : `${displayedTours.length} tour${displayedTours.length !== 1 ? 's' : ''} found`}
-                {search && <span className="text-moon/40 lowercase tracking-normal"> for "<span className="text-oasis-spring">{search}</span>"</span>}
+                {ar
+                  ? (displayedTours.length === 0 ? 'لا توجد جولات' : `${displayedTours.length} جولة`)
+                  : (displayedTours.length === 0 ? 'No tours found' : `${displayedTours.length} tour${displayedTours.length !== 1 ? 's' : ''} found`)}
+                {search && <span className="text-moon/40 lowercase tracking-normal"> {ar ? 'لـ' : 'for'} "<span className="text-oasis-spring">{search}</span>"</span>}
               </p>
             )}
             {displayedTours.length === 0 ? (
               <div className="text-center py-16 animate-in fade-in bg-slate-50 dark:bg-chamber/20 rounded-3xl border border-dashed border-slate-200 dark:border-white/5">
                 <Compass className="w-12 h-12 text-slate-300 dark:text-moon/20 mx-auto mb-3" />
-                <h3 className="font-black text-slate-900 dark:text-white text-lg mb-1">No tours found</h3>
-                <p className="text-slate-500 dark:text-moon/40 text-sm">Try a different category or adjust your filters.</p>
+                <h3 className="font-black text-slate-900 dark:text-white text-lg mb-1">{ar ? 'لا توجد جولات' : 'No tours found'}</h3>
+                <p className="text-slate-500 dark:text-moon/40 text-sm">{ar ? 'جرّب فئة مختلفة أو عدّل الفلاتر.' : 'Try a different category or adjust your filters.'}</p>
                 <button
                   onClick={() => { setCategory('all'); setCityFilter('All Cities'); setFilterState(DEFAULT_FILTER); setSearch(''); setQuickFilter(null); }}
                   className="mt-4 px-6 py-3 bg-slate-100 dark:bg-lifted text-slate-900 dark:text-white border border-slate-200 dark:border-white/10 rounded-xl font-black text-sm hover:bg-white dark:hover:bg-navy-900 hover:text-midnight transition-all active:scale-95"
                 >
-                  Clear All Filters
+                  {ar ? 'مسح كل الفلاتر' : 'Clear All Filters'}
                 </button>
               </div>
             ) : (
@@ -767,7 +769,9 @@ export const ToursScreen: React.FC<ToursScreenProps> = ({ t, lang, onBookingComp
                       onClick={() => setVisibleCount(prev => prev + 6)}
                     className="px-8 py-4 bg-slate-50 dark:bg-chamber border border-slate-100 dark:border-white/10 text-slate-500 dark:text-moon font-black text-sm rounded-2xl hover:bg-slate-100 dark:hover:bg-lifted hover:text-slate-900 dark:hover:text-white transition-all shadow-xl active:scale-95"
                     >
-                      Load more ({displayedTours.length - visibleCount} remaining)
+                      {ar
+                        ? `عرض المزيد (${displayedTours.length - visibleCount} متبقية)`
+                        : `Load more (${displayedTours.length - visibleCount} remaining)`}
                     </button>
                   </div>
                 )}
@@ -776,7 +780,7 @@ export const ToursScreen: React.FC<ToursScreenProps> = ({ t, lang, onBookingComp
             {searchFocused && trendingItems.length > 0 && (
               <TrendingCards
                 items={trendingItems}
-                label="🔥 Trending Tours"
+                label={ar ? '🔥 الجولات الرائجة' : '🔥 Trending Tours'}
                 onSelect={item => {
                   const tour = tours.find(t => (t.id || (t as any)._id) === item.id) ?? null;
                   if (tour) setSelectedTour(tour);

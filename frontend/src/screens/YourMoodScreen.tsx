@@ -384,7 +384,7 @@ export const YourMoodScreen = ({ user, onNavigate, t, lang }: { user: User; onNa
       next.has(id) ? next.delete(id) : next.add(id);
       return next;
     });
-    try { await placeAPI.toggleSavedPlace(id); } catch { setSavedPlaceIds(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; }); showToast('Sync failed', 'error'); }
+    try { await placeAPI.toggleSavedPlace(id); } catch { setSavedPlaceIds(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; }); showToast(ar ? 'فشل المزامنة' : 'Sync failed', 'error'); }
   };
 
   const handleToggleTourSave = async (id: string) => {
@@ -393,7 +393,7 @@ export const YourMoodScreen = ({ user, onNavigate, t, lang }: { user: User; onNa
       next.has(id) ? next.delete(id) : next.add(id);
       return next;
     });
-    try { await tourAPI.toggleSavedTour(id); } catch { setSavedTourIds(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; }); showToast('Sync failed', 'error'); }
+    try { await tourAPI.toggleSavedTour(id); } catch { setSavedTourIds(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; }); showToast(ar ? 'فشل المزامنة' : 'Sync failed', 'error'); }
   };
 
   const handleToggleRentalSave = async (id: string) => {
@@ -627,7 +627,7 @@ export const YourMoodScreen = ({ user, onNavigate, t, lang }: { user: User; onNa
           <p className="text-slate-500 dark:text-slate-500 text-xs font-medium mb-0.5">{getContextualLine(ar)}</p>
           <p className="text-slate-500 dark:text-slate-500 text-sm font-medium">{getGreeting(t)},</p>
           <h1 className="text-slate-900 dark:text-white text-2xl font-extrabold leading-tight mt-0.5">
-            {user?.name?.split(' ')[0] || 'Explorer'} — {t?.moodHereYourDay || "here's your day 🎯"}
+            {user?.name?.split(' ')[0] || (ar ? 'مستكشف' : 'Explorer')} — {t?.moodHereYourDay || (ar ? 'ها هو يومك 🎯' : "here's your day 🎯")}
           </h1>
 
           {streakCount > 0 && (
@@ -755,10 +755,12 @@ export const YourMoodScreen = ({ user, onNavigate, t, lang }: { user: User; onNa
                             )}
                           </div>
                           <div className="p-3">
-                            <p className="font-bold text-slate-900 dark:text-white text-sm truncate">{place.name}</p>
+                            <p className="font-bold text-slate-900 dark:text-white text-sm truncate">
+                              {ar && (place as any).nameAr ? (place as any).nameAr : place.name}
+                            </p>
                             <p className="text-xs text-slate-500 dark:text-slate-500 flex items-center gap-1 mt-0.5 truncate">
                               <MapPin className="w-3 h-3 flex-shrink-0" />
-                              {place.city || 'Saudi Arabia'}
+                              {ar && (place as any).cityAr ? (place as any).cityAr : (place.city || 'Saudi Arabia')}
                             </p>
                           </div>
                         </button>
