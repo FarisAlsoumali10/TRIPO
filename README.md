@@ -136,7 +136,9 @@ cd frontend && npm run test:ui
 ---
 
 Lead Developer & Architect: Faris Alsoumali.
+----------------------------------------------------------------
 Devoloper UI/UX Engineer: Abdulrahman Aldoumaikhi.
+----------------------------------------------------------------
 
 *Developed with engineering excellence for the Saudi Micro-Tourism Sector.*
 
