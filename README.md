@@ -1,5 +1,6 @@
+
 <div align="center">
-  <img src="https://via.placeholder.com/150/0f172a/7CF7C8?text=Tripo+Logo" alt="Tripo Logo" width="120" height="120" />
+  <img width="120" height="120" alt="Tripo Web App" src="https://github.com/user-attachments/assets/a4ab70e4-0d0a-469f-a9d0-03552e024be9" />
 
   <h1>🚀 Tripo | تريبو</h1>
   <p><b>Intelligent Micro-Escape & Social Discovery Platform</b></p>
@@ -46,7 +47,8 @@
 Tripo is designed with a decoupled, high-cohesion architecture, ensuring maximum availability, secure data flow, and horizontal scalability.
 
 <div align="center">
-  <img src="./1000074326.jpg" alt="Tripo System Architecture Diagram" width="800" />
+ <img width="800" height="" alt="Tripo Architecture Design" src="https://github.com/user-attachments/assets/a1d4bcbd-2207-4b11-b59f-d0a34d69b49b" />
+
   <p><i>High-level architecture illustrating the separation of concerns, API Gateway, and Real-time data flow.</i></p>
 </div>
 
